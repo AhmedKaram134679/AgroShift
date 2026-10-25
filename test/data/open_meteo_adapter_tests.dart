@@ -295,18 +295,26 @@ void main() {
       // Exactly 10% missing for each variable => within tolerance threshold
       expect(result.isSuccess, isTrue);
       final records = result.dataOrNull!;
-      // Total records created is 9 because Day 1 had missing temperature
-      expect(records.length, equals(9));
-      // First created record corresponds to Day 2: ET0 is null, precipitation is 0.0
-      // Verify that expectedPeriodDays reflects the requested 10 days, not the 9 surviving records
+      // All 10 records are preserved; Day 1 is not dropped even though its temperature was missing
+      expect(records.length, equals(10));
+      // First created record corresponds to Day 1: temperature is null, ET0 is 5.0, precipitation is 0.0
+      expect(records.first.maxTemperatureC, isNull);
+      expect(records.first.minTemperatureC, isNull);
+      expect(records.first.referenceEt0Mm, equals(5.0));
+      expect(records.first.precipitationMm, equals(0.0));
+      // Verify that expectedPeriodDays reflects the requested 10 days
       expect(records.first.provenance.expectedPeriodDays, equals(10));
+      // Day 1 had valid ET0 (5.0), Day 2 had null ET0 -> 9 out of 10 days have available ET0
       final availableEt0Days = records
           .where((r) => r.referenceEt0Mm != null)
           .length;
-      expect(availableEt0Days, equals(8));
-      // In UI calculation: availableEt0Days (8) out of expectedPeriodDays (10), with 1 missing temp day excluded
+      expect(availableEt0Days, equals(9));
       expect(
-        records.first.provenance.expectedPeriodDays! - records.length,
+        records
+            .where(
+              (r) => r.maxTemperatureC == null || r.minTemperatureC == null,
+            )
+            .length,
         equals(1),
       );
     });
@@ -964,6 +972,316 @@ void main() {
           consistencyVal.failureOrNull!.userMessageAr,
           contains('خطأ في الاتساق الفيزيائي لدرجات الحرارة'),
         );
+      });
+
+      group('Issue A Regression Tests: Independent Variable Preservation', () {
+        const coord = Coordinate(latitude: 31.10, longitude: 30.95);
+
+        test('Test A: Missing temperature with valid ET0 and precipitation preserves date and values', () {
+          final times = List.generate(
+            10,
+            (i) => '2024-06-${(i + 1).toString().padLeft(2, '0')}',
+          );
+          // Day 3 (index 2) has missing temperature: 1/10 = 10% (within tolerance)
+          final tMaxList = [
+            32.0,
+            33.0,
+            null,
+            35.0,
+            34.0,
+            33.0,
+            32.0,
+            31.0,
+            30.0,
+            31.0,
+          ];
+          final tMinList = [
+            20.0,
+            21.0,
+            null,
+            23.0,
+            22.0,
+            21.0,
+            20.0,
+            19.0,
+            18.0,
+            19.0,
+          ];
+          final et0List = [5.0, 5.2, 5.5, 5.3, 5.1, 5.0, 4.9, 4.8, 4.7, 4.8];
+          final pList = [0.0, 0.0, 2.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+
+          final dto = OpenMeteoDailyResponseDto(
+            latitude: 31.10,
+            longitude: 30.95,
+            generationTimeMs: 1.0,
+            utcOffsetSeconds: 10800,
+            timezone: 'Africa/Cairo',
+            dailyUnits: {},
+            daily: {
+              'time': times,
+              'temperature_2m_max': tMaxList,
+              'temperature_2m_min': tMinList,
+              'et0_fao_evapotranspiration': et0List,
+              'precipitation_sum': pList,
+            },
+          );
+
+          final result = OpenMeteoAdapter.toDomainRecords(
+            dto: dto,
+            requestedCoordinate: coord,
+            datasetLabel: 'ERA5-Test',
+          );
+
+          expect(result.isSuccess, isTrue);
+          final records = result.dataOrNull!;
+          // All 10 dates preserved in observation sequence
+          expect(records.length, equals(10));
+
+          // Date 3 (index 2): missing temperature, valid ET0 and precipitation
+          final day3 = records[2];
+          expect(day3.maxTemperatureC, isNull);
+          expect(day3.minTemperatureC, isNull);
+          expect(day3.meanTemperatureC, isNull);
+          expect(day3.diurnalTemperatureRangeC, isNull);
+          expect(day3.referenceEt0Mm, equals(5.5));
+          expect(day3.precipitationMm, equals(2.5));
+
+          // Sum of ET0 includes Day 3's 5.5 mm
+          final expectedTotal = et0List.fold(0.0, (acc, v) => acc + v);
+          final totalEt0 = records
+              .where((r) => r.referenceEt0Mm != null)
+              .fold(0.0, (acc, r) => acc + r.referenceEt0Mm!);
+          expect(totalEt0, closeTo(expectedTotal, 0.001));
+        });
+
+        test('Test B: Missing ET0 with valid temperature preserves temperature and marks ET0 null', () {
+          final times = List.generate(
+            10,
+            (i) => '2024-06-${(i + 1).toString().padLeft(2, '0')}',
+          );
+          final tMaxList = [
+            32.0,
+            33.0,
+            34.0,
+            35.0,
+            34.0,
+            33.0,
+            32.0,
+            31.0,
+            30.0,
+            31.0,
+          ];
+          final tMinList = [
+            20.0,
+            21.0,
+            22.0,
+            23.0,
+            22.0,
+            21.0,
+            20.0,
+            19.0,
+            18.0,
+            19.0,
+          ];
+          // Day 3 (index 2) missing ET0: 1/10 = 10% (within tolerance)
+          final et0List = [5.0, 5.2, null, 5.3, 5.1, 5.0, 4.9, 4.8, 4.7, 4.8];
+          final pList = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+
+          final dto = OpenMeteoDailyResponseDto(
+            latitude: 31.10,
+            longitude: 30.95,
+            generationTimeMs: 1.0,
+            utcOffsetSeconds: 10800,
+            timezone: 'Africa/Cairo',
+            dailyUnits: {},
+            daily: {
+              'time': times,
+              'temperature_2m_max': tMaxList,
+              'temperature_2m_min': tMinList,
+              'et0_fao_evapotranspiration': et0List,
+              'precipitation_sum': pList,
+            },
+          );
+
+          final result = OpenMeteoAdapter.toDomainRecords(
+            dto: dto,
+            requestedCoordinate: coord,
+            datasetLabel: 'ERA5-Test',
+          );
+
+          expect(result.isSuccess, isTrue);
+          final records = result.dataOrNull!;
+          expect(records.length, equals(10));
+
+          // Day 3 has valid temperature but null ET0
+          final day3 = records[2];
+          expect(day3.maxTemperatureC, equals(34.0));
+          expect(day3.minTemperatureC, equals(22.0));
+          expect(day3.referenceEt0Mm, isNull);
+
+          final availableEt0Days = records
+              .where((r) => r.referenceEt0Mm != null)
+              .length;
+          expect(availableEt0Days, equals(9));
+        });
+
+        test('Test C: Real zero precipitation (0.0) is preserved as 0.0 and not classified as missing', () {
+          final times = ['2024-06-01'];
+          final dto = OpenMeteoDailyResponseDto(
+            latitude: 31.10,
+            longitude: 30.95,
+            generationTimeMs: 1.0,
+            utcOffsetSeconds: 10800,
+            timezone: 'Africa/Cairo',
+            dailyUnits: {},
+            daily: {
+              'time': times,
+              'temperature_2m_max': [32.0],
+              'temperature_2m_min': [20.0],
+              'et0_fao_evapotranspiration': [5.0],
+              'precipitation_sum': [0.0],
+            },
+          );
+
+          final result = OpenMeteoAdapter.toDomainRecords(
+            dto: dto,
+            requestedCoordinate: coord,
+            datasetLabel: 'ERA5-Test',
+          );
+
+          expect(result.isSuccess, isTrue);
+          final rec = result.dataOrNull!.first;
+          expect(rec.precipitationMm, equals(0.0));
+        });
+
+        test('Test D: Missing precipitation (null) remains null and is not converted to 0.0', () {
+          final times = List.generate(
+            10,
+            (i) => '2024-06-${(i + 1).toString().padLeft(2, '0')}',
+          );
+          final tMaxList = [
+            32.0,
+            33.0,
+            34.0,
+            35.0,
+            34.0,
+            33.0,
+            32.0,
+            31.0,
+            30.0,
+            31.0,
+          ];
+          final tMinList = [
+            20.0,
+            21.0,
+            22.0,
+            23.0,
+            22.0,
+            21.0,
+            20.0,
+            19.0,
+            18.0,
+            19.0,
+          ];
+          final et0List = [5.0, 5.2, 5.3, 5.3, 5.1, 5.0, 4.9, 4.8, 4.7, 4.8];
+          // Day 1 missing precipitation: 1/10 = 10% (within tolerance)
+          final pList = [null, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+
+          final dto = OpenMeteoDailyResponseDto(
+            latitude: 31.10,
+            longitude: 30.95,
+            generationTimeMs: 1.0,
+            utcOffsetSeconds: 10800,
+            timezone: 'Africa/Cairo',
+            dailyUnits: {},
+            daily: {
+              'time': times,
+              'temperature_2m_max': tMaxList,
+              'temperature_2m_min': tMinList,
+              'et0_fao_evapotranspiration': et0List,
+              'precipitation_sum': pList,
+            },
+          );
+
+          final result = OpenMeteoAdapter.toDomainRecords(
+            dto: dto,
+            requestedCoordinate: coord,
+            datasetLabel: 'ERA5-Test',
+          );
+
+          expect(result.isSuccess, isTrue);
+          final rec = result.dataOrNull!.first;
+          expect(rec.precipitationMm, isNull);
+        });
+
+        test('Test E: ET0 total across a date sequence with missing temperature computes correctly', () {
+          final times = List.generate(
+            10,
+            (i) => '2024-06-${(i + 1).toString().padLeft(2, '0')}',
+          );
+          // Day 2 has missing temperature (1/10 = 10%)
+          final tMaxList = [
+            30.0,
+            null,
+            32.0,
+            33.0,
+            34.0,
+            35.0,
+            34.0,
+            33.0,
+            32.0,
+            31.0,
+          ];
+          final tMinList = [
+            18.0,
+            null,
+            20.0,
+            21.0,
+            22.0,
+            23.0,
+            22.0,
+            21.0,
+            20.0,
+            19.0,
+          ];
+          final et0List = [4.5, 5.0, 5.5, 5.2, 5.3, 5.4, 5.1, 4.9, 4.8, 5.0];
+          final pList = List.filled(10, 0.0);
+
+          final dto = OpenMeteoDailyResponseDto(
+            latitude: 31.10,
+            longitude: 30.95,
+            generationTimeMs: 1.0,
+            utcOffsetSeconds: 10800,
+            timezone: 'Africa/Cairo',
+            dailyUnits: {},
+            daily: {
+              'time': times,
+              'temperature_2m_max': tMaxList,
+              'temperature_2m_min': tMinList,
+              'et0_fao_evapotranspiration': et0List,
+              'precipitation_sum': pList,
+            },
+          );
+
+          final result = OpenMeteoAdapter.toDomainRecords(
+            dto: dto,
+            requestedCoordinate: coord,
+            datasetLabel: 'ERA5-Test',
+          );
+
+          expect(result.isSuccess, isTrue);
+          final records = result.dataOrNull!;
+          expect(records.length, equals(10));
+
+          final expectedSum = et0List.fold(0.0, (acc, v) => acc + v);
+          final totalEt0 = records
+              .where((r) => r.referenceEt0Mm != null)
+              .fold(0.0, (acc, r) => acc + r.referenceEt0Mm!);
+          expect(totalEt0, closeTo(expectedSum, 0.001));
+          // Verify that Day 2's ET0 (5.0) contributed to the sum even though its temperature was missing
+          expect(records[1].maxTemperatureC, isNull);
+          expect(records[1].referenceEt0Mm, equals(5.0));
+        });
       });
     });
   });

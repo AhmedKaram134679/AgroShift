@@ -128,13 +128,14 @@ class EnvironmentalAnalysisScreen extends ConsumerWidget {
                             lineBarsData: [
                               // Tmax line (Red/Amber)
                               LineChartBarData(
-                                spots: List.generate(
-                                  records.length,
-                                  (i) => FlSpot(
-                                    i.toDouble(),
-                                    records[i].maxTemperatureC,
-                                  ),
-                                ),
+                                spots: [
+                                  for (int i = 0; i < records.length; i++)
+                                    if (records[i].maxTemperatureC != null)
+                                      FlSpot(
+                                        i.toDouble(),
+                                        records[i].maxTemperatureC!,
+                                      ),
+                                ],
                                 isCurved: true,
                                 color: const Color(0xFFD32F2F),
                                 barWidth: 2.5,
@@ -142,13 +143,14 @@ class EnvironmentalAnalysisScreen extends ConsumerWidget {
                               ),
                               // Tmin line (Blue)
                               LineChartBarData(
-                                spots: List.generate(
-                                  records.length,
-                                  (i) => FlSpot(
-                                    i.toDouble(),
-                                    records[i].minTemperatureC,
-                                  ),
-                                ),
+                                spots: [
+                                  for (int i = 0; i < records.length; i++)
+                                    if (records[i].minTemperatureC != null)
+                                      FlSpot(
+                                        i.toDouble(),
+                                        records[i].minTemperatureC!,
+                                      ),
+                                ],
                                 isCurved: true,
                                 color: const Color(0xFF1976D2),
                                 barWidth: 2.5,
@@ -205,19 +207,22 @@ class EnvironmentalAnalysisScreen extends ConsumerWidget {
                               final expectedDays =
                                   records.first.provenance.expectedPeriodDays ??
                                   records.length;
-                              final returnedRecordsCount = records.length;
                               final availableEt0Days = records
                                   .where((r) => r.referenceEt0Mm != null)
                                   .length;
+                              final missingTempDays = records
+                                  .where(
+                                    (r) =>
+                                        r.maxTemperatureC == null ||
+                                        r.minTemperatureC == null,
+                                  )
+                                  .length;
+                              final missingEt0Days =
+                                  expectedDays - availableEt0Days;
                               final isComplete =
                                   availableEt0Days == expectedDays &&
-                                  returnedRecordsCount == expectedDays;
+                                  records.length == expectedDays;
                               final totalEt0 = _calculateTotalEt0(records);
-
-                              final missingTempDays =
-                                  expectedDays - returnedRecordsCount;
-                              final missingEt0DaysInReturned =
-                                  returnedRecordsCount - availableEt0Days;
 
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -235,8 +240,8 @@ class EnvironmentalAnalysisScreen extends ConsumerWidget {
                                     const SizedBox(height: 2),
                                     Text(
                                       'تنبيه: البيانات غير مكتملة لكامل الفترة المطلوبة ($availableEt0Days يوماً متوفراً بها قراءات البخر من إجمالي $expectedDays يوماً'
-                                      '${missingTempDays > 0 ? '، مع استبعاد $missingTempDays أيام لعدم توفر درجات الحرارة' : ''}'
-                                      '${missingEt0DaysInReturned > 0 ? '، و $missingEt0DaysInReturned أيام بدون قراءة ET₀' : ''}). المجموع المعروض يمثل الأيام المتوفرة فقط.',
+                                      '${missingTempDays > 0 ? '، مع نقص درجات الحرارة في $missingTempDays أيام' : ''}'
+                                      '${missingEt0Days > 0 ? '، و $missingEt0Days أيام بدون قراءة ET₀' : ''}). المجموع المعروض يمثل الأيام المتوفرة فقط.',
                                       style: const TextStyle(
                                         fontSize: 11.5,
                                         color: Color(0xFFC62828),

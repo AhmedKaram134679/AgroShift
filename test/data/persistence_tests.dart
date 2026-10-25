@@ -1966,8 +1966,8 @@ void main() {
               CachedDailyRecordsTableCompanion.insert(
                 cacheKey: cacheKey,
                 recordDate: DateTime.utc(2026, 5, 1),
-                maxTemperatureC: 30.0,
-                minTemperatureC: 18.0,
+                maxTemperatureC: const Value(30.0),
+                minTemperatureC: const Value(18.0),
                 referenceEt0Mm: const Value(5.0),
                 providerName: 'Open-Meteo Weather API',
                 datasetName: 'ERA5-Land',
@@ -2068,8 +2068,8 @@ void main() {
               CachedDailyRecordsTableCompanion.insert(
                 cacheKey: cacheKey,
                 recordDate: DateTime.utc(2026, 5, 1),
-                maxTemperatureC: 30.0,
-                minTemperatureC: 18.0,
+                maxTemperatureC: const Value(30.0),
+                minTemperatureC: const Value(18.0),
                 referenceEt0Mm: const Value(5.0),
                 providerName: 'Open-Meteo Weather API',
                 datasetName: 'ERA5-Land',
@@ -2088,8 +2088,8 @@ void main() {
               CachedDailyRecordsTableCompanion.insert(
                 cacheKey: cacheKey,
                 recordDate: DateTime.utc(2026, 5, 2),
-                maxTemperatureC: 31.0,
-                minTemperatureC: 19.0,
+                maxTemperatureC: const Value(31.0),
+                minTemperatureC: const Value(19.0),
                 referenceEt0Mm: const Value(5.1),
                 providerName: 'Open-Meteo Weather API',
                 datasetName: 'ERA5-Land',

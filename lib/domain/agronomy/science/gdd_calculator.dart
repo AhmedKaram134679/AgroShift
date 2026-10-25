@@ -1,5 +1,9 @@
 import 'dart:math' as math;
 
+import '../../../core/error/failures.dart';
+import '../../../core/error/result.dart';
+import '../../validation/scientific_range_validator.dart';
+
 /// Scientific implementation of Growing Degree Days (GDD).
 /// Standard agro-meteorological formulation with optional high-temperature cutoff.
 class GddCalculator {
@@ -53,5 +57,59 @@ class GddCalculator {
       );
     }
     return totalGdd;
+  }
+
+  /// Computes cumulative GDD across an expected sequence of daily observations,
+  /// evaluating composite missingness across required temperature inputs (Tmax and Tmin).
+  /// A date is incomplete if either Tmax or Tmin is missing.
+  /// If missing ratio exceeds 10% (or totalRequestedDays <= 0), returns InsufficientEvidenceFailure.
+  static Result<double, InsufficientEvidenceFailure>
+  calculateAccumulatedGddValidated({
+    required int totalRequestedDays,
+    required List<({DateTime date, double? tMax, double? tMin})> observations,
+    required double tBase,
+    double? tCutoff,
+  }) {
+    final unionOfIncompleteDateIndices = <int>{};
+    final validObservations = <({double tMax, double tMin})>[];
+
+    for (var i = 0; i < observations.length; i++) {
+      final obs = observations[i];
+      final isTmaxMissing = obs.tMax == null;
+      final isTminMissing = obs.tMin == null;
+
+      if (isTmaxMissing || isTminMissing) {
+        unionOfIncompleteDateIndices.add(i);
+      } else {
+        validObservations.add((tMax: obs.tMax!, tMin: obs.tMin!));
+      }
+    }
+
+    // Account for any dates missing entirely from the observation sequence
+    if (observations.length < totalRequestedDays) {
+      for (var i = observations.length; i < totalRequestedDays; i++) {
+        unionOfIncompleteDateIndices.add(i);
+      }
+    }
+
+    final validationResult =
+        ScientificRangeValidator.validateCompositeMissingness(
+          totalRequestedDays: totalRequestedDays,
+          unionOfIncompleteDateIndices: unionOfIncompleteDateIndices,
+          calculationLabel: 'GDD Accumulation',
+          requiredVariables: ['tMax', 'tMin'],
+        );
+
+    if (validationResult.isFailure) {
+      return FailureResult(validationResult.failureOrNull!);
+    }
+
+    final gdd = calculateAccumulatedGdd(
+      dailyTemperatures: validObservations,
+      tBase: tBase,
+      tCutoff: tCutoff,
+    );
+
+    return Success(gdd);
   }
 }

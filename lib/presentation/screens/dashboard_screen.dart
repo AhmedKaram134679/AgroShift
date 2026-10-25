@@ -204,6 +204,7 @@ class DashboardScreen extends ConsumerWidget {
                     // Compute summary metrics
                     final tMaxList = records
                         .map((r) => r.maxTemperatureC)
+                        .whereType<double>()
                         .toList();
                     final heatEval = activeCrop != null
                         ? HeatStressEvaluator.evaluateCropHeatStress(

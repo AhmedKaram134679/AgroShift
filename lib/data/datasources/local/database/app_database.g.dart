@@ -937,9 +937,9 @@ class $CachedDailyRecordsTableTable extends CachedDailyRecordsTable
   late final GeneratedColumn<double> maxTemperatureC = GeneratedColumn<double>(
     'max_temperature_c',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.double,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _minTemperatureCMeta = const VerificationMeta(
     'minTemperatureC',
@@ -948,9 +948,9 @@ class $CachedDailyRecordsTableTable extends CachedDailyRecordsTable
   late final GeneratedColumn<double> minTemperatureC = GeneratedColumn<double>(
     'min_temperature_c',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.double,
-    requiredDuringInsert: true,
+    requiredDuringInsert: false,
   );
   static const VerificationMeta _precipitationMmMeta = const VerificationMeta(
     'precipitationMm',
@@ -1140,8 +1140,6 @@ class $CachedDailyRecordsTableTable extends CachedDailyRecordsTable
           _maxTemperatureCMeta,
         ),
       );
-    } else if (isInserting) {
-      context.missing(_maxTemperatureCMeta);
     }
     if (data.containsKey('min_temperature_c')) {
       context.handle(
@@ -1151,8 +1149,6 @@ class $CachedDailyRecordsTableTable extends CachedDailyRecordsTable
           _minTemperatureCMeta,
         ),
       );
-    } else if (isInserting) {
-      context.missing(_minTemperatureCMeta);
     }
     if (data.containsKey('precipitation_mm')) {
       context.handle(
@@ -1300,11 +1296,11 @@ class $CachedDailyRecordsTableTable extends CachedDailyRecordsTable
       maxTemperatureC: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}max_temperature_c'],
-      )!,
+      ),
       minTemperatureC: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}min_temperature_c'],
-      )!,
+      ),
       precipitationMm: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}precipitation_mm'],
@@ -1366,8 +1362,8 @@ class CachedDailyRecordsTableData extends DataClass
     implements Insertable<CachedDailyRecordsTableData> {
   final String cacheKey;
   final DateTime recordDate;
-  final double maxTemperatureC;
-  final double minTemperatureC;
+  final double? maxTemperatureC;
+  final double? minTemperatureC;
   final double? precipitationMm;
   final double? referenceEt0Mm;
   final String providerName;
@@ -1383,8 +1379,8 @@ class CachedDailyRecordsTableData extends DataClass
   const CachedDailyRecordsTableData({
     required this.cacheKey,
     required this.recordDate,
-    required this.maxTemperatureC,
-    required this.minTemperatureC,
+    this.maxTemperatureC,
+    this.minTemperatureC,
     this.precipitationMm,
     this.referenceEt0Mm,
     required this.providerName,
@@ -1403,8 +1399,12 @@ class CachedDailyRecordsTableData extends DataClass
     final map = <String, Expression>{};
     map['cache_key'] = Variable<String>(cacheKey);
     map['record_date'] = Variable<DateTime>(recordDate);
-    map['max_temperature_c'] = Variable<double>(maxTemperatureC);
-    map['min_temperature_c'] = Variable<double>(minTemperatureC);
+    if (!nullToAbsent || maxTemperatureC != null) {
+      map['max_temperature_c'] = Variable<double>(maxTemperatureC);
+    }
+    if (!nullToAbsent || minTemperatureC != null) {
+      map['min_temperature_c'] = Variable<double>(minTemperatureC);
+    }
     if (!nullToAbsent || precipitationMm != null) {
       map['precipitation_mm'] = Variable<double>(precipitationMm);
     }
@@ -1430,8 +1430,12 @@ class CachedDailyRecordsTableData extends DataClass
     return CachedDailyRecordsTableCompanion(
       cacheKey: Value(cacheKey),
       recordDate: Value(recordDate),
-      maxTemperatureC: Value(maxTemperatureC),
-      minTemperatureC: Value(minTemperatureC),
+      maxTemperatureC: maxTemperatureC == null && nullToAbsent
+          ? const Value.absent()
+          : Value(maxTemperatureC),
+      minTemperatureC: minTemperatureC == null && nullToAbsent
+          ? const Value.absent()
+          : Value(minTemperatureC),
       precipitationMm: precipitationMm == null && nullToAbsent
           ? const Value.absent()
           : Value(precipitationMm),
@@ -1461,8 +1465,8 @@ class CachedDailyRecordsTableData extends DataClass
     return CachedDailyRecordsTableData(
       cacheKey: serializer.fromJson<String>(json['cacheKey']),
       recordDate: serializer.fromJson<DateTime>(json['recordDate']),
-      maxTemperatureC: serializer.fromJson<double>(json['maxTemperatureC']),
-      minTemperatureC: serializer.fromJson<double>(json['minTemperatureC']),
+      maxTemperatureC: serializer.fromJson<double?>(json['maxTemperatureC']),
+      minTemperatureC: serializer.fromJson<double?>(json['minTemperatureC']),
       precipitationMm: serializer.fromJson<double?>(json['precipitationMm']),
       referenceEt0Mm: serializer.fromJson<double?>(json['referenceEt0Mm']),
       providerName: serializer.fromJson<String>(json['providerName']),
@@ -1491,8 +1495,8 @@ class CachedDailyRecordsTableData extends DataClass
     return <String, dynamic>{
       'cacheKey': serializer.toJson<String>(cacheKey),
       'recordDate': serializer.toJson<DateTime>(recordDate),
-      'maxTemperatureC': serializer.toJson<double>(maxTemperatureC),
-      'minTemperatureC': serializer.toJson<double>(minTemperatureC),
+      'maxTemperatureC': serializer.toJson<double?>(maxTemperatureC),
+      'minTemperatureC': serializer.toJson<double?>(minTemperatureC),
       'precipitationMm': serializer.toJson<double?>(precipitationMm),
       'referenceEt0Mm': serializer.toJson<double?>(referenceEt0Mm),
       'providerName': serializer.toJson<String>(providerName),
@@ -1513,8 +1517,8 @@ class CachedDailyRecordsTableData extends DataClass
   CachedDailyRecordsTableData copyWith({
     String? cacheKey,
     DateTime? recordDate,
-    double? maxTemperatureC,
-    double? minTemperatureC,
+    Value<double?> maxTemperatureC = const Value.absent(),
+    Value<double?> minTemperatureC = const Value.absent(),
     Value<double?> precipitationMm = const Value.absent(),
     Value<double?> referenceEt0Mm = const Value.absent(),
     String? providerName,
@@ -1530,8 +1534,12 @@ class CachedDailyRecordsTableData extends DataClass
   }) => CachedDailyRecordsTableData(
     cacheKey: cacheKey ?? this.cacheKey,
     recordDate: recordDate ?? this.recordDate,
-    maxTemperatureC: maxTemperatureC ?? this.maxTemperatureC,
-    minTemperatureC: minTemperatureC ?? this.minTemperatureC,
+    maxTemperatureC: maxTemperatureC.present
+        ? maxTemperatureC.value
+        : this.maxTemperatureC,
+    minTemperatureC: minTemperatureC.present
+        ? minTemperatureC.value
+        : this.minTemperatureC,
     precipitationMm: precipitationMm.present
         ? precipitationMm.value
         : this.precipitationMm,
@@ -1671,8 +1679,8 @@ class CachedDailyRecordsTableCompanion
     extends UpdateCompanion<CachedDailyRecordsTableData> {
   final Value<String> cacheKey;
   final Value<DateTime> recordDate;
-  final Value<double> maxTemperatureC;
-  final Value<double> minTemperatureC;
+  final Value<double?> maxTemperatureC;
+  final Value<double?> minTemperatureC;
   final Value<double?> precipitationMm;
   final Value<double?> referenceEt0Mm;
   final Value<String> providerName;
@@ -1708,8 +1716,8 @@ class CachedDailyRecordsTableCompanion
   CachedDailyRecordsTableCompanion.insert({
     required String cacheKey,
     required DateTime recordDate,
-    required double maxTemperatureC,
-    required double minTemperatureC,
+    this.maxTemperatureC = const Value.absent(),
+    this.minTemperatureC = const Value.absent(),
     this.precipitationMm = const Value.absent(),
     this.referenceEt0Mm = const Value.absent(),
     required String providerName,
@@ -1725,8 +1733,6 @@ class CachedDailyRecordsTableCompanion
     this.rowid = const Value.absent(),
   }) : cacheKey = Value(cacheKey),
        recordDate = Value(recordDate),
-       maxTemperatureC = Value(maxTemperatureC),
-       minTemperatureC = Value(minTemperatureC),
        providerName = Value(providerName),
        datasetName = Value(datasetName),
        requestedLatitude = Value(requestedLatitude),
@@ -1782,8 +1788,8 @@ class CachedDailyRecordsTableCompanion
   CachedDailyRecordsTableCompanion copyWith({
     Value<String>? cacheKey,
     Value<DateTime>? recordDate,
-    Value<double>? maxTemperatureC,
-    Value<double>? minTemperatureC,
+    Value<double?>? maxTemperatureC,
+    Value<double?>? minTemperatureC,
     Value<double?>? precipitationMm,
     Value<double?>? referenceEt0Mm,
     Value<String>? providerName,
@@ -2448,8 +2454,8 @@ typedef $$CachedDailyRecordsTableTableCreateCompanionBuilder =
     CachedDailyRecordsTableCompanion Function({
       required String cacheKey,
       required DateTime recordDate,
-      required double maxTemperatureC,
-      required double minTemperatureC,
+      Value<double?> maxTemperatureC,
+      Value<double?> minTemperatureC,
       Value<double?> precipitationMm,
       Value<double?> referenceEt0Mm,
       required String providerName,
@@ -2468,8 +2474,8 @@ typedef $$CachedDailyRecordsTableTableUpdateCompanionBuilder =
     CachedDailyRecordsTableCompanion Function({
       Value<String> cacheKey,
       Value<DateTime> recordDate,
-      Value<double> maxTemperatureC,
-      Value<double> minTemperatureC,
+      Value<double?> maxTemperatureC,
+      Value<double?> minTemperatureC,
       Value<double?> precipitationMm,
       Value<double?> referenceEt0Mm,
       Value<String> providerName,
@@ -2799,8 +2805,8 @@ class $$CachedDailyRecordsTableTableTableManager
               ({
                 Value<String> cacheKey = const Value.absent(),
                 Value<DateTime> recordDate = const Value.absent(),
-                Value<double> maxTemperatureC = const Value.absent(),
-                Value<double> minTemperatureC = const Value.absent(),
+                Value<double?> maxTemperatureC = const Value.absent(),
+                Value<double?> minTemperatureC = const Value.absent(),
                 Value<double?> precipitationMm = const Value.absent(),
                 Value<double?> referenceEt0Mm = const Value.absent(),
                 Value<String> providerName = const Value.absent(),
@@ -2837,8 +2843,8 @@ class $$CachedDailyRecordsTableTableTableManager
               ({
                 required String cacheKey,
                 required DateTime recordDate,
-                required double maxTemperatureC,
-                required double minTemperatureC,
+                Value<double?> maxTemperatureC = const Value.absent(),
+                Value<double?> minTemperatureC = const Value.absent(),
                 Value<double?> precipitationMm = const Value.absent(),
                 Value<double?> referenceEt0Mm = const Value.absent(),
                 required String providerName,

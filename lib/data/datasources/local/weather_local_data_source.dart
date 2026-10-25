@@ -95,12 +95,14 @@ class WeatherLocalDataSource {
         }
 
         // 5. Validate range constraints on persisted records to safeguard against corrupt data
-        final tempVal = ScientificRangeValidator.validateTemperature(
-          tMax: row.maxTemperatureC,
-          tMin: row.minTemperatureC,
-        );
-        if (tempVal.isFailure) {
-          return null; // Corrupted cache entry should not be consumed
+        if (row.maxTemperatureC != null && row.minTemperatureC != null) {
+          final tempVal = ScientificRangeValidator.validateTemperature(
+            tMax: row.maxTemperatureC!,
+            tMin: row.minTemperatureC!,
+          );
+          if (tempVal.isFailure) {
+            return null; // Corrupted cache entry should not be consumed
+          }
         }
 
         final et0Val = ScientificRangeValidator.validateEt0(row.referenceEt0Mm);

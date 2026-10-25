@@ -34,8 +34,8 @@ class CachedDailyRecordsTable extends Table {
   TextColumn get cacheKey =>
       text()(); // e.g., hist_lat_lon_start_end or fc_lat_lon_days
   DateTimeColumn get recordDate => dateTime()();
-  RealColumn get maxTemperatureC => real()();
-  RealColumn get minTemperatureC => real()();
+  RealColumn get maxTemperatureC => real().nullable()(); // null = missing
+  RealColumn get minTemperatureC => real().nullable()(); // null = missing
   RealColumn get precipitationMm =>
       real().nullable()(); // null = missing, 0.0 = measured zero
   RealColumn get referenceEt0Mm => real().nullable()(); // null = missing

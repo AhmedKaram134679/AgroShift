@@ -1,3 +1,6 @@
+import '../../../core/error/failures.dart';
+import '../../../core/error/result.dart';
+import '../../validation/scientific_range_validator.dart';
 import '../models/crop.dart';
 
 enum HeatRiskLevel {
@@ -70,5 +73,59 @@ class HeatStressEvaluator {
       riskLevel: riskLevel,
       agronomicAdviceAr: advice,
     );
+  }
+
+  /// Evaluates heat stress risk across an expected period, enforcing the scientific missingness policy on Tmax.
+  /// If missing ratio exceeds 10% (or totalRequestedDays <= 0), returns InsufficientEvidenceFailure.
+  static Result<
+    ({
+      int totalExceedanceDays,
+      double peakObservedTempC,
+      HeatRiskLevel riskLevel,
+      String agronomicAdviceAr,
+    }),
+    InsufficientEvidenceFailure
+  >
+  evaluateCropHeatStressValidated({
+    required Crop crop,
+    required int totalRequestedDays,
+    required List<double?> dailyTmaxSeries,
+  }) {
+    final unionOfIncompleteDateIndices = <int>{};
+    final validTmaxSeries = <double>[];
+
+    for (var i = 0; i < dailyTmaxSeries.length; i++) {
+      final tMax = dailyTmaxSeries[i];
+      if (tMax == null) {
+        unionOfIncompleteDateIndices.add(i);
+      } else {
+        validTmaxSeries.add(tMax);
+      }
+    }
+
+    if (dailyTmaxSeries.length < totalRequestedDays) {
+      for (var i = dailyTmaxSeries.length; i < totalRequestedDays; i++) {
+        unionOfIncompleteDateIndices.add(i);
+      }
+    }
+
+    final validationResult =
+        ScientificRangeValidator.validateCompositeMissingness(
+          totalRequestedDays: totalRequestedDays,
+          unionOfIncompleteDateIndices: unionOfIncompleteDateIndices,
+          calculationLabel: 'Heat Stress Evaluation',
+          requiredVariables: ['tMax'],
+        );
+
+    if (validationResult.isFailure) {
+      return FailureResult(validationResult.failureOrNull!);
+    }
+
+    final result = evaluateCropHeatStress(
+      crop: crop,
+      dailyTmaxSeries: validTmaxSeries,
+    );
+
+    return Success(result);
   }
 }

@@ -1,4 +1,7 @@
 import '../../../core/constants/agro_constants.dart';
+import '../../../core/error/failures.dart';
+import '../../../core/error/result.dart';
+import '../../validation/scientific_range_validator.dart';
 import '../models/crop.dart';
 
 /// Scientific calculation of Crop Evapotranspiration (ETc) and Volumetric Irrigation Demand.
@@ -50,5 +53,55 @@ class EtcCalculator {
 
     final volumeM3 = convertMmToCubicMetersPerFeddan(cumulativeEtcMm);
     return (totalEtcMm: cumulativeEtcMm, totalVolumeM3PerFeddan: volumeM3);
+  }
+
+  /// Calculates cumulative water requirement over a growth cycle given daily ET0 observations,
+  /// assessing ET0 missingness across the requested period using the scientific missingness policy.
+  /// If missing ratio exceeds 10% (or totalRequestedDays <= 0), returns InsufficientEvidenceFailure.
+  static Result<
+    ({double totalEtcMm, double totalVolumeM3PerFeddan}),
+    InsufficientEvidenceFailure
+  >
+  calculateCycleWaterRequirementValidated({
+    required Crop crop,
+    required int totalRequestedDays,
+    required List<double?> dailyEt0Series,
+  }) {
+    final unionOfIncompleteDateIndices = <int>{};
+    final validEt0Series = <double>[];
+
+    for (var i = 0; i < dailyEt0Series.length; i++) {
+      final et0 = dailyEt0Series[i];
+      if (et0 == null) {
+        unionOfIncompleteDateIndices.add(i);
+      } else {
+        validEt0Series.add(et0);
+      }
+    }
+
+    if (dailyEt0Series.length < totalRequestedDays) {
+      for (var i = dailyEt0Series.length; i < totalRequestedDays; i++) {
+        unionOfIncompleteDateIndices.add(i);
+      }
+    }
+
+    final validationResult =
+        ScientificRangeValidator.validateCompositeMissingness(
+          totalRequestedDays: totalRequestedDays,
+          unionOfIncompleteDateIndices: unionOfIncompleteDateIndices,
+          calculationLabel: 'Crop Water Requirement (ETc)',
+          requiredVariables: ['referenceEt0Mm'],
+        );
+
+    if (validationResult.isFailure) {
+      return FailureResult(validationResult.failureOrNull!);
+    }
+
+    final result = calculateCycleWaterRequirement(
+      crop: crop,
+      dailyEt0Series: validEt0Series,
+    );
+
+    return Success(result);
   }
 }

@@ -269,4 +269,209 @@ void main() {
       },
     );
   });
+
+  group(
+    'Issue B: Composite Missingness Validation & Calculation Integration Tests',
+    () {
+      test('1. totalRequestedDays == 0 fails closed with InsufficientEvidenceFailure', () {
+        final res = ScientificRangeValidator.validateCompositeMissingness(
+          totalRequestedDays: 0,
+          unionOfIncompleteDateIndices: {},
+          calculationLabel: 'Test Calc',
+          requiredVariables: ['tMax', 'tMin'],
+        );
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull?.totalCount, equals(0));
+        expect(res.failureOrNull?.missingRatio, equals(1.0));
+        expect(
+          res.failureOrNull?.technicalMessage,
+          contains('requires totalRequestedDays > 0'),
+        );
+      });
+
+      test('2. Negative totalRequestedDays (< 0) fails closed', () {
+        final res = ScientificRangeValidator.validateCompositeMissingness(
+          totalRequestedDays: -5,
+          unionOfIncompleteDateIndices: {},
+          calculationLabel: 'Test Calc',
+          requiredVariables: ['tMax', 'tMin'],
+        );
+        expect(res.isFailure, isTrue);
+      });
+
+      test('3. Exactly 10% incomplete dates passes validation', () {
+        final res = ScientificRangeValidator.validateCompositeMissingness(
+          totalRequestedDays: 10,
+          unionOfIncompleteDateIndices: {2}, // 1 out of 10 = 10.0%
+          calculationLabel: 'Test Calc',
+          requiredVariables: ['tMax', 'tMin'],
+        );
+        expect(res.isSuccess, isTrue);
+      });
+
+      test('4. More than 10% incomplete dates fails validation', () {
+        final res = ScientificRangeValidator.validateCompositeMissingness(
+          totalRequestedDays: 10,
+          unionOfIncompleteDateIndices: {2, 5}, // 2 out of 10 = 20.0%
+          calculationLabel: 'Test Calc',
+          requiredVariables: ['tMax', 'tMin'],
+        );
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull?.missingCount, equals(2));
+        expect(res.failureOrNull?.totalCount, equals(10));
+        expect(res.failureOrNull?.missingRatio, closeTo(0.20, 0.001));
+      });
+
+      test('5 & 6. Multi-variable calculation evaluates union of incomplete dates and deduplicates overlaps', () {
+        // 10 requested days
+        // Date 2 missing tMax
+        // Date 2 and Date 4 missing tMin
+        // Union is {2, 4} = 2 dates out of 10 (20%) -> fails (> 10%)
+        final observations = List.generate(
+          10,
+          (i) => (
+            date: DateTime.utc(2024, 6, i + 1),
+            tMax: (i == 2) ? null : 30.0,
+            tMin: (i == 2 || i == 4) ? null : 20.0,
+          ),
+        );
+
+        final res = GddCalculator.calculateAccumulatedGddValidated(
+          totalRequestedDays: 10,
+          observations: observations,
+          tBase: 10.0,
+        );
+
+        expect(res.isFailure, isTrue);
+        expect(
+          res.failureOrNull?.missingCount,
+          equals(2),
+        ); // Union count is 2, not 3
+        expect(res.failureOrNull?.technicalMessage, contains('2/10 = 20.0%'));
+      });
+
+      test('7. Missing unrelated variable does not invalidate single-variable calculation', () {
+        // Heat stress requires only tMax.
+        // Missing ET0 or precipitation has no effect.
+        final wheat =
+            EgyptianCropsCatalog.wheat; // criticalHeatTemperatureC = 31.0
+        // 4 days >= 31.0 (32, 33, 32, 33) and 6 days < 31.0 (30, 29, 30, 29, 30, 29)
+        final tMaxSeries = [
+          30.0,
+          29.0,
+          32.0,
+          33.0,
+          30.0,
+          29.0,
+          32.0,
+          33.0,
+          30.0,
+          29.0,
+        ];
+
+        final res = HeatStressEvaluator.evaluateCropHeatStressValidated(
+          crop: wheat,
+          totalRequestedDays: 10,
+          dailyTmaxSeries: tMaxSeries,
+        );
+
+        expect(res.isSuccess, isTrue);
+        expect(
+          res.dataOrNull?.totalExceedanceDays,
+          equals(4),
+        ); // 4 exceedance days
+      });
+
+      test('8. ET0 calculation fails when ET0 own missingness exceeds 10%', () {
+        final wheat = EgyptianCropsCatalog.wheat;
+        // 2 out of 10 days missing ET0 (20%)
+        final et0Series = [5.0, null, 5.2, null, 5.4, 5.5, 5.4, 5.3, 5.2, 5.1];
+
+        final res = EtcCalculator.calculateCycleWaterRequirementValidated(
+          crop: wheat,
+          totalRequestedDays: 10,
+          dailyEt0Series: et0Series,
+        );
+
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull?.missingCount, equals(2));
+        expect(res.failureOrNull?.missingRatio, closeTo(0.20, 0.001));
+        expect(
+          res.failureOrNull?.variableName,
+          equals('composite_Crop Water Requirement (ETc)'),
+        );
+      });
+
+      test('9. Temperature-only calculation is not rejected when precipitation is missing', () {
+        final wheat =
+            EgyptianCropsCatalog.wheat; // criticalHeatTemperatureC = 31.0
+        // 10 complete tMax values all below 31.0 -> 0 exceedances -> HeatRiskLevel.low
+        final tMaxSeries = [
+          25.0,
+          26.0,
+          27.0,
+          28.0,
+          27.0,
+          26.0,
+          25.0,
+          26.0,
+          27.0,
+          28.0,
+        ];
+
+        final res = HeatStressEvaluator.evaluateCropHeatStressValidated(
+          crop: wheat,
+          totalRequestedDays: 10,
+          dailyTmaxSeries: tMaxSeries,
+        );
+
+        expect(res.isSuccess, isTrue);
+        expect(res.dataOrNull?.riskLevel, equals(HeatRiskLevel.low));
+      });
+
+      test('10 & 11. Service integration: GddCalculator succeeds at <= 10% and fails when > 10%', () {
+        // Case 1: Exactly 1 missing day out of 10 (10%) -> SUCCEEDS
+        final obsPassing = List.generate(
+          10,
+          (i) => (
+            date: DateTime.utc(2024, 6, i + 1),
+            tMax: (i == 1) ? null : 30.0,
+            tMin: 20.0,
+          ),
+        );
+
+        final passRes = GddCalculator.calculateAccumulatedGddValidated(
+          totalRequestedDays: 10,
+          observations: obsPassing,
+          tBase: 10.0,
+        );
+
+        expect(passRes.isSuccess, isTrue);
+        // 9 days of ( (30+20)/2 - 10 ) = 15.0 each -> 9 * 15 = 135.0
+        expect(passRes.dataOrNull, closeTo(135.0, 0.001));
+
+        // Case 2: 2 missing days out of 10 (20%) -> FAILS
+        final obsFailing = List.generate(
+          10,
+          (i) => (
+            date: DateTime.utc(2024, 6, i + 1),
+            tMax: (i == 1 || i == 3) ? null : 30.0,
+            tMin: 20.0,
+          ),
+        );
+
+        final failRes = GddCalculator.calculateAccumulatedGddValidated(
+          totalRequestedDays: 10,
+          observations: obsFailing,
+          tBase: 10.0,
+        );
+
+        expect(failRes.isFailure, isTrue);
+        expect(
+          failRes.failureOrNull?.technicalMessage,
+          contains('2/10 = 20.0%'),
+        );
+      });
+    },
+  );
 }

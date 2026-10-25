@@ -131,7 +131,16 @@ class ScientificRangeValidator {
     required List<String> requiredVariables,
   }) {
     if (totalRequestedDays <= 0) {
-      return const Success(null);
+      return const FailureResult(
+        InsufficientEvidenceFailure(
+          userMessageAr: 'لا يمكن إجراء الحساب لأن الفترة المطلوبة لا تحتوي على أيام صالحة.',
+          technicalMessage: 'Composite missingness validation requires totalRequestedDays > 0.',
+          missingRatio: 1.0,
+          variableName: 'composite_inputs',
+          missingCount: 0,
+          totalCount: 0,
+        ),
+      );
     }
     final incompleteCount = unionOfIncompleteDateIndices.length;
     final ratio = incompleteCount / totalRequestedDays;

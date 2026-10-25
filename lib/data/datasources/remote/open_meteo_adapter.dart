@@ -232,8 +232,6 @@ class OpenMeteoAdapter {
       expectedPeriodDays: expectedCount ?? count,
     );
 
-    final Set<int> incompleteCompositeDateIndices = <int>{};
-
     for (int i = 0; i < count; i++) {
       final date = parsedRawDates[i];
       final rawTmax = tMaxList[i];
@@ -247,34 +245,28 @@ class OpenMeteoAdapter {
 
       if (isTempMissing) {
         missingTempCount++;
-        incompleteCompositeDateIndices.add(i);
       }
       if (isEt0Missing) {
         missingEt0Count++;
-        incompleteCompositeDateIndices.add(i);
       }
       if (isPrecipMissing) {
         missingPrecipCount++;
-        incompleteCompositeDateIndices.add(i);
       }
 
-      // If temperature is missing for the day, we cannot construct a valid DailyAgroRecord
-      if (isTempMissing) {
-        continue;
-      }
+      final double? tMax = rawTmax != null ? (rawTmax as num).toDouble() : null;
+      final double? tMin = rawTmin != null ? (rawTmin as num).toDouble() : null;
+      final double? et0 = rawEt0 != null ? (rawEt0 as num).toDouble() : null;
+      final double? p = rawP != null ? (rawP as num).toDouble() : null;
 
-      final tMax = (rawTmax as num).toDouble();
-      final tMin = (rawTmin as num).toDouble();
-      final et0 = rawEt0 != null ? (rawEt0 as num).toDouble() : null;
-      final p = rawP != null ? (rawP as num).toDouble() : null;
-
-      // Scientific Range Validation
-      final tempVal = ScientificRangeValidator.validateTemperature(
-        tMax: tMax,
-        tMin: tMin,
-      );
-      if (tempVal.isFailure) {
-        return FailureResult(tempVal.failureOrNull!);
+      // Scientific Range Validation: only validate temperatures when present
+      if (tMax != null && tMin != null) {
+        final tempVal = ScientificRangeValidator.validateTemperature(
+          tMax: tMax,
+          tMin: tMin,
+        );
+        if (tempVal.isFailure) {
+          return FailureResult(tempVal.failureOrNull!);
+        }
       }
 
       final et0Val = ScientificRangeValidator.validateEt0(et0);
