@@ -174,36 +174,41 @@ class WeatherRepositoryImpl implements IWeatherRepository {
         endDateIso: endIso,
       );
 
+      final expectedDays =
+          effectiveEndDate.difference(normStartDate).inDays + 1;
       final domainResult = OpenMeteoAdapter.toDomainRecords(
         dto: dto,
         requestedCoordinate: coordinate,
         datasetLabel: 'ERA5-Land Reanalysis Archive',
         expectedStartDate: normStartDate,
         expectedEndDate: effectiveEndDate,
+        expectedCount: expectedDays,
       );
 
       if (domainResult.isSuccess) {
         final records = domainResult.dataOrNull!;
-        final nowUtc = _getCurrentTime().toUtc();
-        _memoryCache[cacheKey] = _MemoryCacheEntry(
-          records: records,
-          storedAt: nowUtc,
-        );
-        if (_localDataSource != null) {
-          try {
-            await _localDataSource.saveRecords(
-              cacheKey: cacheKey,
-              records: records,
-              cachedAt: nowUtc,
-            );
-          } catch (e, st) {
-            // Non-fatal write error: persistence failure does not discard validated network records
-            developer.log(
-              'Failed to persist historical weather cache for $cacheKey: $e',
-              name: 'WeatherRepositoryImpl',
-              error: e,
-              stackTrace: st,
-            );
+        if (records.isNotEmpty) {
+          final nowUtc = _getCurrentTime().toUtc();
+          _memoryCache[cacheKey] = _MemoryCacheEntry(
+            records: records,
+            storedAt: nowUtc,
+          );
+          if (_localDataSource != null) {
+            try {
+              await _localDataSource.saveRecords(
+                cacheKey: cacheKey,
+                records: records,
+                cachedAt: nowUtc,
+              );
+            } catch (e, st) {
+              // Non-fatal write error: persistence failure does not discard validated network records
+              developer.log(
+                'Failed to persist historical weather cache for $cacheKey: $e',
+                name: 'WeatherRepositoryImpl',
+                error: e,
+                stackTrace: st,
+              );
+            }
           }
         }
       }
@@ -579,7 +584,7 @@ class WeatherRepositoryImpl implements IWeatherRepository {
     }
   }
 
-  /// Validates that historical records are in strictly ascending chronological order,
+  /// Validates that historical records are non-empty, in strictly ascending chronological order,
   /// have no duplicate dates, and fall within the requested date interval.
   /// (Permits gaps between records resulting from missing-temperature filtering).
   bool isHistoricalValid(
@@ -587,7 +592,7 @@ class WeatherRepositoryImpl implements IWeatherRepository {
     DateTime startDate,
     DateTime endDate,
   ) {
-    if (records.isEmpty) return true;
+    if (records.isEmpty) return false;
 
     final normStart = DateTime.utc(
       startDate.year,

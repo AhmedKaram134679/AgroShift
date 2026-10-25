@@ -2569,6 +2569,160 @@ void main() {
         expect(res.isFailure, isTrue);
         expect(res.failureOrNull, isA<NetworkFailure>());
       });
+
+      test(
+        '56. Outgoing historical request explicitly contains models=era5_land',
+        () async {
+          Map<String, dynamic>? capturedQuery;
+          final dio = Dio();
+          dio.interceptors.add(
+            InterceptorsWrapper(
+              onRequest: (options, handler) {
+                capturedQuery = options.queryParameters;
+                handler.resolve(
+                  Response(
+                    requestOptions: options,
+                    statusCode: 200,
+                    data: {
+                      'latitude': 31.1,
+                      'longitude': 30.95,
+                      'elevation': 6.0,
+                      'generationtime_ms': 0.1,
+                      'utc_offset_seconds': 10800,
+                      'timezone': 'Africa/Cairo',
+                      'daily_units': {},
+                      'daily': {
+                        'time': ['2026-05-01'],
+                        'temperature_2m_max': [30.0],
+                        'temperature_2m_min': [18.0],
+                        'precipitation_sum': [0.0],
+                        'et0_fao_evapotranspiration': [5.0],
+                      },
+                    },
+                  ),
+                );
+              },
+            ),
+          );
+
+          final repo = WeatherRepositoryImpl(
+            remoteDataSource: OpenMeteoRemoteDataSource(dio: dio),
+            localDataSource: weatherLocalSource,
+            referenceTimeProvider: () => DateTime.utc(2026, 6, 15, 12, 0),
+          );
+
+          const coord = Coordinate(latitude: 31.10, longitude: 30.95);
+          final res = await repo.getHistoricalDailyRecords(
+            coordinate: coord,
+            startDate: DateTime.utc(2026, 5, 1),
+            endDate: DateTime.utc(2026, 5, 1),
+          );
+
+          expect(res.isSuccess, isTrue);
+          expect(capturedQuery, isNotNull);
+          expect(capturedQuery!['models'], equals('era5_land'));
+        },
+      );
+
+      test('57. Empty raw historical response is rejected and does not overwrite valid cache', () async {
+        const cacheKey =
+            'hist_openmeteo_era5land_31.1_30.95_2026-05-01_2026-05-02';
+        final validRecords = [
+          DailyAgroRecord(
+            date: DateTime.utc(2026, 5, 1),
+            maxTemperatureC: 30.0,
+            minTemperatureC: 18.0,
+            precipitationMm: 0.0,
+            referenceEt0Mm: 5.0,
+            provenance: prov,
+          ),
+          DailyAgroRecord(
+            date: DateTime.utc(2026, 5, 2),
+            maxTemperatureC: 31.0,
+            minTemperatureC: 19.0,
+            precipitationMm: 0.0,
+            referenceEt0Mm: 5.2,
+            provenance: prov,
+          ),
+        ];
+
+        // Seed persistent cache with valid historical records
+        await weatherLocalSource.saveRecords(
+          cacheKey: cacheKey,
+          records: validRecords,
+          cachedAt: DateTime.utc(2026, 6, 10),
+        );
+
+        // Mock remote returning an empty response
+        final dio = Dio();
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              handler.resolve(
+                Response(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: {
+                    'latitude': 31.1,
+                    'longitude': 30.95,
+                    'elevation': 6.0,
+                    'generationtime_ms': 0.1,
+                    'utc_offset_seconds': 10800,
+                    'timezone': 'Africa/Cairo',
+                    'daily_units': {},
+                    'daily': {
+                      'time': [],
+                      'temperature_2m_max': [],
+                      'temperature_2m_min': [],
+                      'precipitation_sum': [],
+                      'et0_fao_evapotranspiration': [],
+                    },
+                  },
+                ),
+              );
+            },
+          ),
+        );
+
+        final repo = WeatherRepositoryImpl(
+          remoteDataSource: OpenMeteoRemoteDataSource(dio: dio),
+          localDataSource: weatherLocalSource,
+          referenceTimeProvider: () => DateTime.utc(2026, 6, 15, 12, 0),
+        );
+
+        const coord = Coordinate(latitude: 31.10, longitude: 30.95);
+        final res = await repo.getHistoricalDailyRecords(
+          coordinate: coord,
+          startDate: DateTime.utc(2026, 5, 1),
+          endDate: DateTime.utc(2026, 5, 2),
+        );
+
+        // Must return the cached valid records, not an empty or failed response
+        expect(res.isSuccess, isTrue);
+        expect(res.dataOrNull!.length, equals(2));
+
+        // Verify the database still holds the 2 valid records
+        final dbLookup = await weatherLocalSource.getCachedRecords(
+          cacheKey: cacheKey,
+          isForecast: false,
+          expectedStartDate: DateTime.utc(2026, 5, 1),
+          expectedEndDate: DateTime.utc(2026, 5, 2),
+        );
+        expect(dbLookup, isNotNull);
+        expect(dbLookup!.records.length, equals(2));
+      });
+
+      test('58. isHistoricalValid rejects empty records', () {
+        final repo = WeatherRepositoryImpl();
+        expect(
+          repo.isHistoricalValid(
+            [],
+            DateTime.utc(2026, 5, 1),
+            DateTime.utc(2026, 5, 2),
+          ),
+          isFalse,
+        );
+      });
     });
   });
 }

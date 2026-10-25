@@ -26,58 +26,42 @@ class OpenMeteoAdapter {
     final et0List = daily['et0_fao_evapotranspiration'] as List<dynamic>?;
     final pList = daily['precipitation_sum'] as List<dynamic>?;
 
-    if (times == null || tMaxList == null || tMinList == null) {
+    if (times == null ||
+        tMaxList == null ||
+        tMinList == null ||
+        et0List == null ||
+        pList == null) {
       return const FailureResult(
         ParsingFailure(
           userMessageAr:
               'استجابة بيانات الطقس غير مكتملة أو مفقودة المتغيرات الأساسية.',
-          technicalMessage: 'Response missing time or temperature arrays.',
+          technicalMessage: 'Response missing required daily arrays: time, tMax, tMin, et0, or precipitation.',
         ),
       );
     }
 
     final int count = times.length;
     if (count == 0) {
-      if (expectedCount != null && expectedCount > 0) {
-        return const FailureResult(
-          ParsingFailure(
-            userMessageAr:
-                'استجابة بيانات الطقس فارغة بينما يتطلب النطاق سجلات يومية.',
-            technicalMessage: 'Response time array is empty but non-empty interval was expected.',
-          ),
-        );
-      }
-      return const Success([]);
+      return const FailureResult(
+        ParsingFailure(
+          userMessageAr:
+              'استجابة بيانات الطقس فارغة بينما يتطلب النطاق سجلات يومية.',
+          technicalMessage: 'Response daily arrays are empty. An empty historical response cannot be processed as successful data.',
+        ),
+      );
     }
 
     // 1. Confirm required parallel arrays have compatible lengths (never index beyond bounds)
-    if (tMaxList.length != count || tMinList.length != count) {
+    if (tMaxList.length != count ||
+        tMinList.length != count ||
+        et0List.length != count ||
+        pList.length != count) {
       return FailureResult(
         ParsingFailure(
           userMessageAr:
               'بيانات الطقس المستلمة تحتوي على مصفوفات غير متطابقة في الطول.',
           technicalMessage:
-              'Mismatched parallel array lengths: time=$count, tMax=${tMaxList.length}, tMin=${tMinList.length}.',
-        ),
-      );
-    }
-    if (et0List != null && et0List.length != count) {
-      return FailureResult(
-        ParsingFailure(
-          userMessageAr:
-              'بيانات الطقس المستلمة تحتوي على مصفوفات غير متطابقة في الطول.',
-          technicalMessage:
-              'Mismatched et0 array length: expected=$count, actual=${et0List.length}.',
-        ),
-      );
-    }
-    if (pList != null && pList.length != count) {
-      return FailureResult(
-        ParsingFailure(
-          userMessageAr:
-              'بيانات الطقس المستلمة تحتوي على مصفوفات غير متطابقة في الطول.',
-          technicalMessage:
-              'Mismatched precipitation array length: expected=$count, actual=${pList.length}.',
+              'Mismatched parallel array lengths: time=$count, tMax=${tMaxList.length}, tMin=${tMinList.length}, et0=${et0List.length}, precip=${pList.length}.',
         ),
       );
     }
@@ -194,6 +178,31 @@ class OpenMeteoAdapter {
       prevRawDate = date;
     }
 
+    // 3. Confirm exact boundary coverage of the requested interval
+    if (normalizedExpectedStart != null &&
+        !parsedRawDates.first.isAtSameMomentAs(normalizedExpectedStart)) {
+      return FailureResult(
+        ParsingFailure(
+          userMessageAr:
+              'استجابة الأرصاد تبدأ بتاريخ لا يطابق بداية الفترة المطلوبة.',
+          technicalMessage:
+              'First raw response date (${parsedRawDates.first}) does not equal expected startDate ($normalizedExpectedStart).',
+        ),
+      );
+    }
+
+    if (normalizedExpectedEnd != null &&
+        !parsedRawDates.last.isAtSameMomentAs(normalizedExpectedEnd)) {
+      return FailureResult(
+        ParsingFailure(
+          userMessageAr:
+              'استجابة الأرصاد تنتهي بتاريخ لا يطابق نهاية الفترة المطلوبة.',
+          technicalMessage:
+              'Last raw response date (${parsedRawDates.last}) does not equal expected endDate ($normalizedExpectedEnd).',
+        ),
+      );
+    }
+
     if (expectedCount != null && parsedRawDates.length != expectedCount) {
       return FailureResult(
         ParsingFailure(
@@ -225,8 +234,8 @@ class OpenMeteoAdapter {
       final date = parsedRawDates[i];
       final rawTmax = tMaxList[i];
       final rawTmin = tMinList[i];
-      final rawEt0 = et0List != null ? et0List[i] : null;
-      final rawP = pList != null ? pList[i] : null;
+      final rawEt0 = et0List[i];
+      final rawP = pList[i];
 
       if (rawTmax == null || rawTmin == null) {
         missingTempCount++;

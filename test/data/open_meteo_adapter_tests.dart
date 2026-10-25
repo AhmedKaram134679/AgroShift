@@ -530,5 +530,312 @@ void main() {
         isTrue,
       );
     });
+
+    group('Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests', () {
+      final june1 = DateTime.utc(2026, 6, 1);
+      final june30 = DateTime.utc(2026, 6, 30);
+      const totalJuneDays = 30;
+
+      OpenMeteoDailyResponseDto makeRangeDto(int startDay, int endDay) {
+        final days = List.generate(
+          endDay - startDay + 1,
+          (i) => '2026-06-${(startDay + i).toString().padLeft(2, '0')}',
+        );
+        final len = days.length;
+        return OpenMeteoDailyResponseDto(
+          latitude: 31.05,
+          longitude: 31.20,
+          generationTimeMs: 1.0,
+          utcOffsetSeconds: 10800,
+          timezone: 'Africa/Cairo',
+          dailyUnits: {},
+          daily: {
+            'time': days,
+            'temperature_2m_max': List.filled(len, 35.0),
+            'temperature_2m_min': List.filled(len, 22.0),
+            'et0_fao_evapotranspiration': List.filled(len, 5.5),
+            'precipitation_sum': List.filled(len, 0.0),
+          },
+        );
+      }
+
+      test('June 1-30 requested; June 1-20 returned (omits end): rejected', () {
+        final dto = makeRangeDto(1, 20);
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'ERA5-Land',
+          expectedStartDate: june1,
+          expectedEndDate: june30,
+          expectedCount: totalJuneDays,
+        );
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<ParsingFailure>());
+        expect(
+          res.failureOrNull!.technicalMessage,
+          contains('does not equal expected endDate'),
+        );
+      });
+
+      test(
+        'June 1-30 requested; June 5-30 returned (omits start): rejected',
+        () {
+          final dto = makeRangeDto(5, 30);
+          final res = OpenMeteoAdapter.toDomainRecords(
+            dto: dto,
+            requestedCoordinate: coord,
+            datasetLabel: 'ERA5-Land',
+            expectedStartDate: june1,
+            expectedEndDate: june30,
+            expectedCount: totalJuneDays,
+          );
+          expect(res.isFailure, isTrue);
+          expect(res.failureOrNull, isA<ParsingFailure>());
+          expect(
+            res.failureOrNull!.technicalMessage,
+            contains('does not equal expected startDate'),
+          );
+        },
+      );
+
+      test(
+        'June 1-30 requested; June 1-29 returned (off by one at end): rejected',
+        () {
+          final dto = makeRangeDto(1, 29);
+          final res = OpenMeteoAdapter.toDomainRecords(
+            dto: dto,
+            requestedCoordinate: coord,
+            datasetLabel: 'ERA5-Land',
+            expectedStartDate: june1,
+            expectedEndDate: june30,
+            expectedCount: totalJuneDays,
+          );
+          expect(res.isFailure, isTrue);
+          expect(res.failureOrNull, isA<ParsingFailure>());
+          expect(
+            res.failureOrNull!.technicalMessage,
+            contains('does not equal expected endDate'),
+          );
+        },
+      );
+
+      test('June 1-30 requested; all dates returned correctly: accepted', () {
+        final dto = makeRangeDto(1, 30);
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'ERA5-Land',
+          expectedStartDate: june1,
+          expectedEndDate: june30,
+          expectedCount: totalJuneDays,
+        );
+        expect(res.isSuccess, isTrue);
+        expect(res.dataOrNull!.length, equals(30));
+        expect(res.dataOrNull!.first.date, equals(june1));
+        expect(res.dataOrNull!.last.date, equals(june30));
+      });
+
+      test('Empty historical raw response fails validation', () {
+        final emptyDto = OpenMeteoDailyResponseDto(
+          latitude: 31.05,
+          longitude: 31.20,
+          generationTimeMs: 1.0,
+          utcOffsetSeconds: 10800,
+          timezone: 'Africa/Cairo',
+          dailyUnits: {},
+          daily: {
+            'time': [],
+            'temperature_2m_max': [],
+            'temperature_2m_min': [],
+            'et0_fao_evapotranspiration': [],
+            'precipitation_sum': [],
+          },
+        );
+
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: emptyDto,
+          requestedCoordinate: coord,
+          datasetLabel: 'ERA5-Land',
+          expectedStartDate: june1,
+          expectedEndDate: june30,
+          expectedCount: 30,
+        );
+
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<ParsingFailure>());
+        expect(res.failureOrNull!.technicalMessage, contains('empty'));
+      });
+
+      test('Missing mandatory ET0 array is rejected', () {
+        final dto = OpenMeteoDailyResponseDto(
+          latitude: 31.05,
+          longitude: 31.20,
+          generationTimeMs: 1.0,
+          utcOffsetSeconds: 10800,
+          timezone: 'Africa/Cairo',
+          dailyUnits: {},
+          daily: {
+            'time': ['2026-06-01'],
+            'temperature_2m_max': [30.0],
+            'temperature_2m_min': [20.0],
+            // et0 missing entirely
+            'precipitation_sum': [0.0],
+          },
+        );
+
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'ERA5-Land',
+        );
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<ParsingFailure>());
+        expect(
+          res.failureOrNull!.technicalMessage,
+          contains('missing required daily arrays'),
+        );
+      });
+
+      test('Missing mandatory precipitation array is rejected', () {
+        final dto = OpenMeteoDailyResponseDto(
+          latitude: 31.05,
+          longitude: 31.20,
+          generationTimeMs: 1.0,
+          utcOffsetSeconds: 10800,
+          timezone: 'Africa/Cairo',
+          dailyUnits: {},
+          daily: {
+            'time': ['2026-06-01'],
+            'temperature_2m_max': [30.0],
+            'temperature_2m_min': [20.0],
+            'et0_fao_evapotranspiration': [5.0],
+            // precipitation missing entirely
+          },
+        );
+
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'ERA5-Land',
+        );
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<ParsingFailure>());
+        expect(
+          res.failureOrNull!.technicalMessage,
+          contains('missing required daily arrays'),
+        );
+      });
+
+      test('Mismatched ET0 array length is rejected', () {
+        final dto = OpenMeteoDailyResponseDto(
+          latitude: 31.05,
+          longitude: 31.20,
+          generationTimeMs: 1.0,
+          utcOffsetSeconds: 10800,
+          timezone: 'Africa/Cairo',
+          dailyUnits: {},
+          daily: {
+            'time': ['2026-06-01', '2026-06-02'],
+            'temperature_2m_max': [30.0, 31.0],
+            'temperature_2m_min': [20.0, 21.0],
+            'et0_fao_evapotranspiration': [5.0], // only 1 element
+            'precipitation_sum': [0.0, 0.0],
+          },
+        );
+
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'ERA5-Land',
+        );
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<ParsingFailure>());
+        expect(
+          res.failureOrNull!.technicalMessage,
+          contains('Mismatched parallel array lengths'),
+        );
+      });
+
+      test('Mismatched precipitation array length is rejected', () {
+        final dto = OpenMeteoDailyResponseDto(
+          latitude: 31.05,
+          longitude: 31.20,
+          generationTimeMs: 1.0,
+          utcOffsetSeconds: 10800,
+          timezone: 'Africa/Cairo',
+          dailyUnits: {},
+          daily: {
+            'time': ['2026-06-01', '2026-06-02'],
+            'temperature_2m_max': [30.0, 31.0],
+            'temperature_2m_min': [20.0, 21.0],
+            'et0_fao_evapotranspiration': [5.0, 5.2],
+            'precipitation_sum': [0.0], // only 1 element
+          },
+        );
+
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'ERA5-Land',
+        );
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<ParsingFailure>());
+        expect(
+          res.failureOrNull!.technicalMessage,
+          contains('Mismatched parallel array lengths'),
+        );
+      });
+
+      test(
+        'Permits legitimate null measurements and preserves distinct 0.0 value',
+        () {
+          final days = List.generate(
+            10,
+            (i) => '2026-06-${(i + 1).toString().padLeft(2, '0')}',
+          );
+          final et0s = List<double?>.filled(10, 5.0);
+          et0s[1] = null; // 1 out of 10 missing (10% - allowed)
+          final precip = List<double?>.filled(10, 0.0);
+          precip[2] = null; // 1 out of 10 missing (10% - allowed)
+
+          final dto = OpenMeteoDailyResponseDto(
+            latitude: 31.05,
+            longitude: 31.20,
+            generationTimeMs: 1.0,
+            utcOffsetSeconds: 10800,
+            timezone: 'Africa/Cairo',
+            dailyUnits: {},
+            daily: {
+              'time': days,
+              'temperature_2m_max': List.filled(10, 30.0),
+              'temperature_2m_min': List.filled(10, 20.0),
+              'et0_fao_evapotranspiration': et0s,
+              'precipitation_sum': precip,
+            },
+          );
+
+          final res = OpenMeteoAdapter.toDomainRecords(
+            dto: dto,
+            requestedCoordinate: coord,
+            datasetLabel: 'ERA5-Land',
+            expectedStartDate: DateTime.utc(2026, 6, 1),
+            expectedEndDate: DateTime.utc(2026, 6, 10),
+            expectedCount: 10,
+          );
+
+          expect(res.isSuccess, isTrue);
+          final recs = res.dataOrNull!;
+          expect(recs.length, equals(10));
+          // Day 1: precipitation was 0.0 (measured zero), et0 was 5.0
+          expect(recs[0].precipitationMm, equals(0.0));
+          expect(recs[0].precipitationMm, isNotNull);
+          expect(recs[0].referenceEt0Mm, equals(5.0));
+          // Day 2: et0 was null
+          expect(recs[1].referenceEt0Mm, isNull);
+          // Day 3: precipitation was null
+          expect(recs[2].precipitationMm, isNull);
+        },
+      );
+    });
   });
 }

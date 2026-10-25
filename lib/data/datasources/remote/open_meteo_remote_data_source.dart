@@ -36,6 +36,7 @@ class OpenMeteoRemoteDataSource {
         'end_date': endDateIso,
         'daily': 'temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_sum',
         'timezone': 'Africa/Cairo',
+        'models': 'era5_land',
       },
     );
 
