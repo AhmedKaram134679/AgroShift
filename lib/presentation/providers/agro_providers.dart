@@ -165,18 +165,19 @@ final fieldForecastProvider =
       );
     });
 
-// 8. Active Field Historical Weather Async Provider (Last 30 days)
+// 8. Active Field Historical Weather Async Provider (30 eligible historical days)
 final fieldHistorical30DaysProvider =
     FutureProvider.autoDispose<Result<List<DailyAgroRecord>, Failure>>((
       ref,
     ) async {
       final activeField = ref.watch(selectedFieldProvider);
       final weatherRepo = ref.watch(weatherRepositoryProvider);
-      final now = DateTime.now();
-      final startDate = now.subtract(const Duration(days: 30));
+      final latestEligible =
+          WeatherRepositoryImpl.getLatestEligibleHistoricalDate();
+      final startDate = latestEligible.subtract(const Duration(days: 29));
       return await weatherRepo.getHistoricalDailyRecords(
         coordinate: activeField.coordinate,
         startDate: startDate,
-        endDate: now,
+        endDate: latestEligible,
       );
     });

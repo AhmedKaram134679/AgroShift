@@ -10,6 +10,7 @@ class DataSourceProvenance {
   final DateTime acquisitionTimestamp;
   final String scientificDisclaimerAr;
   final bool isStaleFallback;
+  final int? expectedPeriodDays;
 
   const DataSourceProvenance({
     required this.providerName,
@@ -22,6 +23,7 @@ class DataSourceProvenance {
     required this.acquisitionTimestamp,
     this.scientificDisclaimerAr = 'البيانات مستمدة من نماذج شبكية مُعاد تحليلها وتخضع لعدم يقين التقدير المكاني ولا تمثل قياسات محطة أرضية دقيقة.',
     this.isStaleFallback = false,
+    this.expectedPeriodDays,
   });
 
   @override

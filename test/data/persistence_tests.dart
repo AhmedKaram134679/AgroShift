@@ -2719,6 +2719,45 @@ void main() {
           isFalse,
         );
       });
+
+      test('59. 30-day Option A window produces exactly 30 days ending on latestEligible', () {
+        // Reference time in Cairo summer (UTC+3)
+        final referenceSummer = DateTime.utc(2026, 7, 10, 10, 0); // 13:00 Cairo
+        final latestEligibleSummer =
+            WeatherRepositoryImpl.getLatestEligibleHistoricalDate(
+              referenceSummer,
+            );
+        final startSummer = latestEligibleSummer.subtract(
+          const Duration(days: 29),
+        );
+        final diffDaysSummer =
+            latestEligibleSummer.difference(startSummer).inDays + 1;
+        expect(diffDaysSummer, equals(30));
+        // Cairo calendar date of referenceSummer is 2026-07-10. 5 days delay = 2026-07-05.
+        expect(latestEligibleSummer, equals(DateTime.utc(2026, 7, 5)));
+        expect(startSummer, equals(DateTime.utc(2026, 6, 6)));
+
+        // Reference time crossing month boundary (2026-03-03)
+        final referenceMarch = DateTime.utc(2026, 3, 3, 10, 0);
+        final latestEligibleMarch =
+            WeatherRepositoryImpl.getLatestEligibleHistoricalDate(
+              referenceMarch,
+            );
+        final startMarch = latestEligibleMarch.subtract(
+          const Duration(days: 29),
+        );
+        final diffDaysMarch =
+            latestEligibleMarch.difference(startMarch).inDays + 1;
+        expect(diffDaysMarch, equals(30));
+        // 2026-03-03 minus 5 days = 2026-02-26 (non-leap year, Feb has 28 days)
+        expect(latestEligibleMarch, equals(DateTime.utc(2026, 2, 26)));
+        expect(startMarch, equals(DateTime.utc(2026, 1, 28)));
+      });
+
+      test('60. era5ArchiveDelayDays and era5LandArchiveDelayDays alias are aligned', () {
+        expect(WeatherRepositoryImpl.era5ArchiveDelayDays, equals(5));
+        expect(WeatherRepositoryImpl.era5LandArchiveDelayDays, equals(5));
+      });
     });
   });
 }

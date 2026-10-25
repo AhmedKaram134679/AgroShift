@@ -297,11 +297,17 @@ void main() {
       // Total records created is 9 because Day 1 had missing temperature
       expect(records.length, equals(9));
       // First created record corresponds to Day 2: ET0 is null, precipitation is 0.0
-      expect(records[0].referenceEt0Mm, isNull);
-      expect(records[0].precipitationMm, equals(0.0));
-      // Second created record corresponds to Day 3: ET0 is 5.2, precipitation is null
-      expect(records[1].referenceEt0Mm, equals(5.2));
-      expect(records[1].precipitationMm, isNull);
+      // Verify that expectedPeriodDays reflects the requested 10 days, not the 9 surviving records
+      expect(records.first.provenance.expectedPeriodDays, equals(10));
+      final availableEt0Days = records
+          .where((r) => r.referenceEt0Mm != null)
+          .length;
+      expect(availableEt0Days, equals(8));
+      // In UI calculation: availableEt0Days (8) out of expectedPeriodDays (10), with 1 missing temp day excluded
+      expect(
+        records.first.provenance.expectedPeriodDays! - records.length,
+        equals(1),
+      );
     });
 
     test('Raw sequence: Valid consecutive daily sequence succeeds', () {

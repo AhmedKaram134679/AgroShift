@@ -228,6 +228,7 @@ class OpenMeteoAdapter {
       gridLongitude: dto.longitude,
       gridElevationMeters: dto.elevation,
       acquisitionTimestamp: DateTime.now().toUtc(),
+      expectedPeriodDays: expectedCount ?? count,
     );
 
     for (int i = 0; i < count; i++) {

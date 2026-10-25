@@ -35,9 +35,12 @@ class WeatherRepositoryImpl implements IWeatherRepository {
   final OpenMeteoRemoteDataSource _remoteDataSource;
   final WeatherLocalDataSource? _localDataSource;
 
-  /// Official Open-Meteo ERA5 / ERA5-Land Archive publication delay is typically 5 calendar days.
+  /// Official Open-Meteo ERA5 Reanalysis Archive publication delay is typically 5 calendar days.
   /// Source: https://open-meteo.com/en/docs/historical-weather-api
-  static const int era5LandArchiveDelayDays = 5;
+  static const int era5ArchiveDelayDays = 5;
+
+  /// Backward-compatible alias for existing tests
+  static const int era5LandArchiveDelayDays = era5ArchiveDelayDays;
 
   // In-memory L1 cache for fast hot-lookup with TTL and integrity tracking
   final Map<String, _MemoryCacheEntry> _memoryCache = {};
@@ -54,7 +57,7 @@ class WeatherRepositoryImpl implements IWeatherRepository {
       _referenceTimeProvider?.call() ?? DateTime.now();
 
   /// Calculates the latest eligible historical calendar date in Egypt.
-  /// Based on the official Open-Meteo ERA5-Land publication delay of 5 calendar days.
+  /// Based on the official Open-Meteo ERA5 publication delay of 5 calendar days.
   static DateTime getLatestEligibleHistoricalDate([DateTime? referenceTime]) {
     final cairoNow = getCairoDateTime(referenceTime);
     // Normalize to canonical UTC calendar date (00:00:00) before subtracting delay
@@ -64,7 +67,7 @@ class WeatherRepositoryImpl implements IWeatherRepository {
       cairoNow.day,
     );
     return cairoCalendarToday.subtract(
-      const Duration(days: era5LandArchiveDelayDays),
+      const Duration(days: era5ArchiveDelayDays),
     );
   }
 
@@ -115,7 +118,7 @@ class WeatherRepositoryImpl implements IWeatherRepository {
       return FailureResult(
         InsufficientEvidenceFailure(
           userMessageAr:
-              'الفترة المطلوبة تقع ضمن فترة تأخير نشر أرشيف ERA5-Land (5 أيام). آخر تاريخ متاح هو $latestEligibleIso.',
+              'الفترة المطلوبة تقع ضمن فترة تأخير نشر أرشيف ERA5 (5 أيام). آخر تاريخ متاح هو $latestEligibleIso.',
           technicalMessage:
               'Requested startDate ($normStartDate) is after the latest eligible archive date ($latestEligibleDate, 5-day publication delay).',
           missingRatio: 1.0,
@@ -687,6 +690,7 @@ class WeatherRepositoryImpl implements IWeatherRepository {
         acquisitionTimestamp: p.acquisitionTimestamp,
         scientificDisclaimerAr: staleDisclaimer,
         isStaleFallback: true, // Dedicated freshness state flag
+        expectedPeriodDays: p.expectedPeriodDays,
       );
 
       return DailyAgroRecord(

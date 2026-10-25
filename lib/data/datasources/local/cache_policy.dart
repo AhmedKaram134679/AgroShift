@@ -7,7 +7,7 @@ class CachePolicy {
   /// Short-term numerical weather predictions lose accuracy rapidly past 6 hours.
   static const Duration forecastTtl = Duration(hours: 6);
 
-  /// Historical reanalysis records (e.g. ERA5-Land) are static once finalized, but
+  /// Historical reanalysis records (e.g. ERA5) are static once finalized, but
   /// provisional/recent records may be re-run; 7-day TTL allows periodic sync.
   static const Duration historicalTtl = Duration(days: 7);
 

@@ -55,6 +55,11 @@ class WeatherLocalDataSource {
             )
           : null;
 
+      final expectedDays =
+          (normalizedExpectedStart != null && normalizedExpectedEnd != null)
+          ? normalizedExpectedEnd.difference(normalizedExpectedStart).inDays + 1
+          : null;
+
       final List<DailyAgroRecord> records = [];
       DateTime? prevDate;
 
@@ -120,6 +125,7 @@ class WeatherLocalDataSource {
           gridElevationMeters: row.gridElevationMeters,
           acquisitionTimestamp: row.acquisitionTimestamp.toUtc(),
           scientificDisclaimerAr: row.scientificDisclaimerAr,
+          expectedPeriodDays: expectedDays,
         );
 
         records.add(

@@ -90,7 +90,7 @@ class ScientificProvenanceScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   _bulletPoint(
-                    'بيانات الأرصاد الشبكية (ERA5-Land بدقة 11 كم) تمثل متوسط المربع الشبكي وليس نقطة الحقل بالتحديد.',
+                    'بيانات الأرصاد الشبكية (ERA5 بدقة ~25 كم / 0.25°) تمثل متوسط المربع الشبكي وليس نقطة الحقل بالتحديد.',
                   ),
                   _bulletPoint(
                     'تطابق نموذجين مناخيين (مثل Open-Meteo و NASA POWER) لا يُعد دليلاً قاطعاً على الحقيقة الأرضية (Ground Truth).',

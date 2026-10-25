@@ -212,11 +212,16 @@ class DashboardScreen extends ConsumerWidget {
                           )
                         : null;
 
+                    final expectedForecastDays =
+                        records.first.provenance.expectedPeriodDays ??
+                        records.length;
                     final totalForecastDays = records.length;
                     final availableEt0Days = records
                         .where((r) => r.referenceEt0Mm != null)
                         .length;
-                    final isCompleteEt0 = availableEt0Days == totalForecastDays;
+                    final isCompleteEt0 =
+                        availableEt0Days == expectedForecastDays &&
+                        totalForecastDays == expectedForecastDays;
 
                     final totalForecastEt0 = records
                         .where((r) => r.referenceEt0Mm != null)
@@ -254,8 +259,8 @@ class DashboardScreen extends ConsumerWidget {
                                     Expanded(
                                       child: Text(
                                         isCompleteEt0
-                                            ? 'الاستهلاك المائي التبخري للمحصول (ETc) — فترة $totalForecastDays أيام'
-                                            : 'الاستهلاك المائي التبخري للمحصول (ETc) — مجموع جزئي ($availableEt0Days من $totalForecastDays أيام)',
+                                            ? 'الاستهلاك المائي التبخري للمحصول (ETc) — فترة $expectedForecastDays أيام'
+                                            : 'الاستهلاك المائي التبخري للمحصول (ETc) — مجموع جزئي ($availableEt0Days من $expectedForecastDays أيام مطلوبة)',
                                         style: Theme.of(context)
                                             .textTheme
                                             .titleSmall
@@ -270,13 +275,13 @@ class DashboardScreen extends ConsumerWidget {
                                 Text(
                                   isCompleteEt0
                                       ? 'مجموع البخر نتح المرجعي (ET₀): ${totalForecastEt0.toStringAsFixed(1)} مم'
-                                      : 'مجموع جزئي للبخر نتح المرجعي ($availableEt0Days من أصل $totalForecastDays أيام): ${totalForecastEt0.toStringAsFixed(1)} مم',
+                                      : 'مجموع جزئي للبخر نتح المرجعي ($availableEt0Days من أصل $expectedForecastDays يوماً مطلوبة): ${totalForecastEt0.toStringAsFixed(1)} مم',
                                   style: const TextStyle(fontSize: 13),
                                 ),
                                 if (!isCompleteEt0) ...[
                                   const SizedBox(height: 2),
                                   Text(
-                                    'تنبيه: التوقعات غير مكتملة لكامل الفترة (${totalForecastDays - availableEt0Days} أيام بدون قراءة ET₀). المجموع المعروض يمثل الأيام المتوفرة فقط.',
+                                    'تنبيه: التوقعات غير مكتملة لكامل الفترة (${expectedForecastDays - availableEt0Days} أيام بدون قراءة ET₀ صالحة من أصل $expectedForecastDays يوماً). المجموع المعروض يمثل الأيام المتوفرة فقط.',
                                     style: const TextStyle(
                                       fontSize: 11.5,
                                       color: Color(0xFFC62828),

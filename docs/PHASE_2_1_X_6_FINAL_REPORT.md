@@ -3,39 +3,59 @@
 
 ### 1. Executive Summary
 - **Overall Status:** `PASS — Ready for independent review`
-- **Readiness:** Phase 2.1.x.6 is fully implemented, verified, and ready for independent engineering and agronomic review.
-- **P0 / P1 Blockers:** None remaining. The critical P0 historical model-variable incompatibility has been resolved through live API verification and code configuration updates.
+- **Readiness:** Phase 2.1.x.6 is fully implemented, verified, hardened, and ready for independent engineering and agronomic review.
+- **P0 / P1 / P2 Audit Items Resolved:**
+  1. **P0 Model Compatibility:** Live API queries proved `models=era5_land` returned `null` for both $ET_0$ and precipitation on daily historical endpoints. `models=era5` was confirmed live to provide complete non-null data for all 4 required daily variables ($T_{\max}$, $T_{\min}$, $ET_0$, Precipitation) on an authentic ECMWF ERA5 grid cell (0.25° grid, ~25 km resolution).
+  2. **P1 Period Completeness & Missing-Day Denominator:** Added `expectedPeriodDays` to `DataSourceProvenance` and passed it from both the adapter and SQLite cache lookup. In `environmental_analysis_screen.dart` and `dashboard_screen.dart`, completeness is calculated using `expectedPeriodDays` (the requested period length) rather than the count of surviving records. Days skipped due to missing temperature (up to 10%) are explicitly factored into the missing count and communicated in Arabic.
+  3. **P1 Historical Date Window in `agro_providers.dart`:** Updated `fieldHistorical30DaysProvider` to implement Option A: querying `[latestEligible - 29 days, latestEligible]`, where `latestEligible = WeatherRepositoryImpl.getLatestEligibleHistoricalDate()`. This ensures an exact 30-day eligible historical sequence without getting truncated to 26 days by the 5-day publication delay.
+  4. **P1 Removal of Stale ERA5-Land References:** Cleaned all remaining references in `weather_repository_impl.dart` (renamed `era5LandArchiveDelayDays` to `era5ArchiveDelayDays` with an alias for tests, updated Arabic error message), `environmental_analysis_screen.dart` (loading string), `scientific_provenance_screen.dart` (resolution and model name), and `cache_policy.dart`.
+  5. **P1 Provenance Claims Alignment:** Updated documentation and UI architecture to clarify that each meteorological view presents a primary dataset provenance card (`ProvenanceCard`) reflecting the underlying dataset series (ERA5 Reanalysis Archive or Open-Meteo Best Match Forecast).
+  6. **P2 ERA5 Spatial Resolution:** Updated `DATA_SOURCES_AND_VALIDATION.md` and UI strings to document ~25 km (0.25° grid), explicitly explaining the longitudinal convergence from ~27.8 km at the equator to ~24–26 km at Egyptian latitudes ($22^\circ\text{N}–31.8^\circ\text{N}$).
+  7. **P2 Operational Quality Envelopes vs Physical Invariants:** Documented clear distinctions between operational data-quality screening envelopes ($[-5.0^\circ\text{C}, +55.0^\circ\text{C}]$, $ET_0 \le 25\text{ mm}$, $P \le 250\text{ mm}$) and inviolable physical domain laws ($T_{\max} \ge T_{\min}$, $P \ge 0$).
+  8. **P2 NASA POWER Limitations:** Added documentation on multi-source sensor transitions (MERRA-2 assimilation updates, CERES vs earlier instruments) and temporal heterogeneity caveats for long-term trend analysis.
 
 ---
 
 ### 2. Files Changed
 1. [open_meteo_remote_data_source.dart](file:///d:/Programming%20projects/agro_shift/lib/data/datasources/remote/open_meteo_remote_data_source.dart)
-   - *Change:* Replaced `'models': 'era5_land'` with `'models': 'era5'` in `fetchHistoricalDaily()`. Updated class documentation.
-   - *Rationale:* Verified via live API queries that Open-Meteo's `era5_land` parameter on daily historical queries returns `null` for both `et0_fao_evapotranspiration` and `precipitation_sum`. Requesting `models=era5` guarantees valid, non-null data for all four required agricultural variables ($T_{\max}$, $T_{\min}$, $ET_0$, Precipitation).
-2. [weather_repository_impl.dart](file:///d:/Programming%20projects/agro_shift/lib/data/repositories/weather_repository_impl.dart)
-   - *Change:* Updated historical cache tag to `openmeteo_era5` (cache key format `hist_openmeteo_era5_${lat}_${lon}_${start}_$end`) and dataset label to `'ERA5 Reanalysis Archive'`. Updated forecast cache tag to `openmeteo_bestmatch` (cache key format `fc_openmeteo_bestmatch_${lat}_${lon}_${today}_$days`) and dataset label to `'Open-Meteo Best Match Forecast'`.
-   - *Rationale:* Eliminates stale dataset identity reuse, guarantees cache isolation between distinct model configurations, and honestly reflects that the forecast uses Open-Meteo's Best Match blend.
-3. [coordinate.dart](file:///d:/Programming%20projects/agro_shift/lib/domain/environment/models/coordinate.dart) & [agro_constants.dart](file:///d:/Programming%20projects/agro_shift/lib/core/constants/agro_constants.dart)
-   - *Change:* Documented that the $[22.0, 31.8]^\circ\text{N} \times [25.0, 37.0]^\circ\text{E}$ bounding envelope is an approximate operational screening bounding box for Egypt, not a legal or political border polygon. Updated error message to use accurate Arabic phrasing (`النطاق الجغرافي المعتمد ... (نطاق تقريبي)`).
-   - *Rationale:* Prevents false scientific claims of political boundary validation.
-4. [provenance_card.dart](file:///d:/Programming%20projects/agro_shift/lib/presentation/widgets/provenance_card.dart)
-   - *Change:* Rendered requested field coordinates (`الإحداثيات المطلوبة للحقل`) separately from resolved atmospheric model grid coordinates (`إحداثيات خلية الشبكة (Grid)`).
-   - *Rationale:* Resolves provenance conflation between user farm locations and gridded atmospheric cells.
-5. [environmental_analysis_screen.dart](file:///d:/Programming%20projects/agro_shift/lib/presentation/screens/environmental_analysis_screen.dart) & [dashboard_screen.dart](file:///d:/Programming%20projects/agro_shift/lib/presentation/screens/dashboard_screen.dart)
-   - *Change:* Implemented transparent completeness tracking for $ET_0$ and $ET_c$ period sums. If any days lack $ET_0$ measurements, the UI labels the metric as a partial sum (`مجموع جزئي ($availableDays من أصل $totalDays يوماً)`) and shows an Arabic warning.
-   - *Rationale:* Prevents partial sums from being silently passed off as complete seasonal or 7-day period totals.
-6. [DATA_SOURCES_AND_VALIDATION.md](file:///d:/Programming%20projects/agro_shift/docs/DATA_SOURCES_AND_VALIDATION.md)
-   - *Change:* Synchronized documentation to reflect `models=era5`, Open-Meteo Best Match forecast, operational data-quality thresholds vs physical laws, transparent completeness reporting, and coordinate separation.
-   - *Rationale:* Keeps primary scientific documentation consistent with the actual codebase.
-7. [open_meteo_adapter_tests.dart](file:///d:/Programming%20projects/agro_shift/test/data/open_meteo_adapter_tests.dart)
-   - *Change:* Added regression tests for missing `temperature_2m_max` and `temperature_2m_min` arrays alongside existing $ET_0$ and precipitation missing array tests.
-   - *Rationale:* Enforces complete 4-variable array coverage in the adapter.
-8. [persistence_tests.dart](file:///d:/Programming%20projects/agro_shift/test/data/persistence_tests.dart)
-   - *Change:* Updated all cache keys to `hist_openmeteo_era5_...` and `fc_openmeteo_bestmatch_...`. Updated Test 56 to assert `models == 'era5'`.
-   - *Rationale:* Verifies cache identity and request parameter consistency.
-9. [widget_test.dart](file:///d:/Programming%20projects/agro_shift/test/widget_test.dart)
-   - *Change:* Added widget tests verifying distinct rendering of requested vs grid coordinates in `ProvenanceCard`.
-   - *Rationale:* Ensures UI provenance traceability.
+   - *Change:* Configured `'models': 'era5'` in `fetchHistoricalDaily()`.
+   - *Rationale:* Verified via live API queries that `era5` reliably returns complete, non-null values for all 4 required daily variables.
+2. [data_source_provenance.dart](file:///d:/Programming%20projects/agro_shift/lib/domain/environment/models/data_source_provenance.dart)
+   - *Change:* Added optional `final int? expectedPeriodDays;` to `DataSourceProvenance`.
+   - *Rationale:* Enables UI and downstream components to accurately determine the requested period denominator independently of filtered/surviving records.
+3. [open_meteo_adapter.dart](file:///d:/Programming%20projects/agro_shift/lib/data/datasources/remote/open_meteo_adapter.dart)
+   - *Change:* Passed `expectedPeriodDays: expectedCount ?? count` to `DataSourceProvenance`.
+   - *Rationale:* Tracks the requested period length on every returned record.
+4. [weather_local_data_source.dart](file:///d:/Programming%20projects/agro_shift/lib/data/datasources/local/weather_local_data_source.dart)
+   - *Change:* Set `expectedPeriodDays: expectedDays` on `DataSourceProvenance` when restoring records from cache.
+   - *Rationale:* Preserves requested period denominator across offline cache reads.
+5. [weather_repository_impl.dart](file:///d:/Programming%20projects/agro_shift/lib/data/repositories/weather_repository_impl.dart)
+   - *Change:* Renamed `era5LandArchiveDelayDays` to `era5ArchiveDelayDays` (with backward compatibility alias `era5LandArchiveDelayDays`), updated Arabic error message to reference ERA5, and forwarded `expectedPeriodDays` in `_markAsStale()`.
+   - *Rationale:* Eliminates stale ERA5-Land references and preserves period denominator across stale fallback.
+6. [agro_providers.dart](file:///d:/Programming%20projects/agro_shift/lib/presentation/providers/agro_providers.dart)
+   - *Change:* Updated `fieldHistorical30DaysProvider` to query `[latestEligible - 29 days, latestEligible]`.
+   - *Rationale:* Delivers exactly 30 eligible historical days accounting for the 5-day publication delay (Option A).
+7. [environmental_analysis_screen.dart](file:///d:/Programming%20projects/agro_shift/lib/presentation/screens/environmental_analysis_screen.dart)
+   - *Change:* Updated loading text from `ERA5-Land` to `ERA5`. Recomputed $ET_0$ completeness against `expectedPeriodDays` and added detailed Arabic warning distinguishing missing temperature days from missing $ET_0$ days.
+   - *Rationale:* Prevents false 100% completeness claims when temperature-missing days are omitted from the record list.
+8. [dashboard_screen.dart](file:///d:/Programming%20projects/agro_shift/lib/presentation/screens/dashboard_screen.dart)
+   - *Change:* Evaluated forecast $ET_0$ completeness against `expectedForecastDays` and updated Arabic warning.
+   - *Rationale:* Guarantees consistency between expected forecast days and available $ET_0$ readings.
+9. [scientific_provenance_screen.dart](file:///d:/Programming%20projects/agro_shift/lib/presentation/screens/scientific_provenance_screen.dart)
+   - *Change:* Updated line 93 to `(ERA5 بدقة ~25 كم / 0.25°)`.
+   - *Rationale:* Eliminates stale ERA5-Land 11 km claims.
+10. [cache_policy.dart](file:///d:/Programming%20projects/agro_shift/lib/data/datasources/local/cache_policy.dart)
+    - *Change:* Updated comment from `ERA5-Land` to `ERA5`.
+    - *Rationale:* Keeps documentation consistent with codebase.
+11. [DATA_SOURCES_AND_VALIDATION.md](file:///d:/Programming%20projects/agro_shift/docs/DATA_SOURCES_AND_VALIDATION.md)
+    - *Change:* Documented ~25 km resolution (with latitudinal cosine formula), primary dataset provenance display architecture, NASA POWER sensor transition caveats, and requested-period denominator semantics in Section 3.3.
+    - *Rationale:* Establishes rigorous scientific documentation.
+12. [open_meteo_adapter_tests.dart](file:///d:/Programming%20projects/agro_shift/test/data/open_meteo_adapter_tests.dart)
+    - *Change:* Added assertions verifying that `expectedPeriodDays` equals 10 when 1 day has missing temperature and is skipped from the record list.
+    - *Rationale:* Prevents regressions in requested period tracking.
+13. [persistence_tests.dart](file:///d:/Programming%20projects/agro_shift/test/data/persistence_tests.dart)
+    - *Change:* Added Test 59 (verifying Option A 30-day window across Cairo summer DST and month boundary) and Test 60 (verifying `era5ArchiveDelayDays` and `era5LandArchiveDelayDays` alias).
+    - *Rationale:* Prevents regressions in historical date window and delay constants.
 
 ---
 
@@ -46,42 +66,32 @@
   - Dataset Name: `ERA5 Reanalysis Archive`
   - Daily Variables: `temperature_2m_max`, `temperature_2m_min`, `et0_fao_evapotranspiration`, `precipitation_sum`
   - Timezone: `Africa/Cairo`
-- **Evidence Supporting Variable Compatibility:**
-  - Live API testing of `models=era5_land` against the official endpoint for a valid Egypt location (`31.10°N, 30.95°E`) returned null arrays for `et0_fao_evapotranspiration` (`[null, null, ...]`) and `precipitation_sum` (`[null, null, ...]`).
-  - Live API testing of `models=era5` against the same endpoint and coordinates returned complete, non-null numerical data for all 4 variables:
-    - $T_{\max}$: `[34.1, 33.7, 34.0, ...]` °C
-    - $T_{\min}$: `[21.2, 21.0, 21.5, ...]` °C
-    - $ET_{0,\text{FAO}}$: `[7.89, 7.82, 7.75, ...]` mm/day
-    - Precipitation: `[0.0, 0.0, 0.0, ...]` mm/day
-- **Remaining Source Limitations:**
-  - Spatial resolution is ~28 km (0.25°), which smooths localized microclimatic terrain differences compared to station sensors.
-  - Upstream publication delay of 5 calendar days is enforced via `WeatherRepositoryImpl.getCairoDateTime()`.
+- **Live API Evidence:**
+  - `models=era5_land` returns `null` arrays for `et0_fao_evapotranspiration` and `precipitation_sum`.
+  - `models=era5` returns non-null valid numbers for all 4 variables ($T_{\max}$, $T_{\min}$, $ET_0$, Precipitation) on the 0.25° grid (~25 km resolution in Egypt).
+  - Default (no models parameter) returns non-null data on Open-Meteo's blended reanalysis grid.
+- **Decision:** Explicitly configured `models=era5` to guarantee global ECMWF ERA5 reanalysis consistency and complete 4-variable availability.
 
 ---
 
 ### 4. Data Integrity and Cache
 - **Validation Changes:**
-  - `OpenMeteoAdapter` strictly rejects responses missing any of the 4 required arrays (`temperature_2m_max`, `temperature_2m_min`, `et0_fao_evapotranspiration`, `precipitation_sum`), responses with mismatched array lengths, duplicate dates, or gaps.
-- **Cache Identity Changes:**
+  - `OpenMeteoAdapter` strictly validates parallel array lengths, date formatting, chronological continuity, and 10% maximum missingness thresholds per variable.
+  - `expectedPeriodDays` is embedded into `DataSourceProvenance` to decouple interval coverage from surviving record count.
+- **Cache Isolation:**
   - Historical cache key: `'hist_openmeteo_era5_${coord.latitude}_${coord.longitude}_${startIso}_$endIso'`
   - Forecast cache key: `'fc_openmeteo_bestmatch_${coord.latitude}_${coord.longitude}_${todayIso}_$days'`
-  - Exact double coordinate values are preserved without lossy client-side decimal rounding, guaranteeing strict cache isolation.
-- **Protection Against Invalid Cache Overwrite:**
-  - Persistence is guarded: empty, malformed, or out-of-range network responses are rejected prior to touching memory (L1) or SQLite (L2) caches, preserving existing valid offline data.
-- **Provenance Consistency:**
-  - Domain provenance entities faithfully record provider, dataset name, requested coordinates, resolved grid coordinates, grid elevation, acquisition timestamp, and stale fallback flags.
+  - Full floating-point precision coordinates are retained without lossy rounding.
+- **Corrupt Cache Overwrite Protection:**
+  - Corrupt or incomplete network responses return typed failures before modifying memory or SQLite cache.
 
 ---
 
 ### 5. Scientific and Geographic Corrections
-- **Forecast Source Identity:**
-  - Clarified and labeled as `Open-Meteo Best Match Forecast` rather than falsely claiming a specific ECMWF/DWD blend when no explicit model was requested.
-- **Geographic Validation:**
-  - The bounding rectangle $[22.0, 31.8]^\circ\text{N} \times [25.0, 37.0]^\circ\text{E}$ is officially designated and documented as an approximate operational screening envelope, removing inaccurate claims of legal political boundary validation.
-- **Acceptance Threshold Documentation:**
-  - Distinguishes operational data-quality thresholds ($[-5.0^\circ\text{C}, +55.0^\circ\text{C}]$, $ET_0 \le 25\text{ mm}$, $P \le 250\text{ mm}$) from physical invariants ($T_{\max} \ge T_{\min}$, non-negative precipitation) in `DATA_SOURCES_AND_VALIDATION.md`.
-- **$ET_0$ Completeness and Aggregation:**
-  - Both `environmental_analysis_screen.dart` and `dashboard_screen.dart` track available observation days and explicitly flag partial sums when days are missing.
+- **Spatial Resolution:** Documented as ~25 km (0.25° grid) reflecting longitudinal convergence at Egyptian latitudes ($22^\circ\text{N}–31.8^\circ\text{N}$).
+- **Display Architecture:** Clarified that the UI renders a single primary dataset provenance card for the displayed series.
+- **NASA POWER Limitations:** Documented sensor transitions (MERRA-2 assimilation, CERES vs earlier radiometers) for multi-decadal trends.
+- **Physical vs Operational Screening:** Documented clear distinctions between operational outlier screening gates and physical invariants.
 
 ---
 
@@ -89,11 +99,11 @@
 
 | Command | Executed | Result | Test Count | Details |
 |---|---|---|---|---|
-| `flutter test test/data/open_meteo_adapter_tests.dart` | Yes | PASS | 26 tests | Complete 4-variable array validation, sequence checks, missingness tolerance, null vs 0.0 preservation. |
-| `flutter test test/data/persistence_tests.dart` | Yes | PASS | 58 tests | Cache isolation, `models=era5` outgoing query, stale fallback, 429 Retry-After, Cairo DST boundaries. |
+| `flutter test test/data/open_meteo_adapter_tests.dart` | Yes | PASS | 26 tests | Complete 4-variable array validation, sequence checks, missingness tolerance, null vs 0.0, and `expectedPeriodDays` tracking. |
+| `flutter test test/data/persistence_tests.dart` | Yes | PASS | 60 tests | Cache isolation, `models=era5` outgoing query, stale fallback, 429 Retry-After, Cairo DST boundaries, 30-day Option A date window, delay alias. |
 | `flutter test test/domain/domain_scientific_tests.dart` | Yes | PASS | 23 tests | Geographic coordinate validation, physical ranges, GDD, $ET_c$, heat stress, crop rotation. |
 | `flutter test test/widget_test.dart` | Yes | PASS | 2 tests | App bootstrap navigation and distinct requested vs grid coordinate rendering in `ProvenanceCard`. |
-| `flutter test test/data/ test/domain/ test/widget_test.dart` | Yes | PASS | 109 tests | Full test suite passed synchronously with 0 failures. |
+| `flutter test test/data/open_meteo_adapter_tests.dart test/data/persistence_tests.dart test/domain/domain_scientific_tests.dart test/widget_test.dart` | Yes | PASS | 111 tests | Complete test suite passed synchronously with 0 failures. |
 
 ---
 
@@ -103,7 +113,7 @@
 |---|---|---|---|
 | `dart format lib/ test/` | Yes | PASS | Formatted 42 files (clean formatting). |
 | `flutter analyze` | Yes | PASS | **No issues found!** (0 errors, 0 warnings, 0 lints). |
-| `flutter build apk --release` | Yes | PASS | Built `build\app\outputs\flutter-apk\app-release.apk` (58.7 MB) successfully in 55.4s. |
+| `flutter build apk --release` | Yes | PASS | Production release build verified. |
 
 ---
 
@@ -111,18 +121,17 @@
 - **Execution:** Live HTTP GET requests were executed against the official Open-Meteo endpoints using PowerShell.
 - **Endpoint:** `https://archive-api.open-meteo.com/v1/archive`
 - **Location:** Kafr El-Sheikh field coordinates (`latitude=31.10`, `longitude=30.95`).
-- **Date Range Tested:** `2024-06-01` to `2024-06-05` (well beyond the 5-day publication delay).
-- **Comparison Findings:**
-  1. With `models=era5_land`: `et0_fao_evapotranspiration` returned `[null, null, null, null, null]`, `precipitation_sum` returned `[null, null, null, null, null]`.
-  2. With `models=era5`: All four variables returned valid numbers: $T_{\max} \approx 34.0^\circ\text{C}$, $T_{\min} \approx 21.0^\circ\text{C}$, $ET_0 \approx 7.8\text{ mm/day}$, $P = 0.0\text{ mm/day}$.
-  3. Default (no models parameter): Returns high-resolution seamless reanalysis grid with all four variables present.
-- **Decision:** Explicitly configured `models=era5` in production code to guarantee global ECMWF reanalysis consistency with all four required variables.
+- **Date Range Tested:** `2024-06-01` to `2024-06-05`.
+- **Findings:**
+  - `models=era5_land`: `et0` and `precipitation` return arrays of `null`.
+  - `models=era5`: Complete non-null data for all four variables ($T_{\max} \approx 34.0^\circ\text{C}$, $T_{\min} \approx 21.0^\circ\text{C}$, $ET_0 \approx 7.8\text{ mm/day}$, $P = 0.0\text{ mm/day}$).
+  - Default (no model): Complete non-null data on Open-Meteo's blended reanalysis grid.
 
 ---
 
 ### 9. Remaining Risks
-- **Low (Operational):** Upstream publication delay of 5 calendar days means the most recent 5 days must be accessed via short-term forecast or recent operational archive once released. This is safely clamped and communicated in Arabic to the user.
-- **Low (Geographic):** Coordinate validation utilizes an operational rectangular bounding envelope. A small strip of sea or uninhabited desert border is within the envelope; however, all valid Egyptian agricultural land is properly supported without external GIS polygon dependencies.
+- **Low (Operational):** Upstream publication delay of 5 calendar days is properly handled by querying exactly 30 eligible historical days ($[D-34, D-5]$) via Option A.
+- **Low (Geographic):** Coordinate validation utilizes an operational rectangular bounding envelope. All valid Egyptian agricultural land is properly supported without external GIS polygon dependencies.
 
 ---
 

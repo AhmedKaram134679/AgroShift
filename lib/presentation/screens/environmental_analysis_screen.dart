@@ -22,7 +22,7 @@ class EnvironmentalAnalysisScreen extends ConsumerWidget {
             children: [
               CircularProgressIndicator(),
               SizedBox(height: 12),
-              Text('جاري استرجاع السجلات التاريخية من نموذج ERA5-Land...'),
+              Text('جاري استرجاع السجلات التاريخية من نموذج ERA5...'),
             ],
           ),
         ),
@@ -202,20 +202,30 @@ class EnvironmentalAnalysisScreen extends ConsumerWidget {
                           const SizedBox(height: 8),
                           Builder(
                             builder: (context) {
-                              final totalDays = records.length;
+                              final expectedDays =
+                                  records.first.provenance.expectedPeriodDays ??
+                                  records.length;
+                              final returnedRecordsCount = records.length;
                               final availableEt0Days = records
                                   .where((r) => r.referenceEt0Mm != null)
                                   .length;
-                              final isComplete = availableEt0Days == totalDays;
+                              final isComplete =
+                                  availableEt0Days == expectedDays &&
+                                  returnedRecordsCount == expectedDays;
                               final totalEt0 = _calculateTotalEt0(records);
+
+                              final missingTempDays =
+                                  expectedDays - returnedRecordsCount;
+                              final missingEt0DaysInReturned =
+                                  returnedRecordsCount - availableEt0Days;
 
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     isComplete
-                                        ? 'إجمالي الفاقد البخري خلال $totalDays يوماً: ${totalEt0.toStringAsFixed(1)} مم'
-                                        : 'مجموع جزئي للفاقد البخري ($availableEt0Days من أصل $totalDays يوماً): ${totalEt0.toStringAsFixed(1)} مم',
+                                        ? 'إجمالي الفاقد البخري خلال $expectedDays يوماً: ${totalEt0.toStringAsFixed(1)} مم'
+                                        : 'مجموع جزئي للفاقد البخري ($availableEt0Days من أصل $expectedDays يوماً مطلوبة): ${totalEt0.toStringAsFixed(1)} مم',
                                     style: const TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.bold,
@@ -224,7 +234,9 @@ class EnvironmentalAnalysisScreen extends ConsumerWidget {
                                   if (!isComplete) ...[
                                     const SizedBox(height: 2),
                                     Text(
-                                      'تنبيه: البيانات غير مكتملة لكامل الفترة (${totalDays - availableEt0Days} أيام بدون قراءة ET₀). المجموع المعروض يمثل الأيام المتوفرة فقط.',
+                                      'تنبيه: البيانات غير مكتملة لكامل الفترة المطلوبة ($availableEt0Days يوماً متوفراً بها قراءات البخر من إجمالي $expectedDays يوماً'
+                                      '${missingTempDays > 0 ? '، مع استبعاد $missingTempDays أيام لعدم توفر درجات الحرارة' : ''}'
+                                      '${missingEt0DaysInReturned > 0 ? '، و $missingEt0DaysInReturned أيام بدون قراءة ET₀' : ''}). المجموع المعروض يمثل الأيام المتوفرة فقط.',
                                       style: const TextStyle(
                                         fontSize: 11.5,
                                         color: Color(0xFFC62828),
