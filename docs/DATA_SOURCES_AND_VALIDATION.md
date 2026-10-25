@@ -59,3 +59,43 @@ Every displayed metric and chart in AgroShift must expose its provenance block:
 - **Elevation Offset:** Ground elevation vs. Model grid elevation
 - **Timestamp of Acquisition:** ISO-8601 UTC timestamp
 - **Uncertainty Note:** Gridded reanalysis data carries inherent spatial smoothing uncertainty.
+
+---
+
+## 5. ERA5-Land Historical Archive Publication Delay Policy
+
+- **Official Source Requirement:** Based on the official [Open-Meteo Historical Weather API documentation](https://open-meteo.com/en/docs/historical-weather-api), ERA5 and ERA5-Land reanalysis products have an upstream publication delay of typically **5 calendar days**.
+- **Eligible Date Calculation:**
+  $$\text{latestEligibleDate} = \text{CairoToday} - 5\text{ calendar days}$$
+  The latest eligible date is derived exclusively using Egypt's civil calendar date (`Africa/Cairo` timezone via `WeatherRepositoryImpl.getCairoDateTime()`) rather than the client device's local clock.
+- **Interval Clamping and Failure Semantics:**
+  - If a requested historical query has an end date later than `latestEligibleDate`, the effective end date is clamped to `latestEligibleDate`.
+  - If the requested interval contains no eligible days (i.e. $\text{startDate} > \text{effectiveEndDate}$), the repository rejects the request immediately with an `InsufficientEvidenceFailure` (Arabic user message indicating that the requested interval falls within the 5-day publication delay).
+  - Short-term forecast queries remain completely independent of this 5-day archive delay.
+
+---
+
+## 6. Raw Response vs. Filtered Domain Sequence Validation
+
+1. **Raw API Response Integrity (`OpenMeteoAdapter`):**
+   - **Parallel Arrays:** All variable arrays (`temperature_2m_max`, `temperature_2m_min`, `et0_fao_evapotranspiration`, `precipitation_sum`) must have identical length to the `time` array.
+   - **Strict ISO Format:** Dates must strictly match `^\d{4}-\d{2}-\d{2}$` and survive calendar round-trip parsing without shifting.
+   - **Ascending & Non-Duplicate:** Raw time array must be strictly chronological ($t_i > t_{i-1}$) with no duplicate dates.
+   - **Daily Continuity:** In raw API responses, consecutive days must have $\Delta t = 1\text{ day}$. Gaps in raw daily responses trigger a `DataIntegrityFailure`.
+   - **Interval Containment:** Raw dates must fall within $[\text{expectedStartDate}, \text{expectedEndDate}]$.
+2. **Domain-Level Filtering (`DailyAgroRecord`):**
+   - Individual days with missing temperatures ($\text{null}$) are omitted from the domain record list when overall missingness is $\le 10\%$.
+   - Consequently, the filtered domain sequence may contain valid date gaps, which must **not** be confused with corrupted gaps in the raw API feed.
+
+---
+
+## 7. Cache Freshness, TTL, and Stale Fallback Protocol
+
+- **Forecast Cache TTL:** 6 hours (`CachePolicy.forecastTtl`).
+- **Historical Cache TTL:** 7 days (`CachePolicy.historicalTtl`).
+- **L1 In-Memory Alignment:** L1 entries track an explicit `storedAt` timestamp. Expired L1 entries are never served as fresh data.
+- **Stale Fallback Safety:**
+  - Stale fallback is allowed **only** during transient network faults (connection errors, timeouts, HTTP 5xx, HTTP 429).
+  - Non-transient client errors (HTTP 400, 401, 403, 422) **never** consume stale cache and return typed failures immediately.
+  - Stale records are tagged with `isStaleFallback: true` and an explicit Arabic user notice. Fresh network data is never marked as stale.
+

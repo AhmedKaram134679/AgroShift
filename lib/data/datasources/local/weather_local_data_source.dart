@@ -13,10 +13,14 @@ class WeatherLocalDataSource {
   WeatherLocalDataSource(this._db);
 
   /// Retrieves cached daily records for a given cache key.
-  /// Returns null if no records are found.
+  /// Validates structural integrity (order, uniqueness, range boundaries, scientific ranges, and metadata consistency).
+  /// Returns null if no records are found or if the cache entry fails integrity validation.
   Future<CacheLookupResult?> getCachedRecords({
     required String cacheKey,
     required bool isForecast,
+    DateTime? expectedStartDate,
+    DateTime? expectedEndDate,
+    DateTime? now,
   }) async {
     try {
       final rows =
@@ -33,11 +37,59 @@ class WeatherLocalDataSource {
       final isFresh = CachePolicy.isFresh(
         cachedAt: cachedAt,
         isForecast: isForecast,
+        now: now,
       );
 
+      final normalizedExpectedStart = expectedStartDate != null
+          ? DateTime.utc(
+              expectedStartDate.year,
+              expectedStartDate.month,
+              expectedStartDate.day,
+            )
+          : null;
+      final normalizedExpectedEnd = expectedEndDate != null
+          ? DateTime.utc(
+              expectedEndDate.year,
+              expectedEndDate.month,
+              expectedEndDate.day,
+            )
+          : null;
+
       final List<DailyAgroRecord> records = [];
+      DateTime? prevDate;
+
       for (final row in rows) {
-        // Validate range constraints on persisted records to safeguard against corrupt data
+        // 1. Verify shared cache metadata consistency across all rows in this entry
+        if (row.cachedAt != cachedAt) {
+          return null; // Inconsistent cache metadata within single entry
+        }
+
+        // 2. Validate canonical calendar date in UTC
+        final recDate = DateTime.utc(
+          row.recordDate.year,
+          row.recordDate.month,
+          row.recordDate.day,
+        );
+
+        // 3. Reject duplicate or non-ascending record dates
+        if (prevDate != null) {
+          if (!recDate.isAfter(prevDate)) {
+            return null; // Duplicate or out-of-order date
+          }
+        }
+        prevDate = recDate;
+
+        // 4. Reject records whose dates fall outside the requested range
+        if (normalizedExpectedStart != null &&
+            recDate.isBefore(normalizedExpectedStart)) {
+          return null;
+        }
+        if (normalizedExpectedEnd != null &&
+            recDate.isAfter(normalizedExpectedEnd)) {
+          return null;
+        }
+
+        // 5. Validate range constraints on persisted records to safeguard against corrupt data
         final tempVal = ScientificRangeValidator.validateTemperature(
           tMax: row.maxTemperatureC,
           tMin: row.minTemperatureC,
@@ -72,7 +124,7 @@ class WeatherLocalDataSource {
 
         records.add(
           DailyAgroRecord(
-            date: row.recordDate.toUtc(),
+            date: recDate,
             maxTemperatureC: row.maxTemperatureC,
             minTemperatureC: row.minTemperatureC,
             precipitationMm:

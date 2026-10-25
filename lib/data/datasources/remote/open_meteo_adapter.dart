@@ -15,6 +15,9 @@ class OpenMeteoAdapter {
     required OpenMeteoDailyResponseDto dto,
     required Coordinate requestedCoordinate,
     required String datasetLabel,
+    DateTime? expectedStartDate,
+    DateTime? expectedEndDate,
+    int? expectedCount,
   }) {
     final daily = dto.daily;
     final times = daily['time'] as List<dynamic>?;
@@ -35,7 +38,171 @@ class OpenMeteoAdapter {
 
     final int count = times.length;
     if (count == 0) {
+      if (expectedCount != null && expectedCount > 0) {
+        return const FailureResult(
+          ParsingFailure(
+            userMessageAr:
+                'استجابة بيانات الطقس فارغة بينما يتطلب النطاق سجلات يومية.',
+            technicalMessage: 'Response time array is empty but non-empty interval was expected.',
+          ),
+        );
+      }
       return const Success([]);
+    }
+
+    // 1. Confirm required parallel arrays have compatible lengths (never index beyond bounds)
+    if (tMaxList.length != count || tMinList.length != count) {
+      return FailureResult(
+        ParsingFailure(
+          userMessageAr:
+              'بيانات الطقس المستلمة تحتوي على مصفوفات غير متطابقة في الطول.',
+          technicalMessage:
+              'Mismatched parallel array lengths: time=$count, tMax=${tMaxList.length}, tMin=${tMinList.length}.',
+        ),
+      );
+    }
+    if (et0List != null && et0List.length != count) {
+      return FailureResult(
+        ParsingFailure(
+          userMessageAr:
+              'بيانات الطقس المستلمة تحتوي على مصفوفات غير متطابقة في الطول.',
+          technicalMessage:
+              'Mismatched et0 array length: expected=$count, actual=${et0List.length}.',
+        ),
+      );
+    }
+    if (pList != null && pList.length != count) {
+      return FailureResult(
+        ParsingFailure(
+          userMessageAr:
+              'بيانات الطقس المستلمة تحتوي على مصفوفات غير متطابقة في الطول.',
+          technicalMessage:
+              'Mismatched precipitation array length: expected=$count, actual=${pList.length}.',
+        ),
+      );
+    }
+
+    // 2. Validate raw daily date sequence before any records are discarded
+    final List<DateTime> parsedRawDates = [];
+    final Set<String> seenDateStrings = {};
+    DateTime? prevRawDate;
+
+    final normalizedExpectedStart = expectedStartDate != null
+        ? DateTime.utc(
+            expectedStartDate.year,
+            expectedStartDate.month,
+            expectedStartDate.day,
+          )
+        : null;
+    final normalizedExpectedEnd = expectedEndDate != null
+        ? DateTime.utc(
+            expectedEndDate.year,
+            expectedEndDate.month,
+            expectedEndDate.day,
+          )
+        : null;
+
+    final RegExp isoDatePattern = RegExp(r'^\d{4}-\d{2}-\d{2}$');
+
+    for (int i = 0; i < count; i++) {
+      final rawTime = times[i];
+      if (rawTime is! String || !isoDatePattern.hasMatch(rawTime)) {
+        return FailureResult(
+          ParsingFailure(
+            userMessageAr: 'صيغة تاريخ غير صالحة في استجابة الأرصاد الجوية.',
+            technicalMessage:
+                'Invalid or non-conforming date string in raw response: "$rawTime".',
+          ),
+        );
+      }
+
+      final dateStr = rawTime;
+      if (!seenDateStrings.add(dateStr)) {
+        return FailureResult(
+          ParsingFailure(
+            userMessageAr: 'تحتوي استجابة الأرصاد الجوية على تواريخ مكررة.',
+            technicalMessage: 'Duplicate date in raw response: "$dateStr".',
+          ),
+        );
+      }
+
+      final parts = dateStr.split('-');
+      final year = int.parse(parts[0]);
+      final month = int.parse(parts[1]);
+      final day = int.parse(parts[2]);
+      final date = DateTime.utc(year, month, day);
+
+      // Verify that calendar round-trip matches the input numbers (guards against e.g. Feb 30)
+      if (date.year != year || date.month != month || date.day != day) {
+        return FailureResult(
+          ParsingFailure(
+            userMessageAr:
+                'تاريخ غير صالح من الناحية التقويمية في استجابة الأرصاد.',
+            technicalMessage:
+                'Malformed calendar date in raw response: "$dateStr".',
+          ),
+        );
+      }
+
+      // Check strictly ascending order and contiguous daily spacing
+      if (prevRawDate != null) {
+        if (!date.isAfter(prevRawDate)) {
+          return FailureResult(
+            ParsingFailure(
+              userMessageAr: 'تواريخ استجابة الأرصاد غير مرتبة تصاعدياً.',
+              technicalMessage:
+                  'Non-ascending date order: "$dateStr" is not after "$prevRawDate".',
+            ),
+          );
+        }
+        if (date.difference(prevRawDate).inDays != 1) {
+          return FailureResult(
+            ParsingFailure(
+              userMessageAr: 'توجد فجوة غير متوقعة في تواريخ استجابة الأرصاد.',
+              technicalMessage:
+                  'Gap in raw daily date sequence between "$prevRawDate" and "$date".',
+            ),
+          );
+        }
+      }
+
+      // Validate range boundaries if expected interval was supplied
+      if (normalizedExpectedStart != null &&
+          date.isBefore(normalizedExpectedStart)) {
+        return FailureResult(
+          ParsingFailure(
+            userMessageAr:
+                'استجابة الأرصاد تحتوي على تواريخ تسبق الفترة المطلوبة.',
+            technicalMessage:
+                'Date "$dateStr" is before requested startDate "$normalizedExpectedStart".',
+          ),
+        );
+      }
+      if (normalizedExpectedEnd != null &&
+          date.isAfter(normalizedExpectedEnd)) {
+        return FailureResult(
+          ParsingFailure(
+            userMessageAr:
+                'استجابة الأرصاد تحتوي على تواريخ تتجاوز الفترة المطلوبة.',
+            technicalMessage:
+                'Date "$dateStr" is after requested endDate "$normalizedExpectedEnd".',
+          ),
+        );
+      }
+
+      parsedRawDates.add(date);
+      prevRawDate = date;
+    }
+
+    if (expectedCount != null && parsedRawDates.length != expectedCount) {
+      return FailureResult(
+        ParsingFailure(
+          userMessageAr:
+              'عدد الأيام في استجابة الأرصاد لا يطابق الفترة المطلوبة.',
+          technicalMessage:
+              'Raw response date count (${parsedRawDates.length}) does not match expected ($expectedCount).',
+        ),
+      );
     }
 
     final List<DailyAgroRecord> records = [];
@@ -55,35 +222,11 @@ class OpenMeteoAdapter {
     );
 
     for (int i = 0; i < count; i++) {
-      final dateStr = times[i] as String;
-      // Parse as canonical calendar date (YYYY-MM-DD) in UTC to prevent timezone day-shifts
-      DateTime? date;
-      try {
-        final parts = dateStr.split('-');
-        if (parts.length == 3) {
-          date = DateTime.utc(
-            int.parse(parts[0]),
-            int.parse(parts[1]),
-            int.parse(parts[2]),
-          );
-        } else {
-          date = DateTime.tryParse(dateStr)?.toUtc();
-        }
-      } catch (_) {
-        date = null;
-      }
-
-      if (date == null) {
-        missingTempCount++;
-        missingEt0Count++;
-        missingPrecipCount++;
-        continue;
-      }
-
+      final date = parsedRawDates[i];
       final rawTmax = tMaxList[i];
       final rawTmin = tMinList[i];
-      final rawEt0 = et0List != null && i < et0List.length ? et0List[i] : null;
-      final rawP = pList != null && i < pList.length ? pList[i] : null;
+      final rawEt0 = et0List != null ? et0List[i] : null;
+      final rawP = pList != null ? pList[i] : null;
 
       if (rawTmax == null || rawTmin == null) {
         missingTempCount++;

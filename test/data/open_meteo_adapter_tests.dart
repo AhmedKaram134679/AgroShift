@@ -303,5 +303,232 @@ void main() {
       expect(records[1].referenceEt0Mm, equals(5.2));
       expect(records[1].precipitationMm, isNull);
     });
+
+    test('Raw sequence: Valid consecutive daily sequence succeeds', () {
+      final dto = OpenMeteoDailyResponseDto(
+        latitude: 31.05,
+        longitude: 31.20,
+        generationTimeMs: 1.0,
+        utcOffsetSeconds: 7200,
+        timezone: 'Africa/Cairo',
+        dailyUnits: {},
+        daily: {
+          'time': ['2026-05-01', '2026-05-02', '2026-05-03'],
+          'temperature_2m_max': [30.0, 31.0, 32.0],
+          'temperature_2m_min': [20.0, 21.0, 22.0],
+          'et0_fao_evapotranspiration': [5.0, 5.2, 5.4],
+          'precipitation_sum': [0.0, 0.0, 0.0],
+        },
+      );
+
+      final res = OpenMeteoAdapter.toDomainRecords(
+        dto: dto,
+        requestedCoordinate: coord,
+        datasetLabel: 'ERA5-Land',
+        expectedStartDate: DateTime.utc(2026, 5, 1),
+        expectedEndDate: DateTime.utc(2026, 5, 3),
+        expectedCount: 3,
+      );
+
+      expect(res.isSuccess, isTrue);
+      expect(res.dataOrNull!.length, equals(3));
+    });
+
+    test('Raw sequence: Duplicate dates in raw time array fail', () {
+      final dto = OpenMeteoDailyResponseDto(
+        latitude: 31.05,
+        longitude: 31.20,
+        generationTimeMs: 1.0,
+        utcOffsetSeconds: 7200,
+        timezone: 'Africa/Cairo',
+        dailyUnits: {},
+        daily: {
+          'time': ['2026-05-01', '2026-05-02', '2026-05-02'], // duplicate
+          'temperature_2m_max': [30.0, 31.0, 32.0],
+          'temperature_2m_min': [20.0, 21.0, 22.0],
+          'et0_fao_evapotranspiration': [5.0, 5.2, 5.4],
+          'precipitation_sum': [0.0, 0.0, 0.0],
+        },
+      );
+
+      final res = OpenMeteoAdapter.toDomainRecords(
+        dto: dto,
+        requestedCoordinate: coord,
+        datasetLabel: 'ERA5-Land',
+      );
+
+      expect(res.isFailure, isTrue);
+      expect(res.failureOrNull, isA<ParsingFailure>());
+      expect(
+        res.failureOrNull?.technicalMessage.contains('Duplicate date'),
+        isTrue,
+      );
+    });
+
+    test('Raw sequence: Descending or unordered dates fail', () {
+      final dto = OpenMeteoDailyResponseDto(
+        latitude: 31.05,
+        longitude: 31.20,
+        generationTimeMs: 1.0,
+        utcOffsetSeconds: 7200,
+        timezone: 'Africa/Cairo',
+        dailyUnits: {},
+        daily: {
+          'time': ['2026-05-02', '2026-05-01'], // descending
+          'temperature_2m_max': [31.0, 30.0],
+          'temperature_2m_min': [21.0, 20.0],
+          'et0_fao_evapotranspiration': [5.2, 5.0],
+          'precipitation_sum': [0.0, 0.0],
+        },
+      );
+
+      final res = OpenMeteoAdapter.toDomainRecords(
+        dto: dto,
+        requestedCoordinate: coord,
+        datasetLabel: 'ERA5-Land',
+      );
+
+      expect(res.isFailure, isTrue);
+      expect(res.failureOrNull, isA<ParsingFailure>());
+      expect(
+        res.failureOrNull?.technicalMessage.contains('Non-ascending'),
+        isTrue,
+      );
+    });
+
+    test('Raw sequence: Gap in raw daily date sequence fails', () {
+      final dto = OpenMeteoDailyResponseDto(
+        latitude: 31.05,
+        longitude: 31.20,
+        generationTimeMs: 1.0,
+        utcOffsetSeconds: 7200,
+        timezone: 'Africa/Cairo',
+        dailyUnits: {},
+        daily: {
+          'time': ['2026-05-01', '2026-05-03'], // missing 2026-05-02
+          'temperature_2m_max': [30.0, 32.0],
+          'temperature_2m_min': [20.0, 22.0],
+          'et0_fao_evapotranspiration': [5.0, 5.4],
+          'precipitation_sum': [0.0, 0.0],
+        },
+      );
+
+      final res = OpenMeteoAdapter.toDomainRecords(
+        dto: dto,
+        requestedCoordinate: coord,
+        datasetLabel: 'ERA5-Land',
+      );
+
+      expect(res.isFailure, isTrue);
+      expect(res.failureOrNull, isA<ParsingFailure>());
+      expect(
+        res.failureOrNull?.technicalMessage.contains(
+          'Gap in raw daily date sequence',
+        ),
+        isTrue,
+      );
+    });
+
+    test('Raw sequence: Malformed date strings fail', () {
+      final dto = OpenMeteoDailyResponseDto(
+        latitude: 31.05,
+        longitude: 31.20,
+        generationTimeMs: 1.0,
+        utcOffsetSeconds: 7200,
+        timezone: 'Africa/Cairo',
+        dailyUnits: {},
+        daily: {
+          'time': ['2026/05/01', '2026-05-02'], // non-conforming format
+          'temperature_2m_max': [30.0, 31.0],
+          'temperature_2m_min': [20.0, 21.0],
+          'et0_fao_evapotranspiration': [5.0, 5.2],
+          'precipitation_sum': [0.0, 0.0],
+        },
+      );
+
+      final res = OpenMeteoAdapter.toDomainRecords(
+        dto: dto,
+        requestedCoordinate: coord,
+        datasetLabel: 'ERA5-Land',
+      );
+
+      expect(res.isFailure, isTrue);
+      expect(res.failureOrNull, isA<ParsingFailure>());
+      expect(
+        res.failureOrNull?.technicalMessage.contains(
+          'Invalid or non-conforming date string',
+        ),
+        isTrue,
+      );
+    });
+
+    test('Raw sequence: Date outside requested interval fails', () {
+      final dto = OpenMeteoDailyResponseDto(
+        latitude: 31.05,
+        longitude: 31.20,
+        generationTimeMs: 1.0,
+        utcOffsetSeconds: 7200,
+        timezone: 'Africa/Cairo',
+        dailyUnits: {},
+        daily: {
+          'time': ['2026-05-01', '2026-05-02'],
+          'temperature_2m_max': [30.0, 31.0],
+          'temperature_2m_min': [20.0, 21.0],
+          'et0_fao_evapotranspiration': [5.0, 5.2],
+          'precipitation_sum': [0.0, 0.0],
+        },
+      );
+
+      // Expected interval starts May 2
+      final res = OpenMeteoAdapter.toDomainRecords(
+        dto: dto,
+        requestedCoordinate: coord,
+        datasetLabel: 'ERA5-Land',
+        expectedStartDate: DateTime.utc(2026, 5, 2),
+        expectedEndDate: DateTime.utc(2026, 5, 3),
+      );
+
+      expect(res.isFailure, isTrue);
+      expect(res.failureOrNull, isA<ParsingFailure>());
+      expect(
+        res.failureOrNull?.technicalMessage.contains(
+          'is before requested startDate',
+        ),
+        isTrue,
+      );
+    });
+
+    test('Raw sequence: Mismatched parallel array lengths fail safely without exception', () {
+      final dto = OpenMeteoDailyResponseDto(
+        latitude: 31.05,
+        longitude: 31.20,
+        generationTimeMs: 1.0,
+        utcOffsetSeconds: 7200,
+        timezone: 'Africa/Cairo',
+        dailyUnits: {},
+        daily: {
+          'time': ['2026-05-01', '2026-05-02'],
+          'temperature_2m_max': [30.0], // only 1 element
+          'temperature_2m_min': [20.0, 21.0],
+          'et0_fao_evapotranspiration': [5.0, 5.2],
+          'precipitation_sum': [0.0, 0.0],
+        },
+      );
+
+      final res = OpenMeteoAdapter.toDomainRecords(
+        dto: dto,
+        requestedCoordinate: coord,
+        datasetLabel: 'ERA5-Land',
+      );
+
+      expect(res.isFailure, isTrue);
+      expect(res.failureOrNull, isA<ParsingFailure>());
+      expect(
+        res.failureOrNull?.technicalMessage.contains(
+          'Mismatched parallel array lengths',
+        ),
+        isTrue,
+      );
+    });
   });
 }

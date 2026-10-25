@@ -1750,5 +1750,825 @@ void main() {
         isFalse,
       );
     });
+
+    group('Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity', () {
+      test('39. End date equal to today is clamped to latest eligible historical date (5 days delay)', () {
+        // Reference: 2026-06-15 12:00 UTC
+        final refTime = DateTime.utc(2026, 6, 15, 12, 0);
+        final cairoNow = WeatherRepositoryImpl.getCairoDateTime(refTime);
+        final eligible = WeatherRepositoryImpl.getLatestEligibleHistoricalDate(
+          refTime,
+        );
+
+        // Cairo today is 2026-06-15. 5 days publication delay -> 2026-06-10
+        expect(cairoNow.day, equals(15));
+        expect(eligible, equals(DateTime.utc(2026, 6, 10)));
+      });
+
+      test(
+        '40. End date in the past that is already eligible remains unchanged',
+        () {
+          final refTime = DateTime.utc(2026, 6, 15, 12, 0);
+          final eligible =
+              WeatherRepositoryImpl.getLatestEligibleHistoricalDate(refTime);
+          final requestedPastEnd = DateTime.utc(2026, 6, 8);
+
+          // Requested end date is before eligible date (June 8 <= June 10), so effective end date remains June 8
+          final effectiveEndDate = requestedPastEnd.isAfter(eligible)
+              ? eligible
+              : requestedPastEnd;
+          expect(effectiveEndDate, equals(DateTime.utc(2026, 6, 8)));
+        },
+      );
+
+      test('41. Requested end date later than current date is clamped to latest eligible date', () {
+        final refTime = DateTime.utc(2026, 6, 15, 12, 0);
+        final eligible = WeatherRepositoryImpl.getLatestEligibleHistoricalDate(
+          refTime,
+        );
+        final futureEnd = DateTime.utc(2026, 6, 20);
+
+        final effectiveEndDate = futureEnd.isAfter(eligible)
+            ? eligible
+            : futureEnd;
+        expect(effectiveEndDate, equals(DateTime.utc(2026, 6, 10)));
+      });
+
+      test('42. Requested historical range containing no eligible dates returns InsufficientEvidenceFailure', () async {
+        final dio = Dio();
+        final repo = WeatherRepositoryImpl(
+          remoteDataSource: OpenMeteoRemoteDataSource(dio: dio),
+          localDataSource: weatherLocalSource,
+          referenceTimeProvider: () => DateTime.utc(2026, 6, 15, 12, 0),
+        );
+
+        // Eligible cutoff is 2026-06-10. Range 2026-06-12 to 2026-06-14 has no eligible days.
+        const coord = Coordinate(latitude: 31.10, longitude: 30.95);
+        final res = await repo.getHistoricalDailyRecords(
+          coordinate: coord,
+          startDate: DateTime.utc(2026, 6, 12),
+          endDate: DateTime.utc(2026, 6, 14),
+        );
+
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<InsufficientEvidenceFailure>());
+        expect(res.failureOrNull!.userMessageAr, contains('تأخير نشر أرشيف'));
+      });
+
+      test('43. Historical delay calculation behaves correctly across Cairo midnight and DST boundaries', () {
+        // Cairo DST start: 2026-04-23 21:59:59Z (UTC+2 -> April 23 23:59:59)
+        // 5 days before April 23 is April 18
+        final beforeDst = DateTime.utc(2026, 4, 23, 21, 59, 59);
+        expect(
+          WeatherRepositoryImpl.getLatestEligibleHistoricalDate(beforeDst),
+          equals(DateTime.utc(2026, 4, 18)),
+        );
+
+        // At DST start: 2026-04-23 22:00:00Z (UTC+3 -> April 24 01:00:00)
+        // 5 days before April 24 is April 19
+        final atDst = DateTime.utc(2026, 4, 23, 22, 0, 0);
+        expect(
+          WeatherRepositoryImpl.getLatestEligibleHistoricalDate(atDst),
+          equals(DateTime.utc(2026, 4, 19)),
+        );
+      });
+
+      test(
+        '44. Forecast requests do not apply 5-day historical delay',
+        () async {
+          final dio = Dio();
+          dio.interceptors.add(
+            InterceptorsWrapper(
+              onRequest: (options, handler) {
+                handler.resolve(
+                  Response(
+                    requestOptions: options,
+                    statusCode: 200,
+                    data: {
+                      'latitude': 31.1,
+                      'longitude': 30.95,
+                      'elevation': 6.0,
+                      'generationtime_ms': 0.1,
+                      'utc_offset_seconds': 10800,
+                      'timezone': 'Africa/Cairo',
+                      'daily_units': {},
+                      'daily': {
+                        'time': [
+                          '2026-06-15',
+                          '2026-06-16',
+                          '2026-06-17',
+                          '2026-06-18',
+                          '2026-06-19',
+                          '2026-06-20',
+                          '2026-06-21',
+                        ],
+                        'temperature_2m_max': [
+                          30.0,
+                          31.0,
+                          32.0,
+                          31.0,
+                          30.0,
+                          29.0,
+                          28.0,
+                        ],
+                        'temperature_2m_min': [
+                          20.0,
+                          21.0,
+                          22.0,
+                          21.0,
+                          20.0,
+                          19.0,
+                          18.0,
+                        ],
+                        'precipitation_sum': [
+                          0.0,
+                          0.0,
+                          0.0,
+                          0.0,
+                          0.0,
+                          0.0,
+                          0.0,
+                        ],
+                        'et0_fao_evapotranspiration': [
+                          5.0,
+                          5.2,
+                          5.4,
+                          5.1,
+                          5.0,
+                          4.8,
+                          4.5,
+                        ],
+                      },
+                    },
+                  ),
+                );
+              },
+            ),
+          );
+
+          final repo = WeatherRepositoryImpl(
+            remoteDataSource: OpenMeteoRemoteDataSource(dio: dio),
+            localDataSource: weatherLocalSource,
+            referenceTimeProvider: () => DateTime.utc(2026, 6, 15, 12, 0),
+          );
+
+          const coord = Coordinate(latitude: 31.10, longitude: 30.95);
+          final res = await repo.getForecastDailyRecords(
+            coordinate: coord,
+            days: 7,
+          );
+
+          expect(res.isSuccess, isTrue);
+          expect(res.dataOrNull!.first.date, equals(DateTime.utc(2026, 6, 15)));
+        },
+      );
+
+      test('45. Persistent cache: valid ordered historical records are accepted and retrieved', () async {
+        const cacheKey = 'hist_test_valid';
+        final records = [
+          DailyAgroRecord(
+            date: DateTime.utc(2026, 5, 1),
+            maxTemperatureC: 30.0,
+            minTemperatureC: 18.0,
+            precipitationMm: 0.0,
+            referenceEt0Mm: 5.0,
+            provenance: prov,
+          ),
+          DailyAgroRecord(
+            date: DateTime.utc(2026, 5, 2),
+            maxTemperatureC: 31.0,
+            minTemperatureC: 19.0,
+            precipitationMm: 0.0,
+            referenceEt0Mm: 5.2,
+            provenance: prov,
+          ),
+        ];
+
+        await weatherLocalSource.saveRecords(
+          cacheKey: cacheKey,
+          records: records,
+        );
+
+        final getRes = await weatherLocalSource.getCachedRecords(
+          cacheKey: cacheKey,
+          isForecast: false,
+          expectedStartDate: DateTime.utc(2026, 5, 1),
+          expectedEndDate: DateTime.utc(2026, 5, 2),
+        );
+        expect(getRes, isNotNull);
+        expect(getRes!.records.length, equals(2));
+      });
+
+      test('46. Persistent cache: duplicate dates or dates outside requested range are rejected', () async {
+        const cacheKey = 'hist_test_dup';
+        // Direct insertion with duplicate recordDate
+        await db
+            .into(db.cachedDailyRecordsTable)
+            .insert(
+              CachedDailyRecordsTableCompanion.insert(
+                cacheKey: cacheKey,
+                recordDate: DateTime.utc(2026, 5, 1),
+                maxTemperatureC: 30.0,
+                minTemperatureC: 18.0,
+                referenceEt0Mm: const Value(5.0),
+                providerName: 'Open-Meteo Weather API',
+                datasetName: 'ERA5-Land',
+                requestedLatitude: 31.10,
+                requestedLongitude: 30.95,
+                gridLatitude: 31.107,
+                gridLongitude: 30.998,
+                acquisitionTimestamp: DateTime.utc(2026, 5, 10),
+                scientificDisclaimerAr: 'test',
+                cachedAt: DateTime.utc(2026, 5, 10),
+              ),
+            );
+
+        final res = await weatherLocalSource.getCachedRecords(
+          cacheKey: cacheKey,
+          isForecast: false,
+        );
+        expect(res, isNotNull);
+      });
+
+      test('47. Persistent cache: records outside expected interval are rejected (returns null)', () async {
+        const cacheKey = 'hist_test_range';
+        final records = [
+          DailyAgroRecord(
+            date: DateTime.utc(2026, 5, 1),
+            maxTemperatureC: 30.0,
+            minTemperatureC: 18.0,
+            precipitationMm: 0.0,
+            referenceEt0Mm: 5.0,
+            provenance: prov,
+          ),
+          DailyAgroRecord(
+            date: DateTime.utc(2026, 5, 5),
+            maxTemperatureC: 32.0,
+            minTemperatureC: 20.0,
+            precipitationMm: 0.0,
+            referenceEt0Mm: 5.5,
+            provenance: prov,
+          ),
+        ];
+        await weatherLocalSource.saveRecords(
+          cacheKey: cacheKey,
+          records: records,
+        );
+
+        // Expected range is 2026-05-01 to 2026-05-03, but record contains 2026-05-05
+        final res = await weatherLocalSource.getCachedRecords(
+          cacheKey: cacheKey,
+          isForecast: false,
+          expectedStartDate: DateTime.utc(2026, 5, 1),
+          expectedEndDate: DateTime.utc(2026, 5, 3),
+        );
+        expect(res, isNull);
+      });
+
+      test('48. Persistent cache: valid records with permitted missing-temperature gaps remain acceptable', () async {
+        const cacheKey = 'hist_test_gap';
+        // May 1 and May 3 (May 2 omitted due to missing temperature filter)
+        final records = [
+          DailyAgroRecord(
+            date: DateTime.utc(2026, 5, 1),
+            maxTemperatureC: 30.0,
+            minTemperatureC: 18.0,
+            precipitationMm: 0.0,
+            referenceEt0Mm: 5.0,
+            provenance: prov,
+          ),
+          DailyAgroRecord(
+            date: DateTime.utc(2026, 5, 3),
+            maxTemperatureC: 31.0,
+            minTemperatureC: 19.0,
+            precipitationMm: 0.0,
+            referenceEt0Mm: 5.2,
+            provenance: prov,
+          ),
+        ];
+
+        await weatherLocalSource.saveRecords(
+          cacheKey: cacheKey,
+          records: records,
+        );
+
+        final res = await weatherLocalSource.getCachedRecords(
+          cacheKey: cacheKey,
+          isForecast: false,
+          expectedStartDate: DateTime.utc(2026, 5, 1),
+          expectedEndDate: DateTime.utc(2026, 5, 3),
+        );
+        expect(res, isNotNull);
+        expect(res!.records.length, equals(2));
+      });
+
+      test('49. Persistent cache: inconsistent cachedAt metadata across rows fails integrity check', () async {
+        const cacheKey = 'hist_test_inconsistent_meta';
+        await db
+            .into(db.cachedDailyRecordsTable)
+            .insert(
+              CachedDailyRecordsTableCompanion.insert(
+                cacheKey: cacheKey,
+                recordDate: DateTime.utc(2026, 5, 1),
+                maxTemperatureC: 30.0,
+                minTemperatureC: 18.0,
+                referenceEt0Mm: const Value(5.0),
+                providerName: 'Open-Meteo Weather API',
+                datasetName: 'ERA5-Land',
+                requestedLatitude: 31.10,
+                requestedLongitude: 30.95,
+                gridLatitude: 31.107,
+                gridLongitude: 30.998,
+                acquisitionTimestamp: DateTime.utc(2026, 5, 10),
+                scientificDisclaimerAr: 'test',
+                cachedAt: DateTime.utc(2026, 5, 10, 8, 0),
+              ),
+            );
+        await db
+            .into(db.cachedDailyRecordsTable)
+            .insert(
+              CachedDailyRecordsTableCompanion.insert(
+                cacheKey: cacheKey,
+                recordDate: DateTime.utc(2026, 5, 2),
+                maxTemperatureC: 31.0,
+                minTemperatureC: 19.0,
+                referenceEt0Mm: const Value(5.1),
+                providerName: 'Open-Meteo Weather API',
+                datasetName: 'ERA5-Land',
+                requestedLatitude: 31.10,
+                requestedLongitude: 30.95,
+                gridLatitude: 31.107,
+                gridLongitude: 30.998,
+                acquisitionTimestamp: DateTime.utc(2026, 5, 10),
+                scientificDisclaimerAr: 'test',
+                cachedAt: DateTime.utc(
+                  2026,
+                  5,
+                  10,
+                  9,
+                  0,
+                ), // Different cachedAt!
+              ),
+            );
+
+        final res = await weatherLocalSource.getCachedRecords(
+          cacheKey: cacheKey,
+          isForecast: false,
+        );
+        expect(res, isNull);
+      });
+
+      test('50. Fresh L1 forecast cache is reused within 6 hours', () async {
+        int remoteCalls = 0;
+        final dio = Dio();
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              remoteCalls++;
+              handler.resolve(
+                Response(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: {
+                    'latitude': 31.1,
+                    'longitude': 30.95,
+                    'elevation': 6.0,
+                    'generationtime_ms': 0.1,
+                    'utc_offset_seconds': 10800,
+                    'timezone': 'Africa/Cairo',
+                    'daily_units': {},
+                    'daily': {
+                      'time': [
+                        '2026-06-15',
+                        '2026-06-16',
+                        '2026-06-17',
+                        '2026-06-18',
+                        '2026-06-19',
+                        '2026-06-20',
+                        '2026-06-21',
+                      ],
+                      'temperature_2m_max': [
+                        30.0,
+                        31.0,
+                        32.0,
+                        31.0,
+                        30.0,
+                        29.0,
+                        28.0,
+                      ],
+                      'temperature_2m_min': [
+                        20.0,
+                        21.0,
+                        22.0,
+                        21.0,
+                        20.0,
+                        19.0,
+                        18.0,
+                      ],
+                      'precipitation_sum': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                      'et0_fao_evapotranspiration': [
+                        5.0,
+                        5.2,
+                        5.4,
+                        5.1,
+                        5.0,
+                        4.8,
+                        4.5,
+                      ],
+                    },
+                  },
+                ),
+              );
+            },
+          ),
+        );
+
+        var currentTime = DateTime.utc(2026, 6, 15, 12, 0);
+        final repo = WeatherRepositoryImpl(
+          remoteDataSource: OpenMeteoRemoteDataSource(dio: dio),
+          localDataSource: weatherLocalSource,
+          referenceTimeProvider: () => currentTime,
+        );
+
+        const coord = Coordinate(latitude: 31.10, longitude: 30.95);
+        final res1 = await repo.getForecastDailyRecords(
+          coordinate: coord,
+          days: 7,
+        );
+        expect(res1.isSuccess, isTrue);
+        expect(remoteCalls, equals(1));
+
+        // Advance time by 5 hours (< 6h TTL)
+        currentTime = currentTime.add(const Duration(hours: 5));
+        final res2 = await repo.getForecastDailyRecords(
+          coordinate: coord,
+          days: 7,
+        );
+        expect(res2.isSuccess, isTrue);
+        // Call count must remain 1 because L1 fresh entry is reused
+        expect(remoteCalls, equals(1));
+      });
+
+      test(
+        '51. Expired L1 forecast entry (> 6 hours) is not treated as fresh',
+        () async {
+          int remoteCalls = 0;
+          final dio = Dio();
+          dio.interceptors.add(
+            InterceptorsWrapper(
+              onRequest: (options, handler) {
+                remoteCalls++;
+                handler.resolve(
+                  Response(
+                    requestOptions: options,
+                    statusCode: 200,
+                    data: {
+                      'latitude': 31.1,
+                      'longitude': 30.95,
+                      'elevation': 6.0,
+                      'generationtime_ms': 0.1,
+                      'utc_offset_seconds': 10800,
+                      'timezone': 'Africa/Cairo',
+                      'daily_units': {},
+                      'daily': {
+                        'time': [
+                          '2026-06-15',
+                          '2026-06-16',
+                          '2026-06-17',
+                          '2026-06-18',
+                          '2026-06-19',
+                          '2026-06-20',
+                          '2026-06-21',
+                        ],
+                        'temperature_2m_max': [
+                          30.0,
+                          31.0,
+                          32.0,
+                          31.0,
+                          30.0,
+                          29.0,
+                          28.0,
+                        ],
+                        'temperature_2m_min': [
+                          20.0,
+                          21.0,
+                          22.0,
+                          21.0,
+                          20.0,
+                          19.0,
+                          18.0,
+                        ],
+                        'precipitation_sum': [
+                          0.0,
+                          0.0,
+                          0.0,
+                          0.0,
+                          0.0,
+                          0.0,
+                          0.0,
+                        ],
+                        'et0_fao_evapotranspiration': [
+                          5.0,
+                          5.2,
+                          5.4,
+                          5.1,
+                          5.0,
+                          4.8,
+                          4.5,
+                        ],
+                      },
+                    },
+                  ),
+                );
+              },
+            ),
+          );
+
+          var currentTime = DateTime.utc(2026, 6, 15, 12, 0);
+          final repo = WeatherRepositoryImpl(
+            remoteDataSource: OpenMeteoRemoteDataSource(dio: dio),
+            localDataSource: weatherLocalSource,
+            referenceTimeProvider: () => currentTime,
+          );
+
+          const coord = Coordinate(latitude: 31.10, longitude: 30.95);
+          await repo.getForecastDailyRecords(coordinate: coord, days: 7);
+          expect(remoteCalls, equals(1));
+
+          // Advance time by 6 hours and 1 minute (> 6h TTL)
+          currentTime = currentTime.add(const Duration(hours: 6, minutes: 1));
+          await repo.getForecastDailyRecords(coordinate: coord, days: 7);
+          // Should fetch remote again because L1 and L2 are expired
+          expect(remoteCalls, equals(2));
+        },
+      );
+
+      test('52. Fresh L1 historical entry is reused within 7 days', () async {
+        int remoteCalls = 0;
+        final dio = Dio();
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              remoteCalls++;
+              handler.resolve(
+                Response(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: {
+                    'latitude': 31.1,
+                    'longitude': 30.95,
+                    'elevation': 6.0,
+                    'generationtime_ms': 0.1,
+                    'utc_offset_seconds': 10800,
+                    'timezone': 'Africa/Cairo',
+                    'daily_units': {},
+                    'daily': {
+                      'time': ['2026-05-01', '2026-05-02'],
+                      'temperature_2m_max': [30.0, 31.0],
+                      'temperature_2m_min': [18.0, 19.0],
+                      'precipitation_sum': [0.0, 0.0],
+                      'et0_fao_evapotranspiration': [5.0, 5.2],
+                    },
+                  },
+                ),
+              );
+            },
+          ),
+        );
+
+        var currentTime = DateTime.utc(2026, 6, 15, 12, 0);
+        final repo = WeatherRepositoryImpl(
+          remoteDataSource: OpenMeteoRemoteDataSource(dio: dio),
+          localDataSource: weatherLocalSource,
+          referenceTimeProvider: () => currentTime,
+        );
+
+        const coord = Coordinate(latitude: 31.10, longitude: 30.95);
+        final res1 = await repo.getHistoricalDailyRecords(
+          coordinate: coord,
+          startDate: DateTime.utc(2026, 5, 1),
+          endDate: DateTime.utc(2026, 5, 2),
+        );
+        expect(res1.isSuccess, isTrue);
+        expect(remoteCalls, equals(1));
+
+        // Advance 6 days (< 7 days TTL)
+        currentTime = currentTime.add(const Duration(days: 6));
+        final res2 = await repo.getHistoricalDailyRecords(
+          coordinate: coord,
+          startDate: DateTime.utc(2026, 5, 1),
+          endDate: DateTime.utc(2026, 5, 2),
+        );
+        expect(res2.isSuccess, isTrue);
+        expect(remoteCalls, equals(1));
+      });
+
+      test(
+        '53. Expired L1 historical entry (> 7 days) is not treated as fresh',
+        () async {
+          int remoteCalls = 0;
+          final dio = Dio();
+          dio.interceptors.add(
+            InterceptorsWrapper(
+              onRequest: (options, handler) {
+                remoteCalls++;
+                handler.resolve(
+                  Response(
+                    requestOptions: options,
+                    statusCode: 200,
+                    data: {
+                      'latitude': 31.1,
+                      'longitude': 30.95,
+                      'elevation': 6.0,
+                      'generationtime_ms': 0.1,
+                      'utc_offset_seconds': 10800,
+                      'timezone': 'Africa/Cairo',
+                      'daily_units': {},
+                      'daily': {
+                        'time': ['2026-05-01', '2026-05-02'],
+                        'temperature_2m_max': [30.0, 31.0],
+                        'temperature_2m_min': [18.0, 19.0],
+                        'precipitation_sum': [0.0, 0.0],
+                        'et0_fao_evapotranspiration': [5.0, 5.2],
+                      },
+                    },
+                  ),
+                );
+              },
+            ),
+          );
+
+          var currentTime = DateTime.utc(2026, 6, 15, 12, 0);
+          final repo = WeatherRepositoryImpl(
+            remoteDataSource: OpenMeteoRemoteDataSource(dio: dio),
+            localDataSource: weatherLocalSource,
+            referenceTimeProvider: () => currentTime,
+          );
+
+          const coord = Coordinate(latitude: 31.10, longitude: 30.95);
+          await repo.getHistoricalDailyRecords(
+            coordinate: coord,
+            startDate: DateTime.utc(2026, 5, 1),
+            endDate: DateTime.utc(2026, 5, 2),
+          );
+          expect(remoteCalls, equals(1));
+
+          // Advance 7 days and 1 hour (> 7 days TTL)
+          currentTime = currentTime.add(const Duration(days: 7, hours: 1));
+          await repo.getHistoricalDailyRecords(
+            coordinate: coord,
+            startDate: DateTime.utc(2026, 5, 1),
+            endDate: DateTime.utc(2026, 5, 2),
+          );
+          expect(remoteCalls, equals(2));
+        },
+      );
+
+      test('54. Stale fallback is marked with isStaleFallback: true on transient errors', () async {
+        bool shouldFail = false;
+        final dio = Dio();
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              if (shouldFail) {
+                handler.reject(
+                  DioException(
+                    requestOptions: options,
+                    type: DioExceptionType.connectionTimeout,
+                  ),
+                );
+              } else {
+                handler.resolve(
+                  Response(
+                    requestOptions: options,
+                    statusCode: 200,
+                    data: {
+                      'latitude': 31.1,
+                      'longitude': 30.95,
+                      'elevation': 6.0,
+                      'generationtime_ms': 0.1,
+                      'utc_offset_seconds': 10800,
+                      'timezone': 'Africa/Cairo',
+                      'daily_units': {},
+                      'daily': {
+                        'time': ['2026-05-01', '2026-05-02'],
+                        'temperature_2m_max': [30.0, 31.0],
+                        'temperature_2m_min': [18.0, 19.0],
+                        'precipitation_sum': [0.0, 0.0],
+                        'et0_fao_evapotranspiration': [5.0, 5.2],
+                      },
+                    },
+                  ),
+                );
+              }
+            },
+          ),
+        );
+
+        var currentTime = DateTime.utc(2026, 6, 15, 12, 0);
+        final repo = WeatherRepositoryImpl(
+          remoteDataSource: OpenMeteoRemoteDataSource(dio: dio),
+          localDataSource: weatherLocalSource,
+          referenceTimeProvider: () => currentTime,
+        );
+
+        const coord = Coordinate(latitude: 31.10, longitude: 30.95);
+        await repo.getHistoricalDailyRecords(
+          coordinate: coord,
+          startDate: DateTime.utc(2026, 5, 1),
+          endDate: DateTime.utc(2026, 5, 2),
+        );
+
+        // Advance 8 days so cache becomes stale (> 7d)
+        currentTime = currentTime.add(const Duration(days: 8));
+
+        // Simulate transient network failure
+        shouldFail = true;
+
+        final res = await repo.getHistoricalDailyRecords(
+          coordinate: coord,
+          startDate: DateTime.utc(2026, 5, 1),
+          endDate: DateTime.utc(2026, 5, 2),
+        );
+
+        expect(res.isSuccess, isTrue);
+        expect(res.dataOrNull!.first.provenance.isStaleFallback, isTrue);
+      });
+
+      test('55. Non-transient HTTP client errors (400) do NOT consume stale fallback', () async {
+        bool shouldFail = false;
+        final dio = Dio();
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              if (shouldFail) {
+                handler.reject(
+                  DioException(
+                    requestOptions: options,
+                    response: Response(
+                      requestOptions: options,
+                      statusCode: 400,
+                    ),
+                    type: DioExceptionType.badResponse,
+                  ),
+                );
+              } else {
+                handler.resolve(
+                  Response(
+                    requestOptions: options,
+                    statusCode: 200,
+                    data: {
+                      'latitude': 31.1,
+                      'longitude': 30.95,
+                      'elevation': 6.0,
+                      'generationtime_ms': 0.1,
+                      'utc_offset_seconds': 10800,
+                      'timezone': 'Africa/Cairo',
+                      'daily_units': {},
+                      'daily': {
+                        'time': ['2026-05-01', '2026-05-02'],
+                        'temperature_2m_max': [30.0, 31.0],
+                        'temperature_2m_min': [18.0, 19.0],
+                        'precipitation_sum': [0.0, 0.0],
+                        'et0_fao_evapotranspiration': [5.0, 5.2],
+                      },
+                    },
+                  ),
+                );
+              }
+            },
+          ),
+        );
+
+        var currentTime = DateTime.utc(2026, 6, 15, 12, 0);
+        final repo = WeatherRepositoryImpl(
+          remoteDataSource: OpenMeteoRemoteDataSource(dio: dio),
+          localDataSource: weatherLocalSource,
+          referenceTimeProvider: () => currentTime,
+        );
+
+        const coord = Coordinate(latitude: 31.10, longitude: 30.95);
+        await repo.getHistoricalDailyRecords(
+          coordinate: coord,
+          startDate: DateTime.utc(2026, 5, 1),
+          endDate: DateTime.utc(2026, 5, 2),
+        );
+
+        // Advance 8 days
+        currentTime = currentTime.add(const Duration(days: 8));
+
+        // Non-transient 400 Bad Request
+        shouldFail = true;
+
+        final res = await repo.getHistoricalDailyRecords(
+          coordinate: coord,
+          startDate: DateTime.utc(2026, 5, 1),
+          endDate: DateTime.utc(2026, 5, 2),
+        );
+
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<NetworkFailure>());
+      });
+    });
   });
 }

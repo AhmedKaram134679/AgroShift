@@ -1,6 +1,7 @@
 import 'dart:developer' as developer;
 import 'dart:io';
 
+import 'package:agro_shift/data/datasources/local/cache_policy.dart';
 import 'package:dio/dio.dart';
 import 'package:intl/intl.dart';
 import 'package:agro_shift/domain/environment/models/coordinate.dart';
@@ -13,18 +14,59 @@ import 'package:agro_shift/data/datasources/remote/open_meteo_remote_data_source
 import 'package:agro_shift/data/datasources/remote/open_meteo_adapter.dart';
 import 'package:agro_shift/data/datasources/local/weather_local_data_source.dart';
 
+/// In-memory cache entry tracking records and storage timestamp for TTL evaluation.
+class _MemoryCacheEntry {
+  final List<DailyAgroRecord> records;
+  final DateTime storedAt;
+
+  _MemoryCacheEntry({required this.records, required this.storedAt});
+
+  bool isFresh({required bool isForecast, DateTime? now}) {
+    return CachePolicy.isFresh(
+      cachedAt: storedAt,
+      isForecast: isForecast,
+      now: now,
+    );
+  }
+}
+
 /// Concrete implementation of IWeatherRepository connecting to Open-Meteo with persistent caching.
 class WeatherRepositoryImpl implements IWeatherRepository {
   final OpenMeteoRemoteDataSource _remoteDataSource;
   final WeatherLocalDataSource? _localDataSource;
 
-  // In-memory L1 cache for fast hot-lookup
-  final Map<String, List<DailyAgroRecord>> _memoryCache = {};
+  /// Official Open-Meteo ERA5 / ERA5-Land Archive publication delay is typically 5 calendar days.
+  /// Source: https://open-meteo.com/en/docs/historical-weather-api
+  static const int era5LandArchiveDelayDays = 5;
+
+  // In-memory L1 cache for fast hot-lookup with TTL and integrity tracking
+  final Map<String, _MemoryCacheEntry> _memoryCache = {};
+  final DateTime Function()? _referenceTimeProvider;
 
   WeatherRepositoryImpl({
     OpenMeteoRemoteDataSource? remoteDataSource,
     this._localDataSource,
+    this._referenceTimeProvider,
   }) : _remoteDataSource = remoteDataSource ?? OpenMeteoRemoteDataSource();
+
+  /// Returns the current reference time (injectable for deterministic testing).
+  DateTime _getCurrentTime() =>
+      _referenceTimeProvider?.call() ?? DateTime.now();
+
+  /// Calculates the latest eligible historical calendar date in Egypt.
+  /// Based on the official Open-Meteo ERA5-Land publication delay of 5 calendar days.
+  static DateTime getLatestEligibleHistoricalDate([DateTime? referenceTime]) {
+    final cairoNow = getCairoDateTime(referenceTime);
+    // Normalize to canonical UTC calendar date (00:00:00) before subtracting delay
+    final cairoCalendarToday = DateTime.utc(
+      cairoNow.year,
+      cairoNow.month,
+      cairoNow.day,
+    );
+    return cairoCalendarToday.subtract(
+      const Duration(days: era5LandArchiveDelayDays),
+    );
+  }
 
   @override
   Future<Result<List<DailyAgroRecord>, Failure>> getHistoricalDailyRecords({
@@ -38,11 +80,15 @@ class WeatherRepositoryImpl implements IWeatherRepository {
       return FailureResult(coordVal.failureOrNull!);
     }
 
-    final now = DateTime.now();
-    // Historical archive endpoint allows dates up to current date (e.g. today).
-    // Future dates beyond today are not permitted by the archive API.
-    final effectiveEndDate = endDate.isAfter(now) ? now : endDate;
-    if (startDate.isAfter(effectiveEndDate)) {
+    // Canonical UTC calendar date normalization
+    final normStartDate = DateTime.utc(
+      startDate.year,
+      startDate.month,
+      startDate.day,
+    );
+    final normEndDate = DateTime.utc(endDate.year, endDate.month, endDate.day);
+
+    if (normStartDate.isAfter(normEndDate)) {
       return const FailureResult(
         PhysicalRangeFailure(
           userMessageAr:
@@ -54,26 +100,68 @@ class WeatherRepositoryImpl implements IWeatherRepository {
       );
     }
 
-    final startIso = DateFormat('yyyy-MM-dd').format(startDate);
+    // 2. Clamp end date to the latest eligible historical archive calendar date (5-day delay)
+    final latestEligibleDate = getLatestEligibleHistoricalDate(
+      _getCurrentTime(),
+    );
+    final effectiveEndDate = normEndDate.isAfter(latestEligibleDate)
+        ? latestEligibleDate
+        : normEndDate;
+
+    // If requested interval contains no eligible historical days, return a meaningful typed failure
+    if (normStartDate.isAfter(effectiveEndDate)) {
+      final latestEligibleIso = DateFormat('yyyy-MM-dd')
+          .format(latestEligibleDate);
+      return FailureResult(
+        InsufficientEvidenceFailure(
+          userMessageAr:
+              'الفترة المطلوبة تقع ضمن فترة تأخير نشر أرشيف ERA5-Land (5 أيام). آخر تاريخ متاح هو $latestEligibleIso.',
+          technicalMessage:
+              'Requested startDate ($normStartDate) is after the latest eligible archive date ($latestEligibleDate, 5-day publication delay).',
+          missingRatio: 1.0,
+          variableName: 'historical_archive_unreleased',
+        ),
+      );
+    }
+
+    final startIso = DateFormat('yyyy-MM-dd').format(normStartDate);
     final endIso = DateFormat('yyyy-MM-dd').format(effectiveEndDate);
     const datasetTag = 'openmeteo_era5land';
     // Exact requested-coordinate identity to guarantee strict cache isolation
     final cacheKey =
         'hist_${datasetTag}_${coordinate.latitude}_${coordinate.longitude}_${startIso}_$endIso';
 
-    // 2. Check in-memory L1 cache
+    // 3. Check in-memory L1 cache with TTL and range/structural validation
     if (_memoryCache.containsKey(cacheKey)) {
-      return Success(_memoryCache[cacheKey]!);
+      final entry = _memoryCache[cacheKey]!;
+      if (entry.isFresh(isForecast: false, now: _getCurrentTime()) &&
+          isHistoricalValid(entry.records, normStartDate, effectiveEndDate)) {
+        return Success(entry.records);
+      } else if (!isHistoricalValid(
+        entry.records,
+        normStartDate,
+        effectiveEndDate,
+      )) {
+        _memoryCache.remove(cacheKey); // Evict corrupted L1 entry
+      }
     }
 
-    // 3. Check durable on-disk SQLite cache
+    // 4. Check durable on-disk SQLite cache
     if (_localDataSource != null) {
       final cached = await _localDataSource.getCachedRecords(
         cacheKey: cacheKey,
         isForecast: false,
+        expectedStartDate: normStartDate,
+        expectedEndDate: effectiveEndDate,
+        now: _getCurrentTime(),
       );
-      if (cached != null && cached.isFresh) {
-        _memoryCache[cacheKey] = cached.records;
+      if (cached != null &&
+          cached.isFresh &&
+          isHistoricalValid(cached.records, normStartDate, effectiveEndDate)) {
+        _memoryCache[cacheKey] = _MemoryCacheEntry(
+          records: cached.records,
+          storedAt: cached.cachedAt,
+        );
         return Success(cached.records);
       }
     }
@@ -90,16 +178,23 @@ class WeatherRepositoryImpl implements IWeatherRepository {
         dto: dto,
         requestedCoordinate: coordinate,
         datasetLabel: 'ERA5-Land Reanalysis Archive',
+        expectedStartDate: normStartDate,
+        expectedEndDate: effectiveEndDate,
       );
 
       if (domainResult.isSuccess) {
         final records = domainResult.dataOrNull!;
-        _memoryCache[cacheKey] = records;
+        final nowUtc = _getCurrentTime().toUtc();
+        _memoryCache[cacheKey] = _MemoryCacheEntry(
+          records: records,
+          storedAt: nowUtc,
+        );
         if (_localDataSource != null) {
           try {
             await _localDataSource.saveRecords(
               cacheKey: cacheKey,
               records: records,
+              cachedAt: nowUtc,
             );
           } catch (e, st) {
             // Non-fatal write error: persistence failure does not discard validated network records
@@ -124,16 +219,34 @@ class WeatherRepositoryImpl implements IWeatherRepository {
           final offlineCached = await _localDataSource.getCachedRecords(
             cacheKey: cacheKey,
             isForecast: false,
+            expectedStartDate: normStartDate,
+            expectedEndDate: effectiveEndDate,
           );
-          if (offlineCached != null && offlineCached.records.isNotEmpty) {
+          if (offlineCached != null &&
+              offlineCached.records.isNotEmpty &&
+              isHistoricalValid(
+                offlineCached.records,
+                normStartDate,
+                effectiveEndDate,
+              )) {
             final staleRecords = _markAsStale(offlineCached.records);
-            _memoryCache[cacheKey] = staleRecords;
+            _memoryCache[cacheKey] = _MemoryCacheEntry(
+              records: staleRecords,
+              storedAt: offlineCached.cachedAt,
+            );
             return Success(staleRecords);
           }
         }
 
         if (_memoryCache.containsKey(cacheKey)) {
-          return Success(_markAsStale(_memoryCache[cacheKey]!));
+          final entry = _memoryCache[cacheKey]!;
+          if (isHistoricalValid(
+            entry.records,
+            normStartDate,
+            effectiveEndDate,
+          )) {
+            return Success(_markAsStale(entry.records));
+          }
         }
       }
 
@@ -143,9 +256,7 @@ class WeatherRepositoryImpl implements IWeatherRepository {
         apiReason = responseData['reason'] as String;
       }
       final retryAfter = dioErr.response?.headers.value('retry-after');
-      final retryNote = retryAfter != null
-          ? ' (Retry-After: ${retryAfter}s)'
-          : '';
+      final retryNote = parseRetryAfterNote(retryAfter);
 
       return FailureResult(
         NetworkFailure(
@@ -165,16 +276,30 @@ class WeatherRepositoryImpl implements IWeatherRepository {
         final offlineCached = await _localDataSource.getCachedRecords(
           cacheKey: cacheKey,
           isForecast: false,
+          expectedStartDate: normStartDate,
+          expectedEndDate: effectiveEndDate,
         );
-        if (offlineCached != null && offlineCached.records.isNotEmpty) {
+        if (offlineCached != null &&
+            offlineCached.records.isNotEmpty &&
+            isHistoricalValid(
+              offlineCached.records,
+              normStartDate,
+              effectiveEndDate,
+            )) {
           final staleRecords = _markAsStale(offlineCached.records);
-          _memoryCache[cacheKey] = staleRecords;
+          _memoryCache[cacheKey] = _MemoryCacheEntry(
+            records: staleRecords,
+            storedAt: offlineCached.cachedAt,
+          );
           return Success(staleRecords);
         }
       }
 
       if (_memoryCache.containsKey(cacheKey)) {
-        return Success(_markAsStale(_memoryCache[cacheKey]!));
+        final entry = _memoryCache[cacheKey]!;
+        if (isHistoricalValid(entry.records, normStartDate, effectiveEndDate)) {
+          return Success(_markAsStale(entry.records));
+        }
       }
 
       return FailureResult(
@@ -276,18 +401,27 @@ class WeatherRepositoryImpl implements IWeatherRepository {
 
     const datasetTag = 'openmeteo_ecmwf_dwd';
     // Incorporate current Cairo calendar date into forecast key to prevent yesterday's forecast from masquerading as future days
-    final nowCairo = getCairoDateTime();
+    final nowCairo = getCairoDateTime(_getCurrentTime());
     final todayIso = DateFormat('yyyy-MM-dd').format(nowCairo);
     // Exact requested-coordinate identity to guarantee strict cache isolation
     final cacheKey =
         'fc_${datasetTag}_${coordinate.latitude}_${coordinate.longitude}_${todayIso}_$days';
 
-    // 1. Check in-memory L1 cache (and ensure records match today and full interval)
+    // 1. Check in-memory L1 cache with TTL and sequence completeness
     if (_memoryCache.containsKey(cacheKey)) {
-      final memRecords = _memoryCache[cacheKey]!;
-      if (isForecastValidForToday(memRecords, nowCairo, expectedDays: days)) {
-        return Success(memRecords);
-      } else {
+      final entry = _memoryCache[cacheKey]!;
+      if (entry.isFresh(isForecast: true, now: _getCurrentTime()) &&
+          isForecastValidForToday(
+            entry.records,
+            nowCairo,
+            expectedDays: days,
+          )) {
+        return Success(entry.records);
+      } else if (!isForecastValidForToday(
+        entry.records,
+        nowCairo,
+        expectedDays: days,
+      )) {
         _memoryCache.remove(cacheKey);
       }
     }
@@ -297,6 +431,7 @@ class WeatherRepositoryImpl implements IWeatherRepository {
       final cached = await _localDataSource.getCachedRecords(
         cacheKey: cacheKey,
         isForecast: true,
+        now: _getCurrentTime(),
       );
       if (cached != null &&
           cached.isFresh &&
@@ -305,7 +440,10 @@ class WeatherRepositoryImpl implements IWeatherRepository {
             nowCairo,
             expectedDays: days,
           )) {
-        _memoryCache[cacheKey] = cached.records;
+        _memoryCache[cacheKey] = _MemoryCacheEntry(
+          records: cached.records,
+          storedAt: cached.cachedAt,
+        );
         return Success(cached.records);
       }
     }
@@ -325,12 +463,17 @@ class WeatherRepositoryImpl implements IWeatherRepository {
 
       if (domainResult.isSuccess) {
         final records = domainResult.dataOrNull!;
-        _memoryCache[cacheKey] = records;
+        final nowUtc = _getCurrentTime().toUtc();
+        _memoryCache[cacheKey] = _MemoryCacheEntry(
+          records: records,
+          storedAt: nowUtc,
+        );
         if (_localDataSource != null) {
           try {
             await _localDataSource.saveRecords(
               cacheKey: cacheKey,
               records: records,
+              cachedAt: nowUtc,
             );
           } catch (e, st) {
             // Non-fatal write error
@@ -363,15 +506,22 @@ class WeatherRepositoryImpl implements IWeatherRepository {
                 expectedDays: days,
               )) {
             final staleRecords = _markAsStale(offlineCached.records);
-            _memoryCache[cacheKey] = staleRecords;
+            _memoryCache[cacheKey] = _MemoryCacheEntry(
+              records: staleRecords,
+              storedAt: offlineCached.cachedAt,
+            );
             return Success(staleRecords);
           }
         }
 
         if (_memoryCache.containsKey(cacheKey)) {
-          final mem = _memoryCache[cacheKey]!;
-          if (isForecastValidForToday(mem, nowCairo, expectedDays: days)) {
-            return Success(_markAsStale(mem));
+          final entry = _memoryCache[cacheKey]!;
+          if (isForecastValidForToday(
+            entry.records,
+            nowCairo,
+            expectedDays: days,
+          )) {
+            return Success(_markAsStale(entry.records));
           }
         }
       }
@@ -427,6 +577,40 @@ class WeatherRepositoryImpl implements IWeatherRepository {
       case DioExceptionType.badCertificate:
         return false;
     }
+  }
+
+  /// Validates that historical records are in strictly ascending chronological order,
+  /// have no duplicate dates, and fall within the requested date interval.
+  /// (Permits gaps between records resulting from missing-temperature filtering).
+  bool isHistoricalValid(
+    List<DailyAgroRecord> records,
+    DateTime startDate,
+    DateTime endDate,
+  ) {
+    if (records.isEmpty) return true;
+
+    final normStart = DateTime.utc(
+      startDate.year,
+      startDate.month,
+      startDate.day,
+    );
+    final normEnd = DateTime.utc(endDate.year, endDate.month, endDate.day);
+    DateTime? prevDate;
+
+    for (final r in records) {
+      final recDate = DateTime.utc(r.date.year, r.date.month, r.date.day);
+      if (recDate.isBefore(normStart) || recDate.isAfter(normEnd)) {
+        return false;
+      }
+      if (prevDate != null) {
+        if (!recDate.isAfter(prevDate)) {
+          return false; // Duplicate or out-of-order date
+        }
+      }
+      prevDate = recDate;
+    }
+
+    return true;
   }
 
   /// Verifies that the forecast records form a valid, continuous, ascending daily sequence
