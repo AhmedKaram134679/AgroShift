@@ -142,7 +142,7 @@ void main() {
   group('Weather Cache Persistence & Integrity Tests', () {
     final prov = DataSourceProvenance(
       providerName: 'Open-Meteo Weather API',
-      datasetName: 'ERA5-Land Reanalysis Archive',
+      datasetName: 'ERA5 Reanalysis Archive',
       requestedLatitude: 31.10,
       requestedLongitude: 30.95,
       gridLatitude: 31.107,
@@ -230,10 +230,7 @@ void main() {
 
         final rec = lookup!.records.first;
         expect(rec.provenance.providerName, equals('Open-Meteo Weather API'));
-        expect(
-          rec.provenance.datasetName,
-          equals('ERA5-Land Reanalysis Archive'),
-        );
+        expect(rec.provenance.datasetName, equals('ERA5 Reanalysis Archive'));
         expect(rec.provenance.gridLatitude, equals(31.107));
         expect(rec.provenance.gridLongitude, equals(30.998));
         expect(rec.provenance.gridElevationMeters, equals(6.0));
@@ -394,7 +391,7 @@ void main() {
       final now = DateTime.now();
       final todayIso = DateFormat('yyyy-MM-dd').format(now);
       final cacheKey =
-          'fc_openmeteo_ecmwf_dwd_${coord.latitude}_${coord.longitude}_${todayIso}_7';
+          'fc_openmeteo_bestmatch_${coord.latitude}_${coord.longitude}_${todayIso}_7';
       final staleTime = now.subtract(const Duration(hours: 12));
 
       final records7Days = List.generate(
@@ -449,7 +446,7 @@ void main() {
       expect(records.first.provenance.isStaleFallback, isTrue);
       expect(
         records.first.provenance.datasetName,
-        equals('ERA5-Land Reanalysis Archive'),
+        equals('ERA5 Reanalysis Archive'),
       );
       expect(
         records.first.provenance.scientificDisclaimerAr.contains(
@@ -547,19 +544,19 @@ void main() {
 
       // Verify coordinate precision isolation (exact double representation)
       final key1 =
-          'hist_openmeteo_era5land_${coord1.latitude}_${coord1.longitude}_2026-06-01_2026-06-10';
+          'hist_openmeteo_era5_${coord1.latitude}_${coord1.longitude}_2026-06-01_2026-06-10';
       final key2 =
-          'hist_openmeteo_era5land_${coord2.latitude}_${coord2.longitude}_2026-06-01_2026-06-10';
+          'hist_openmeteo_era5_${coord2.latitude}_${coord2.longitude}_2026-06-01_2026-06-10';
       expect(key1, isNot(equals(key2)));
 
       // Verify date range isolation
       final key3 =
-          'hist_openmeteo_era5land_${coord1.latitude}_${coord1.longitude}_2026-06-01_2026-06-11';
+          'hist_openmeteo_era5_${coord1.latitude}_${coord1.longitude}_2026-06-01_2026-06-11';
       expect(key1, isNot(equals(key3)));
 
       // Verify dataset & forecast vs historical isolation with calendar date identity
       final keyForecast =
-          'fc_openmeteo_ecmwf_dwd_${coord1.latitude}_${coord1.longitude}_${todayIso}_7';
+          'fc_openmeteo_bestmatch_${coord1.latitude}_${coord1.longitude}_${todayIso}_7';
       expect(key1, isNot(equals(keyForecast)));
     });
 
@@ -570,9 +567,9 @@ void main() {
       final todayIso = DateFormat('yyyy-MM-dd').format(DateTime.now());
 
       final keyA =
-          'fc_openmeteo_ecmwf_dwd_${coordA.latitude}_${coordA.longitude}_${todayIso}_7';
+          'fc_openmeteo_bestmatch_${coordA.latitude}_${coordA.longitude}_${todayIso}_7';
       final keyB =
-          'fc_openmeteo_ecmwf_dwd_${coordB.latitude}_${coordB.longitude}_${todayIso}_7';
+          'fc_openmeteo_bestmatch_${coordB.latitude}_${coordB.longitude}_${todayIso}_7';
 
       // Under exact coordinate identity, coordinates are never silently coalesced client-side
       expect(
@@ -588,7 +585,7 @@ void main() {
       final now = DateTime.now();
       final todayIso = DateFormat('yyyy-MM-dd').format(now);
       final cacheKey =
-          'fc_openmeteo_ecmwf_dwd_${coord.latitude}_${coord.longitude}_${todayIso}_7';
+          'fc_openmeteo_bestmatch_${coord.latitude}_${coord.longitude}_${todayIso}_7';
       final staleTime = now.subtract(const Duration(hours: 12));
 
       final todayRecord = DailyAgroRecord(
@@ -840,7 +837,7 @@ void main() {
 
       // Cache entry created yesterday (e.g., at 23:00) with key using yesterday's date
       final yesterdayCacheKey =
-          'fc_openmeteo_ecmwf_dwd_${coord.latitude}_${coord.longitude}_${yesterdayIso}_7';
+          'fc_openmeteo_bestmatch_${coord.latitude}_${coord.longitude}_${yesterdayIso}_7';
 
       // Record starts yesterday
       final yesterdayRecord = DailyAgroRecord(
@@ -903,7 +900,7 @@ void main() {
       final now = DateTime.now();
       final todayIso = DateFormat('yyyy-MM-dd').format(now);
       final cacheKey =
-          'fc_openmeteo_ecmwf_dwd_${coord.latitude}_${coord.longitude}_${todayIso}_7';
+          'fc_openmeteo_bestmatch_${coord.latitude}_${coord.longitude}_${todayIso}_7';
 
       // Seed valid stale cache
       final validRecord = DailyAgroRecord(
@@ -971,7 +968,7 @@ void main() {
       final now = DateTime.now();
       final todayIso = DateFormat('yyyy-MM-dd').format(now);
       final cacheKey =
-          'fc_openmeteo_ecmwf_dwd_${coord.latitude}_${coord.longitude}_${todayIso}_7';
+          'fc_openmeteo_bestmatch_${coord.latitude}_${coord.longitude}_${todayIso}_7';
 
       // Seed valid 7-day stale cache
       final staleRecords = List.generate(
@@ -1042,7 +1039,7 @@ void main() {
       final now = DateTime.now();
       final todayIso = DateFormat('yyyy-MM-dd').format(now);
       final cacheKey =
-          'fc_openmeteo_ecmwf_dwd_${coord.latitude}_${coord.longitude}_${todayIso}_7';
+          'fc_openmeteo_bestmatch_${coord.latitude}_${coord.longitude}_${todayIso}_7';
 
       // Sequence with non-consecutive / backwards date: Day 2 before Day 1 (missing Day 1)
       final day0 = DateTime.utc(now.year, now.month, now.day);
@@ -1352,7 +1349,7 @@ void main() {
       final nowCairo = WeatherRepositoryImpl.getCairoDateTime();
       final todayIso = DateFormat('yyyy-MM-dd').format(nowCairo);
       final cacheKey =
-          'fc_openmeteo_ecmwf_dwd_${coord.latitude}_${coord.longitude}_${todayIso}_7';
+          'fc_openmeteo_bestmatch_${coord.latitude}_${coord.longitude}_${todayIso}_7';
 
       // Seed valid 7-day forecast
       final valid7Days = List.generate(
@@ -2571,7 +2568,7 @@ void main() {
       });
 
       test(
-        '56. Outgoing historical request explicitly contains models=era5_land',
+        '56. Outgoing historical request explicitly contains models=era5',
         () async {
           Map<String, dynamic>? capturedQuery;
           final dio = Dio();
@@ -2620,13 +2617,12 @@ void main() {
 
           expect(res.isSuccess, isTrue);
           expect(capturedQuery, isNotNull);
-          expect(capturedQuery!['models'], equals('era5_land'));
+          expect(capturedQuery!['models'], equals('era5'));
         },
       );
 
       test('57. Empty raw historical response is rejected and does not overwrite valid cache', () async {
-        const cacheKey =
-            'hist_openmeteo_era5land_31.1_30.95_2026-05-01_2026-05-02';
+        const cacheKey = 'hist_openmeteo_era5_31.1_30.95_2026-05-01_2026-05-02';
         final validRecords = [
           DailyAgroRecord(
             date: DateTime.utc(2026, 5, 1),

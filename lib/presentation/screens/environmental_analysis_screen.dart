@@ -200,20 +200,51 @@ class EnvironmentalAnalysisScreen extends ConsumerWidget {
                             ],
                           ),
                           const SizedBox(height: 8),
-                          Text(
-                            'إجمالي الفاقد البخري خلال 30 يوماً: ${_calculateTotalEt0(records).toStringAsFixed(1)} مم',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'المعادل الحجمي النظري للبخر المرجعي: ${(_calculateTotalEt0(records) * 4.2).toStringAsFixed(0)} م³ / فدان',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF0277BD),
-                            ),
+                          Builder(
+                            builder: (context) {
+                              final totalDays = records.length;
+                              final availableEt0Days = records
+                                  .where((r) => r.referenceEt0Mm != null)
+                                  .length;
+                              final isComplete = availableEt0Days == totalDays;
+                              final totalEt0 = _calculateTotalEt0(records);
+
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    isComplete
+                                        ? 'إجمالي الفاقد البخري خلال $totalDays يوماً: ${totalEt0.toStringAsFixed(1)} مم'
+                                        : 'مجموع جزئي للفاقد البخري ($availableEt0Days من أصل $totalDays يوماً): ${totalEt0.toStringAsFixed(1)} مم',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  if (!isComplete) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'تنبيه: البيانات غير مكتملة لكامل الفترة (${totalDays - availableEt0Days} أيام بدون قراءة ET₀). المجموع المعروض يمثل الأيام المتوفرة فقط.',
+                                      style: const TextStyle(
+                                        fontSize: 11.5,
+                                        color: Color(0xFFC62828),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    isComplete
+                                        ? 'المعادل الحجمي النظري للبخر المرجعي: ${(totalEt0 * 4.2).toStringAsFixed(0)} م³ / فدان'
+                                        : 'المعادل الحجمي النظري الجزئي (للأيام المتوفرة): ${(totalEt0 * 4.2).toStringAsFixed(0)} م³ / فدان',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: Color(0xFF0277BD),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
                           ),
                           const SizedBox(height: 4),
                           const Text(

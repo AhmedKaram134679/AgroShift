@@ -696,6 +696,66 @@ void main() {
         );
       });
 
+      test('Missing mandatory temperature_2m_max array is rejected', () {
+        final dto = OpenMeteoDailyResponseDto(
+          latitude: 31.05,
+          longitude: 31.20,
+          generationTimeMs: 1.0,
+          utcOffsetSeconds: 10800,
+          timezone: 'Africa/Cairo',
+          dailyUnits: {},
+          daily: {
+            'time': ['2026-06-01'],
+            // temperature_2m_max missing entirely
+            'temperature_2m_min': [20.0],
+            'et0_fao_evapotranspiration': [5.0],
+            'precipitation_sum': [0.0],
+          },
+        );
+
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'ERA5',
+        );
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<ParsingFailure>());
+        expect(
+          res.failureOrNull!.technicalMessage,
+          contains('missing required daily arrays'),
+        );
+      });
+
+      test('Missing mandatory temperature_2m_min array is rejected', () {
+        final dto = OpenMeteoDailyResponseDto(
+          latitude: 31.05,
+          longitude: 31.20,
+          generationTimeMs: 1.0,
+          utcOffsetSeconds: 10800,
+          timezone: 'Africa/Cairo',
+          dailyUnits: {},
+          daily: {
+            'time': ['2026-06-01'],
+            'temperature_2m_max': [30.0],
+            // temperature_2m_min missing entirely
+            'et0_fao_evapotranspiration': [5.0],
+            'precipitation_sum': [0.0],
+          },
+        );
+
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'ERA5',
+        );
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<ParsingFailure>());
+        expect(
+          res.failureOrNull!.technicalMessage,
+          contains('missing required daily arrays'),
+        );
+      });
+
       test('Missing mandatory precipitation array is rejected', () {
         final dto = OpenMeteoDailyResponseDto(
           latitude: 31.05,
@@ -716,7 +776,7 @@ void main() {
         final res = OpenMeteoAdapter.toDomainRecords(
           dto: dto,
           requestedCoordinate: coord,
-          datasetLabel: 'ERA5-Land',
+          datasetLabel: 'ERA5',
         );
         expect(res.isFailure, isTrue);
         expect(res.failureOrNull, isA<ParsingFailure>());

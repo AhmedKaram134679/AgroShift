@@ -9,6 +9,7 @@ import 'package:agro_shift/domain/environment/repositories/i_weather_repository.
 import 'package:agro_shift/domain/environment/models/coordinate.dart';
 import 'package:agro_shift/domain/environment/models/daily_agro_record.dart';
 import 'package:agro_shift/domain/environment/models/data_source_provenance.dart';
+import 'package:agro_shift/presentation/widgets/provenance_card.dart';
 import 'package:agro_shift/core/error/failures.dart';
 import 'package:agro_shift/core/error/result.dart';
 
@@ -85,4 +86,41 @@ void main() {
     expect(find.text('الحقول'), findsOneWidget);
     expect(find.text('المنهجية'), findsOneWidget);
   });
+
+  testWidgets(
+    'ProvenanceCard displays requested and grid coordinates distinctly',
+    (WidgetTester tester) async {
+      final prov = DataSourceProvenance(
+        providerName: 'Open-Meteo Weather API',
+        datasetName: 'ERA5 Reanalysis Archive',
+        requestedLatitude: 31.1000,
+        requestedLongitude: 30.9500,
+        gridLatitude: 31.1250,
+        gridLongitude: 31.0000,
+        gridElevationMeters: 7.5,
+        acquisitionTimestamp: DateTime.utc(2026, 10, 25, 12, 0),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Scaffold(body: ProvenanceCard(provenance: prov)),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('المصدر وبيانات التتبع العلمي (Provenance)'),
+        findsOneWidget,
+      );
+      expect(find.text('الإحداثيات المطلوبة للحقل:'), findsOneWidget);
+      expect(find.text('31.1000°N, 30.9500°E'), findsOneWidget);
+      expect(find.text('إحداثيات خلية الشبكة (Grid):'), findsOneWidget);
+      expect(find.text('31.1250°N, 31.0000°E'), findsOneWidget);
+      expect(find.text('7.5 متر'), findsOneWidget);
+    },
+  );
 }

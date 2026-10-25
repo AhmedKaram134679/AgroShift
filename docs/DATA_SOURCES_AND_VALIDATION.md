@@ -9,38 +9,39 @@
 
 | Source | Role in AgroShift | Variables Utilized | Spatial Resolution | Time Frequency | Verified Limitations | Status |
 |---|---|---|---|---|---|---|
-| **Open-Meteo Historical Archive** | Primary Environmental Baseline (`models=era5_land`) | $T_{2m,\max}$, $T_{2m,\min}$, $ET_{0,\text{FAO}}$, Precipitation sum | ~9 km (0.1°) ERA5-Land land-surface reanalysis grid | Daily aggregations | Upstream publication delay of 5 calendar days; gridded reanalysis interpolation; not an in-situ station. | **Approved (Active Baseline)** |
-| **Open-Meteo Forecast API** | Short-Term Operational Monitoring | $T_{2m,\max}$, $T_{2m,\min}$, $ET_{0,\text{FAO}}$, Precipitation sum | ~11 km (0.1°) Seamless DWD/ECMWF blend | Daily (up to 7 days) | Numerical weather prediction model uncertainty increases significantly past day 3. | **Approved (Short-term Forecast)** |
+| **Open-Meteo Historical Archive** | Primary Environmental Baseline (`models=era5`) | $T_{2m,\max}$, $T_{2m,\min}$, $ET_{0,\text{FAO}}$, Precipitation sum | ~28 km (0.25°) ECMWF ERA5 reanalysis grid | Daily aggregations | Upstream publication delay of 5 calendar days; gridded reanalysis interpolation; not an in-situ station. (Note: `models=era5_land` was experimentally verified to omit daily $ET_0$ and precipitation on Open-Meteo, returning null; `models=era5` fully provides all four required variables). | **Approved (Active Baseline: ERA5 Reanalysis)** |
+| **Open-Meteo Forecast API** | Short-Term Operational Monitoring (Best Match) | $T_{2m,\max}$, $T_{2m,\min}$, $ET_{0,\text{FAO}}$, Precipitation sum | ~2–11 km Seamless multi-model blend (ICON, IFS, GFS) | Daily (up to 7 days) | Numerical weather prediction model uncertainty increases significantly past day 3. Labelled honestly as Open-Meteo Best Match Forecast rather than asserting a single proprietary model. | **Approved (Short-term Forecast)** |
 | **NASA POWER (Agroclimatology)** | Cross-Comparison / Validation Reference | $T_{2m}$, $RH_{2m}$, AllSky Insolation (`ALLSKY_SFC_SW_DWN`) | Meteorology: 0.5° × 0.625° (MERRA-2 GMAO); Solar: 1.0° × 1.0° (satellite CERES) | Daily | Coarse spatial resolution (50–100 km) blurs Nile River microclimates; FAO-56 $ET_0$ is not a native direct atmospheric variable in MERRA-2 (must be derived via Penman-Monteith). | **Secondary Reference Only (Not Queried at Runtime)** |
 | **Space Apps Competition API** | Target Official Data Source | TBD | TBD | TBD | Endpoints and schema not yet released. No endpoints are assumed or invented. | **Awaiting Release** |
 
-> **Important Distinction:** Agreement between Open-Meteo (ERA5-Land) and NASA POWER (MERRA-2) merely demonstrates that two atmospheric models with overlapping boundary inputs arrive at similar numerical results. **Model concordance is NOT proof of ground-truth accuracy.** Furthermore, daily FAO-56 reference evapotranspiration ($ET_0$) in AgroShift is obtained directly from the Open-Meteo daily endpoint (`et0_fao_evapotranspiration`, computed upstream via FAO-56 Penman-Monteith) and is not re-computed client-side.
+> **Important Scientific Distinction:** Agreement between Open-Meteo (ERA5) and NASA POWER (MERRA-2) merely demonstrates that two atmospheric models with overlapping boundary inputs arrive at similar numerical results. **Model concordance is NOT proof of ground-truth accuracy.** Furthermore, daily FAO-56 reference evapotranspiration ($ET_0$) in AgroShift is obtained directly from the Open-Meteo daily endpoint (`et0_fao_evapotranspiration`, computed upstream via FAO-56 Penman-Monteith) and is not re-computed client-side.
 
 ---
 
-## 2. Physical Range Validation & Quality Gates
+## 2. Physical Range Validation & Operational Quality Gates
 
 Every incoming data point must pass through the `ScientificRangeValidator` before domain entities are instantiated. If any value falls outside physical boundaries, the record is flagged as corrupted or invalid.
 
-### Physical Acceptance Ranges for Egypt:
+### Physical Acceptance Ranges & Operational Thresholds for Egypt:
 
-| Parameter | Unit | Code Validation Limit (`AgroConstants`) | Documented Regional Climatological Expectation | Action on Out-of-Range |
+| Parameter | Unit | Code Validation Limit (`AgroConstants`) | Scientific Nature & Documentation | Action on Out-of-Range |
 |---|---|---|---|---|
-| **Daily Temperature Extreme ($T_{\max}$, $T_{\min}$)** | °C | $[-5.0, +55.0]$ | General envelope across Sinai highlands ($T_{\min} \ge -5^\circ\text{C}$) to Western Desert summer peaks ($T_{\max} \le +55^\circ\text{C}$). | Reject record; flag `PhysicalRangeFailure` |
+| **Daily Temperature Extreme ($T_{\max}$, $T_{\min}$)** | °C | $[-5.0, +55.0]$ | **Operational Data-Quality Envelope**: Broad screening limits encompassing Sinai high-elevation frost ($T_{\min} \ge -5^\circ\text{C}$) to Western Desert summer peaks ($T_{\max} \le +55^\circ\text{C}$). | Reject record; flag `PhysicalRangeFailure` |
 | **Regional Daily $T_{\max}$ Expectation** | °C | Enforced by $[-5.0, +55.0]$ | Typical Nile agricultural valley $T_{\max} \in [+5.0, +55.0]^\circ\text{C}$. | Monitored |
 | **Regional Daily $T_{\min}$ Expectation** | °C | Enforced by $[-5.0, +55.0]$ | Typical Nile agricultural valley $T_{\min} \in [-5.0, +42.0]^\circ\text{C}$. | Monitored |
-| **Temperature Consistency** | Logic | $T_{\max} \ge T_{\min}$ | Physical necessity ($T_{\max}$ cannot be strictly less than $T_{\min}$). | Reject record if $T_{\max} < T_{\min}$ |
-| **Reference Evapotranspiration ($ET_0$)** | mm/day | $[0.0, 25.0]$ | FAO-56 atmospheric evaporative demand under extreme arid wind/heat. | Reject record if negative or $>25$ |
-| **Precipitation Sum ($P$)** | mm/day | $[0.0, 250.0]$ | Arid to extreme Mediterranean convective storm envelope. | Reject record if negative or $>250$ |
-| **Geographic Latitude** | Decimal degrees | $[22.0000, 31.8000]$ | Official borders of the Arab Republic of Egypt. | Reject coordinates outside Egypt bounds |
-| **Geographic Longitude** | Decimal degrees | $[25.0000, 37.0000]$ | Official borders of the Arab Republic of Egypt. | Reject coordinates outside Egypt bounds |
+| **Temperature Consistency** | Logic | $T_{\max} \ge T_{\min}$ | **Physical Law**: $T_{\max}$ cannot be strictly less than $T_{\min}$. | Reject record if $T_{\max} < $T_{\min}$ |
+| **Reference Evapotranspiration ($ET_0$)** | mm/day | $[0.0, 25.0]$ | **Operational Screening Threshold**: Captures hyper-arid summer advective peak demand ($<25\text{ mm/day}$) per FAO-56; non-negative. | Reject record if negative or $>25$ |
+| **Precipitation Sum ($P$)** | mm/day | $[0.0, 250.0]$ | **Operational Screening Threshold**: Arid baseline to extreme flash flood convective cloudburst ($<250\text{ mm/day}$); non-negative. | Reject record if negative or $>250$ |
+| **Geographic Latitude** | Decimal degrees | $[22.0000, 31.8000]$ | **Approximate Bounding Box Envelope**: Geospatial sanity box covering the Egyptian territory. Does not constitute a legal/political boundary polygon. | Reject coordinates outside bounding envelope |
+| **Geographic Longitude** | Decimal degrees | $[25.0000, 37.0000]$ | **Approximate Bounding Box Envelope**: Geospatial sanity box covering the Egyptian territory. Does not constitute a legal/political boundary polygon. | Reject coordinates outside bounding envelope |
 
 > **Scientific Threshold Finding & Clarification:**
-> In `ScientificRangeValidator`, both $T_{\max}$ and $T_{\min}$ are validated against the absolute physical envelope `[AgroConstants.minAcceptableTempC, AgroConstants.maxAcceptableTempC]` ($[-5.0^\circ\text{C}, +55.0^\circ\text{C}]$), combined with the strict invariant $T_{\max} \ge T_{\min}$. Regional climatological expectations (such as winter $T_{\max}$ rarely dropping below $+5^\circ\text{C}$ in the Delta or summer $T_{\min}$ rarely exceeding $+42^\circ\text{C}$) describe typical agricultural baselines but are not used as hard rejection thresholds in code to prevent rejecting valid winter extremes in Sinai or hot nocturnal records in Upper Egypt.
+> In `ScientificRangeValidator`, both $T_{\max}$ and $T_{\min}$ are validated against the operational envelope `[AgroConstants.minAcceptableTempC, AgroConstants.maxAcceptableTempC]` ($[-5.0^\circ\text{C}, +55.0^\circ\text{C}]$), combined with the strict invariant $T_{\max} \ge T_{\min}$. Regional climatological expectations describe typical agricultural baselines but are not used as hard rejection thresholds in code to prevent rejecting valid winter extremes in Sinai or hot nocturnal records in Upper Egypt.
+> Similarly, the coordinate rectangle $[22.0, 31.8]^\circ\text{N} \times [25.0, 37.0]^\circ\text{E}$ is an operational bounding screening box, preventing accidental global queries while supporting all Egyptian agricultural regions.
 
 ---
 
-## 3. Strict Missing-Data Semantics
+## 3. Strict Missing-Data Semantics & Completeness Reporting
 
 1. **Zero vs. Missing Distinction:**
    - Rain gauge or model recording $0.0\text{ mm}$ indicates an affirmative measurement of **no rain**. It must be preserved as `0.0` and factored into aridity indices.
@@ -50,6 +51,9 @@ Every incoming data point must pass through the `ScientificRangeValidator` befor
    - The UI will explicitly display:
      > **"بيانات الأرصاد غير مكتملة (نسبة الفقد > 10%): لا يمكن تقديم تقدير زراعي مؤكد"**  
      > *(Incomplete meteorological data: Evidence insufficient for agronomic estimation)*.
+3. **Transparent Completeness Reporting in Summaries:**
+   - When presenting period sums (such as 30-day cumulative $ET_0$ or 7-day forecast $ET_c$), the application tracks the exact count of days with valid measurements.
+   - If any days within the interval lack $ET_0$ readings, the total is labeled as a **partial sum (مجموع جزئي)** with the explicit ratio (e.g. 28 of 30 days) and an alert indicating unmeasured days, preventing users from mistaking a partial sum for a full-period total.
 
 ---
 
@@ -57,24 +61,23 @@ Every incoming data point must pass through the `ScientificRangeValidator` befor
 
 Every displayed metric and chart in AgroShift exposes its provenance block via `DataSourceProvenance`:
 - **Provider Identity:** (e.g. `Open-Meteo Weather API`)
-- **Dataset / Model Identity:** (e.g. `ERA5-Land Reanalysis Archive` requested with `models=era5_land`)
-- **Requested Coordinates:** (e.g. `Lat: 31.102, Lon: 30.945` - Kafr El-Sheikh)
-- **Grid Coordinates:** (e.g. `Lat: 31.107, Lon: 30.998`)
+- **Dataset / Model Identity:** (e.g. `ERA5 Reanalysis Archive` requested with `models=era5`)
+- **Requested Coordinates:** (e.g. `Lat: 31.1000, Lon: 30.9500` - Kafr El-Sheikh field location)
+- **Grid Coordinates:** (e.g. `Lat: 31.1250, Lon: 31.0000` - resolved atmospheric model cell)
 - **Grid Elevation:** Model grid elevation above sea level in meters
 - **Timestamp of Acquisition:** ISO-8601 UTC timestamp
 - **Freshness / Stale Status:** `isStaleFallback` boolean flag
 - **Uncertainty Note:** Gridded reanalysis data carries inherent spatial smoothing uncertainty.
 
 > **Provenance Status Audit:**
-> - **Implemented & Stored:** Provider name, dataset name, requested coordinates, grid coordinates, grid elevation, acquisition timestamp, Arabic scientific disclaimer, and `isStaleFallback` state flag.
-> - **Derivable from Existing Data:** Geodesic requested-to-grid distance (via haversine formula) and elevation offset (when user-supplied field elevation is available).
-> - **Not Sourced Upstream:** Open-Meteo API does not provide field ground elevation (only grid elevation at the selected model cell). Ground-to-grid elevation differences are therefore not inferred without in-situ survey or DEM data.
+> - **Implemented & Displayed:** Provider name, dataset name, requested coordinates, grid coordinates, grid elevation, acquisition timestamp, Arabic scientific disclaimer, and `isStaleFallback` state flag.
+> - **Separation of Coordinates:** The UI explicitly presents requested field coordinates and resolved atmospheric grid coordinates on separate lines to prevent conflating user input with model resolution cells.
 
 ---
 
-## 5. ERA5-Land Historical Archive Publication Delay Policy
+## 5. ERA5 Historical Archive Publication Delay Policy
 
-- **Official Source Requirement:** Based on the official [Open-Meteo Historical Weather API documentation](https://open-meteo.com/en/docs/historical-weather-api), ERA5 and ERA5-Land reanalysis products have an upstream publication delay of typically **5 calendar days**.
+- **Official Source Requirement:** Based on the official [Open-Meteo Historical Weather API documentation](https://open-meteo.com/en/docs/historical-weather-api), ERA5 reanalysis products have an upstream publication delay of typically **5 calendar days**.
 - **Eligible Date Calculation:**
   $$\text{latestEligibleDate} = \text{CairoToday} - 5\text{ calendar days}$$
   The latest eligible date is derived exclusively using Egypt's civil calendar date (`Africa/Cairo` timezone via `WeatherRepositoryImpl.getCairoDateTime()`) rather than the client device's local clock.

@@ -14,7 +14,7 @@ class Coordinate {
     this.governorateName,
   });
 
-  /// Validates whether the coordinate is within Egypt's terrestrial bounds.
+  /// Validates whether the coordinate is within Egypt's approximate operational bounding box envelope.
   Result<Coordinate, CoordinateOutOfBoundsFailure> validate() {
     if (latitude < AgroConstants.egyptMinLatitude ||
         latitude > AgroConstants.egyptMaxLatitude ||
@@ -23,10 +23,10 @@ class Coordinate {
       return FailureResult(
         CoordinateOutOfBoundsFailure(
           userMessageAr:
-              'الإحداثيات المدخلة تقع خارج الحدود الجغرافية المعتمدة لجمهورية مصر العربية '
-              '(خط العرض: 22.0 إلى 31.8 شمالاً، خط الطول: 25.0 إلى 37.0 شرقاً).',
+              'الإحداثيات المدخلة تقع خارج النطاق الجغرافي المعتمد لجمهورية مصر العربية '
+              '(نطاق تقريبي: خط العرض 22.0 إلى 31.8 شمالاً، خط الطول 25.0 إلى 37.0 شرقاً).',
           technicalMessage:
-              'Coordinate ($latitude, $longitude) is out of bounds for Egypt.',
+              'Coordinate ($latitude, $longitude) is outside Egypt operational bounding box envelope.',
           latitude: latitude,
           longitude: longitude,
         ),

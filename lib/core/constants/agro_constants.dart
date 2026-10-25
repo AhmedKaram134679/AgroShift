@@ -2,7 +2,10 @@
 class AgroConstants {
   AgroConstants._();
 
-  // Geographic Bounding Box for Egypt
+  // Approximate Geographic Bounding Box Envelope for Egypt.
+  // Note: This defines an operational bounding screening box (lat: 22.0 to 31.8°N, lon: 25.0 to 37.0°E)
+  // for geospatial screening and coordinate sanity checks. It does not constitute a legal or political
+  // polygon boundary of the Arab Republic of Egypt.
   static const double egyptMinLatitude = 22.0;
   static const double egyptMaxLatitude = 31.8;
   static const double egyptMinLongitude = 25.0;

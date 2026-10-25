@@ -53,7 +53,11 @@ class ProvenanceCard extends StatelessWidget {
                   : provenance.datasetName,
             ),
             _infoRow(
-              'إحداثيات الشبكة المسترجعة:',
+              'الإحداثيات المطلوبة للحقل:',
+              '${provenance.requestedLatitude.toStringAsFixed(4)}°N, ${provenance.requestedLongitude.toStringAsFixed(4)}°E',
+            ),
+            _infoRow(
+              'إحداثيات خلية الشبكة (Grid):',
               '${provenance.gridLatitude.toStringAsFixed(4)}°N, ${provenance.gridLongitude.toStringAsFixed(4)}°E',
             ),
             if (provenance.gridElevationMeters != null)

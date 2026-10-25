@@ -1,7 +1,7 @@
 import 'package:agro_shift/data/models/open_meteo_dto.dart';
 import 'package:dio/dio.dart';
 
-/// Concrete remote data source querying Open-Meteo ERA5-Land Archive and Forecast APIs.
+/// Concrete remote data source querying Open-Meteo ERA5 Reanalysis Archive and Forecast APIs.
 class OpenMeteoRemoteDataSource {
   final Dio _dio;
 
@@ -36,7 +36,7 @@ class OpenMeteoRemoteDataSource {
         'end_date': endDateIso,
         'daily': 'temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_sum',
         'timezone': 'Africa/Cairo',
-        'models': 'era5_land',
+        'models': 'era5',
       },
     );
 

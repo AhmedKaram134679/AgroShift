@@ -126,7 +126,7 @@ class WeatherRepositoryImpl implements IWeatherRepository {
 
     final startIso = DateFormat('yyyy-MM-dd').format(normStartDate);
     final endIso = DateFormat('yyyy-MM-dd').format(effectiveEndDate);
-    const datasetTag = 'openmeteo_era5land';
+    const datasetTag = 'openmeteo_era5';
     // Exact requested-coordinate identity to guarantee strict cache isolation
     final cacheKey =
         'hist_${datasetTag}_${coordinate.latitude}_${coordinate.longitude}_${startIso}_$endIso';
@@ -179,7 +179,7 @@ class WeatherRepositoryImpl implements IWeatherRepository {
       final domainResult = OpenMeteoAdapter.toDomainRecords(
         dto: dto,
         requestedCoordinate: coordinate,
-        datasetLabel: 'ERA5-Land Reanalysis Archive',
+        datasetLabel: 'ERA5 Reanalysis Archive',
         expectedStartDate: normStartDate,
         expectedEndDate: effectiveEndDate,
         expectedCount: expectedDays,
@@ -404,7 +404,7 @@ class WeatherRepositoryImpl implements IWeatherRepository {
       return FailureResult(coordVal.failureOrNull!);
     }
 
-    const datasetTag = 'openmeteo_ecmwf_dwd';
+    const datasetTag = 'openmeteo_bestmatch';
     // Incorporate current Cairo calendar date into forecast key to prevent yesterday's forecast from masquerading as future days
     final nowCairo = getCairoDateTime(_getCurrentTime());
     final todayIso = DateFormat('yyyy-MM-dd').format(nowCairo);
@@ -463,7 +463,7 @@ class WeatherRepositoryImpl implements IWeatherRepository {
       final domainResult = OpenMeteoAdapter.toDomainRecords(
         dto: dto,
         requestedCoordinate: coordinate,
-        datasetLabel: 'ECMWF/DWD High-Resolution Forecast',
+        datasetLabel: 'Open-Meteo Best Match Forecast',
       );
 
       if (domainResult.isSuccess) {
