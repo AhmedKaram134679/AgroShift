@@ -3098,7 +3098,7 @@ void main() {
 
         // Step 6: Verify primary key constraint is preserved (inserting duplicate cacheKey + recordDate fails)
         expect(
-          () => upgradedDb
+          upgradedDb
               .into(upgradedDb.cachedDailyRecordsTable)
               .insert(
                 CachedDailyRecordsTableCompanion.insert(
@@ -3118,6 +3118,30 @@ void main() {
                 ),
               ),
           throwsA(anything),
+        );
+
+        // Step 7: Verify all records in migrated table before closing
+        final allCached = await upgradedDb
+            .select(upgradedDb.cachedDailyRecordsTable)
+            .get();
+        expect(allCached.length, equals(3));
+        expect(
+          allCached.any(
+            (r) => r.maxTemperatureC == 35.5 && r.minTemperatureC == 22.0,
+          ),
+          isTrue,
+        );
+        expect(
+          allCached.any(
+            (r) => r.maxTemperatureC == null && r.minTemperatureC == 21.5,
+          ),
+          isTrue,
+        );
+        expect(
+          allCached.any(
+            (r) => r.maxTemperatureC == 36.0 && r.minTemperatureC == null,
+          ),
+          isTrue,
         );
 
         await upgradedDb.close();

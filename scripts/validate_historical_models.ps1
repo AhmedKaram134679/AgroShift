@@ -7,7 +7,10 @@
 
 param(
     [string]$OutputDir = "$PSScriptRoot/../docs/fixtures/historical_api",
-    [switch]$FailOnAnyModelError = $false
+    [switch]$FailOnAnyModelError = $false,
+    [string]$BaseUrl = "https://archive-api.open-meteo.com/v1/archive",
+    [array]$ConfigsOverride = $null,
+    [hashtable]$MockResponseFiles = $null
 )
 
 $ErrorActionPreference = "Stop"
@@ -148,16 +151,21 @@ if ($MyInvocation.InvocationName -ne '.') {
         $expectedDatesList.Add($cur.ToString("yyyy-MM-dd"))
     }
 
-    $configs = @(
-        @{ Name = "era5"; ModelParam = "&models=era5"; ExpectPass = $true },
-        @{ Name = "era5_seamless"; ModelParam = "&models=era5_seamless"; ExpectPass = $true },
-        @{ Name = "era5_land"; ModelParam = "&models=era5_land"; ExpectPass = $false },
-        @{ Name = "default"; ModelParam = ""; ExpectPass = $true }
-    )
+    $configs = if ($null -ne $ConfigsOverride) {
+        $ConfigsOverride
+    } else {
+        @(
+            @{ Name = "era5"; ModelParam = "&models=era5"; ExpectPass = $true },
+            @{ Name = "era5_seamless"; ModelParam = "&models=era5_seamless"; ExpectPass = $true },
+            @{ Name = "era5_land"; ModelParam = "&models=era5_land"; ExpectPass = $false },
+            @{ Name = "default"; ModelParam = ""; ExpectPass = $true }
+        )
+    }
 
     Write-Host "================================================================="
     Write-Host "Open-Meteo Historical API Model Validation"
     Write-Host "Target: Lat $lat, Lon $lon ($startDate to $endDate, TZ: Africa/Cairo)"
+    Write-Host "BaseUrl: $BaseUrl"
     Write-Host "Timestamp (UTC): $((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'))"
     Write-Host "Expected Days: $($expectedDatesList.Count) ($($expectedDatesList -join ', '))"
     Write-Host "FailOnAnyModelError: $FailOnAnyModelError"
@@ -168,7 +176,8 @@ if ($MyInvocation.InvocationName -ne '.') {
     $hasModelError = $false
 
     foreach ($cfg in $configs) {
-        $url = "https://archive-api.open-meteo.com/v1/archive?latitude=$lat&longitude=$lon&start_date=$startDate&end_date=$endDate&daily=$daily&timezone=$tz$($cfg.ModelParam)"
+        $sep = if ($BaseUrl -match "\?") { "&" } else { "?" }
+        $url = "$BaseUrl$sep`latitude=$lat&longitude=$lon&start_date=$startDate&end_date=$endDate&daily=$daily&timezone=$tz$($cfg.ModelParam)"
         Write-Host "-----------------------------------------------------------------"
         Write-Host "Configuration: $($cfg.Name)"
         Write-Host "URL: $url"
@@ -182,24 +191,36 @@ if ($MyInvocation.InvocationName -ne '.') {
             $response = $null
             $statusCode = $null
 
-            # Use Invoke-WebRequest to reliably capture the real HTTP response status code
-            try {
-                $webResponse = Invoke-WebRequest -Uri $url -Method Get -UseBasicParsing -TimeoutSec 20
-                $statusCode = [int]$webResponse.StatusCode
-                $statusReported = "$statusCode $($webResponse.StatusDescription)"
-                $rawContent = $webResponse.Content
-                $response = $rawContent | ConvertFrom-Json
-            } catch [System.Net.WebException] {
-                if ($null -ne $_.Exception.Response) {
-                    $statusCode = [int]$_.Exception.Response.StatusCode
-                    $statusReported = "$statusCode $($_.Exception.Response.StatusDescription)"
+            if ($null -ne $MockResponseFiles -and $MockResponseFiles.ContainsKey($cfg.Name)) {
+                $mockFile = $MockResponseFiles[$cfg.Name]
+                if (Test-Path $mockFile) {
+                    $rawContent = Get-Content -Path $mockFile -Raw -Encoding UTF8
+                    $response = $rawContent | ConvertFrom-Json
+                    $statusReported = "200 Mock Response ($mockFile)"
                 } else {
-                    $statusReported = "Request Failed (No HTTP response)"
+                    $statusReported = "Request Failed (Mock file not found: $mockFile)"
+                    throw "Mock response file '$mockFile' does not exist."
                 }
-                throw $_
-            } catch {
-                $statusReported = "Request Failed: $($_.Exception.Message)"
-                throw $_
+            } else {
+                # Use Invoke-WebRequest to reliably capture the real HTTP response status code
+                try {
+                    $webResponse = Invoke-WebRequest -Uri $url -Method Get -UseBasicParsing -TimeoutSec 20
+                    $statusCode = [int]$webResponse.StatusCode
+                    $statusReported = "$statusCode $($webResponse.StatusDescription)"
+                    $rawContent = $webResponse.Content
+                    $response = $rawContent | ConvertFrom-Json
+                } catch [System.Net.WebException] {
+                    if ($null -ne $_.Exception.Response) {
+                        $statusCode = [int]$_.Exception.Response.StatusCode
+                        $statusReported = "$statusCode $($_.Exception.Response.StatusDescription)"
+                    } else {
+                        $statusReported = "Request Failed (No HTTP response)"
+                    }
+                    throw $_
+                } catch {
+                    $statusReported = "Request Failed: $($_.Exception.Message)"
+                    throw $_
+                }
             }
 
             $endTime = Get-Date
@@ -277,13 +298,15 @@ if ($MyInvocation.InvocationName -ne '.') {
     $shouldFail = $false
 
     if ($hasExpectationFailure) {
-        Write-Host "Execution Result: FAILED — One or more model expectation checks failed." -ForegroundColor Red
+        Write-Host "Execution Result: FAILED - One or more model expectation checks failed." -ForegroundColor Red
         $shouldFail = $true
     }
 
-    if ($FailOnAnyModelError -and $hasModelError) {
-        Write-Host "Execution Result: FAILED — -FailOnAnyModelError is active and at least one model encountered an ERROR." -ForegroundColor Red
-        $shouldFail = $true
+    if ($FailOnAnyModelError.IsPresent -or $FailOnAnyModelError -eq $true) {
+        if ($hasModelError) {
+            Write-Host "Execution Result: FAILED - -FailOnAnyModelError is active and at least one model encountered an ERROR." -ForegroundColor Red
+            $shouldFail = $true
+        }
     }
 
     if ($shouldFail) {

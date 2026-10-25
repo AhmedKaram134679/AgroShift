@@ -130,22 +130,135 @@ $res13 = Test-HistoricalApiResponse -Response $zeroObj -ExpectedDates $expectedD
 Assert-Result -TestName "Legitimate 0.0 precipitation values accepted -> PASS" -Condition ($res13.Outcome -eq "PASS" -and $res13.IsValid -eq $true)
 
 Write-Host "`n================================================================="
-Write-Host "Running Executable Script Child-Process Exit-Code Tests..." -ForegroundColor Cyan
+Write-Host "Running Deterministic Child-Process Exit-Code Tests..." -ForegroundColor Cyan
 Write-Host "================================================================="
 
-# Test 14: Executing validate_historical_models.ps1 directly with default parameters
-# Expected: Exit code 0 (models=era5 passes, models=era5_land is expected INCOMPATIBLE, overall sweep succeeds)
-Write-Host "Testing standard child execution (default parameters)..."
-$p1 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Wait -NoNewWindow -PassThru
-$exit1 = $p1.ExitCode
-Assert-Result -TestName "Standard child execution exit code is 0" -Condition ($exit1 -eq 0) -Message "Got exit code $exit1"
+# Create a temporary output directory for test fixtures
+$testOutputDir = Join-Path ([System.IO.Path]::GetTempPath()) "agro_shift_ps_test_$([Guid]::NewGuid().ToString('N'))"
+New-Item -ItemType Directory -Path $testOutputDir -Force | Out-Null
 
-# Test 15: Executing validate_historical_models.ps1 with -FailOnAnyModelError
-# When external endpoints succeed normally (even with expected INCOMPATIBLE era5_land), no ERROR occurs, so exit code remains 0
-Write-Host "Testing child execution with -FailOnAnyModelError..."
-$p2 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`" -FailOnAnyModelError" -Wait -NoNewWindow -PassThru
-$exit2 = $p2.ExitCode
-Assert-Result -TestName "Child execution with -FailOnAnyModelError on successful API call is 0" -Condition ($exit2 -eq 0) -Message "Got exit code $exit2"
+try {
+    # Test 14: Deterministic HTTP network/endpoint failure (ERROR) with -FailOnAnyModelError omitted
+    # Model is configured with ExpectPass = $false (so an error does not violate an expectation of passing),
+    # and -FailOnAnyModelError is NOT passed.
+    # Expected outcome: ERROR recorded, but exit code is 0 because no passing expectation failed and -FailOnAnyModelError is off.
+    Write-Host "Testing child execution: HTTP failure with ExpectPass=`$false and -FailOnAnyModelError omitted..."
+    $wrapper14 = Join-Path $testOutputDir "run_test14.ps1"
+    @"
+    `$cfg = @(@{ Name = 'test_err'; ModelParam = ''; ExpectPass = `$false })
+    & '$scriptPath' -OutputDir '$testOutputDir' -BaseUrl 'http://127.0.0.1:54321/nonexistent' -ConfigsOverride `$cfg
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper14 -Encoding UTF8
+
+    $p14 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper14`"" -Wait -NoNewWindow -PassThru
+    $exit14 = $p14.ExitCode
+    Assert-Result -TestName "Model ERROR without -FailOnAnyModelError (and ExpectPass=`$false) -> Exit code 0" -Condition ($exit14 -eq 0) -Message "Got exit code $exit14 (expected 0)"
+
+    # Test 15: Deterministic HTTP network/endpoint failure (ERROR) with -FailOnAnyModelError enabled
+    # Expected outcome: ERROR recorded, -FailOnAnyModelError is active -> exit code 1.
+    Write-Host "Testing child execution: HTTP failure with -FailOnAnyModelError enabled..."
+    $wrapper15 = Join-Path $testOutputDir "run_test15.ps1"
+    @"
+    `$cfg = @(@{ Name = 'test_err'; ModelParam = ''; ExpectPass = `$false })
+    & '$scriptPath' -OutputDir '$testOutputDir' -BaseUrl 'http://127.0.0.1:54321/nonexistent' -ConfigsOverride `$cfg -FailOnAnyModelError
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper15 -Encoding UTF8
+
+    $p15 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper15`"" -Wait -NoNewWindow -PassThru
+    $exit15 = $p15.ExitCode
+    Assert-Result -TestName "Model ERROR with -FailOnAnyModelError enabled -> Exit code 1" -Condition ($exit15 -eq 1) -Message "Got exit code $exit15 (expected 1)"
+
+    # Test 16: Deterministic Expectation Failure: Model expected to pass returns ERROR
+    # Model has ExpectPass = $true, but network error occurs -> hasExpectationFailure = $true -> exit code 1
+    Write-Host "Testing child execution: ExpectPass=`$true model encounters ERROR..."
+    $wrapper16 = Join-Path $testOutputDir "run_test16.ps1"
+    @"
+    `$cfg = @(@{ Name = 'test_expect_pass'; ModelParam = ''; ExpectPass = `$true })
+    & '$scriptPath' -OutputDir '$testOutputDir' -BaseUrl 'http://127.0.0.1:54321/nonexistent' -ConfigsOverride `$cfg
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper16 -Encoding UTF8
+
+    $p16 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper16`"" -Wait -NoNewWindow -PassThru
+    $exit16 = $p16.ExitCode
+    Assert-Result -TestName "Model expected to PASS encounters ERROR -> Exit code 1" -Condition ($exit16 -eq 1) -Message "Got exit code $exit16 (expected 1)"
+
+    # Test 17: Mock Response File providing a complete valid response -> Exit code 0
+    Write-Host "Testing child execution with mock response file providing valid response..."
+    $validMockFile = Join-Path $testOutputDir "mock_valid.json"
+    (New-ValidFixture) | ConvertTo-Json -Depth 10 | Set-Content -Path $validMockFile -Encoding UTF8
+
+    $wrapper17 = Join-Path $testOutputDir "run_test17.ps1"
+    @"
+    `$cfg = @(@{ Name = 'test_valid'; ModelParam = ''; ExpectPass = `$true })
+    `$mocks = @{ 'test_valid' = '$validMockFile' }
+    & '$scriptPath' -OutputDir '$testOutputDir' -ConfigsOverride `$cfg -MockResponseFiles `$mocks
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper17 -Encoding UTF8
+
+    $p17 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper17`"" -Wait -NoNewWindow -PassThru
+    $exit17 = $p17.ExitCode
+    Assert-Result -TestName "Model expected to PASS receives valid response -> Exit code 0" -Condition ($exit17 -eq 0) -Message "Got exit code $exit17 (expected 0)"
+
+    # Test 18: Mock Response File providing INCOMPATIBLE response to a model expected to PASS -> Exit code 1
+    Write-Host "Testing child execution: INCOMPATIBLE response to model expected to PASS..."
+    $nullTmaxFixture = New-ValidFixture
+    $nullTmaxFixture.daily.temperature_2m_max[0] = $null
+    $incompatibleMockFile = Join-Path $testOutputDir "mock_incomp.json"
+    $nullTmaxFixture | ConvertTo-Json -Depth 10 | Set-Content -Path $incompatibleMockFile -Encoding UTF8
+
+    $wrapper18 = Join-Path $testOutputDir "run_test18.ps1"
+    @"
+    `$cfg = @(@{ Name = 'test_incomp'; ModelParam = ''; ExpectPass = `$true })
+    `$mocks = @{ 'test_incomp' = '$incompatibleMockFile' }
+    & '$scriptPath' -OutputDir '$testOutputDir' -ConfigsOverride `$cfg -MockResponseFiles `$mocks
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper18 -Encoding UTF8
+
+    $p18 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper18`"" -Wait -NoNewWindow -PassThru
+    $exit18 = $p18.ExitCode
+    Assert-Result -TestName "Model expected to PASS returns INCOMPATIBLE -> Exit code 1" -Condition ($exit18 -eq 1) -Message "Got exit code $exit18 (expected 1)"
+
+    # Test 19: Mock Response File providing INCOMPATIBLE response to a model expected to FAIL (ExpectPass=$false) -> Exit code 0
+    Write-Host "Testing child execution: Expected INCOMPATIBLE model meets expectation..."
+    $wrapper19 = Join-Path $testOutputDir "run_test19.ps1"
+    @"
+    `$cfg = @(@{ Name = 'test_expect_incomp'; ModelParam = ''; ExpectPass = `$false })
+    `$mocks = @{ 'test_expect_incomp' = '$incompatibleMockFile' }
+    & '$scriptPath' -OutputDir '$testOutputDir' -ConfigsOverride `$cfg -MockResponseFiles `$mocks
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper19 -Encoding UTF8
+
+    $p19 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper19`"" -Wait -NoNewWindow -PassThru
+    $exit19 = $p19.ExitCode
+    Assert-Result -TestName "Model expected to be INCOMPATIBLE returns INCOMPATIBLE -> Exit code 0" -Condition ($exit19 -eq 0) -Message "Got exit code $exit19 (expected 0)"
+
+} finally {
+    if (Test-Path $testOutputDir) {
+        Remove-Item -Path $testOutputDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
+Write-Host "`n================================================================="
+Write-Host "Running Optional Live Open-Meteo Integration Test..." -ForegroundColor Cyan
+Write-Host "================================================================="
+$canReachLiveApi = $false
+try {
+    $probe = Invoke-WebRequest -Uri "https://archive-api.open-meteo.com/v1/archive?latitude=31.0&longitude=31.0&start_date=2024-06-01&end_date=2024-06-01&daily=temperature_2m_max&timezone=Africa%2FCairo" -Method Get -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
+    if ($probe.StatusCode -eq 200) {
+        $canReachLiveApi = $true
+    }
+} catch {
+    Write-Host "Notice: Live Open-Meteo API is unreachable ($($_.Exception.Message)). Skipping live integration test." -ForegroundColor Yellow
+}
+
+if ($canReachLiveApi) {
+    Write-Host "Executing live Open-Meteo validation sweep..."
+    $pLive = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Wait -NoNewWindow -PassThru
+    $exitLive = $pLive.ExitCode
+    Assert-Result -TestName "Live Open-Meteo sweep execution completed successfully (Exit code 0)" -Condition ($exitLive -eq 0) -Message "Got exit code $exitLive"
+} else {
+    Write-Host " [SKIPPED] Live Open-Meteo sweep skipped due to network/firewall unavailability." -ForegroundColor Yellow
+}
 
 Write-Host "`nTest Summary: $testsPassed / $testsRun passed." -ForegroundColor $(if ($testsPassed -eq $testsRun) { "Green" } else { "Red" })
 

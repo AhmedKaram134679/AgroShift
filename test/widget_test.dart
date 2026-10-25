@@ -335,6 +335,73 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'Dashboard displays unavailable data state when zero valid ET0 observations exist',
+    (WidgetTester tester) async {
+      final prov = DataSourceProvenance(
+        providerName: 'Open-Meteo Weather API',
+        datasetName: 'Mock Forecast',
+        requestedLatitude: 31.1000,
+        requestedLongitude: 30.9500,
+        gridLatitude: 31.0,
+        gridLongitude: 31.0,
+        acquisitionTimestamp: DateTime.now().toUtc(),
+        expectedPeriodDays: 7,
+      );
+
+      // All 7 days have null referenceEt0Mm
+      final records = List.generate(7, (i) {
+        return DailyAgroRecord(
+          date: DateTime(2024, 6, 1 + i),
+          maxTemperatureC: 32.0,
+          minTemperatureC: 20.0,
+          precipitationMm: 0.0,
+          referenceEt0Mm: null,
+          provenance: prov,
+        );
+      });
+
+      final customRepo = _StaticWeatherRepository(records);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [weatherRepositoryProvider.overrideWithValue(customRepo)],
+          child: MaterialApp(
+            theme: AgroTheme.lightTheme,
+            locale: const Locale('ar', 'EG'),
+            supportedLocales: const [Locale('ar', 'EG'), Locale('en', 'US')],
+            localizationsDelegates: const [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            home: const Directionality(
+              textDirection: TextDirection.rtl,
+              child: MainNavigationShell(),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Verify unavailable ET0 message is displayed
+      expect(
+        find.text(
+          'لا توجد قراءات صالحة للبخر نتح المرجعي (ET₀) خلال الفترة المطلوبة.',
+        ),
+        findsOneWidget,
+      );
+      // Verify ETc calculation failure is displayed
+      expect(
+        find.text('تعذر حساب الاحتياج المائي (ETc) — بيانات غير مكتملة'),
+        findsOneWidget,
+      );
+      // Verify no volumetric demand is shown
+      expect(find.textContaining('م³ / فدان'), findsNothing);
+    },
+  );
 }
 
 class _StaticFieldNotifier extends SelectedFieldNotifier {

@@ -648,5 +648,87 @@ void main() {
       );
       expect(res10.dataOrNull?.riskLevel, equals(res7.dataOrNull?.riskLevel));
     });
+
+    test('6. Calculators return InsufficientEvidenceFailure on zero or negative requested days', () {
+      final validEt0 = [5.0, 5.2, 5.1];
+      final resEt0Zero = EtcCalculator.calculateCycleWaterRequirementValidated(
+        crop: wheat,
+        totalRequestedDays: 0,
+        dailyEt0Series: validEt0,
+      );
+      expect(resEt0Zero.isFailure, isTrue);
+
+      final resEt0Neg = EtcCalculator.calculateCycleWaterRequirementValidated(
+        crop: wheat,
+        totalRequestedDays: -5,
+        dailyEt0Series: validEt0,
+      );
+      expect(resEt0Neg.isFailure, isTrue);
+
+      final obs = [(date: DateTime.utc(2024, 6, 1), tMax: 30.0, tMin: 20.0)];
+      final resGddZero = GddCalculator.calculateAccumulatedGddValidated(
+        totalRequestedDays: 0,
+        observations: obs,
+        tBase: 10.0,
+      );
+      expect(resGddZero.isFailure, isTrue);
+
+      final resHeatZero = HeatStressEvaluator.evaluateCropHeatStressValidated(
+        crop: wheat,
+        totalRequestedDays: 0,
+        dailyTmaxSeries: [32.0],
+      );
+      expect(resHeatZero.isFailure, isTrue);
+    });
+
+    test(
+      '7. Missing-data tolerance threshold: 10% exactly passes, > 10% fails',
+      () {
+        // 10 requested days:
+        // 1 missing day = 1/10 = 10.0% -> <= 10% -> PASS
+        // 2 missing days = 2/10 = 20.0% -> > 10% -> FAIL
+        final series1Missing = List.generate(10, (i) => i == 0 ? null : 5.0);
+        final series2Missing = List.generate(10, (i) => i < 2 ? null : 5.0);
+
+        final res10Percent =
+            EtcCalculator.calculateCycleWaterRequirementValidated(
+              crop: wheat,
+              totalRequestedDays: 10,
+              dailyEt0Series: series1Missing,
+            );
+        expect(res10Percent.isSuccess, isTrue);
+
+        final res20Percent =
+            EtcCalculator.calculateCycleWaterRequirementValidated(
+              crop: wheat,
+              totalRequestedDays: 10,
+              dailyEt0Series: series2Missing,
+            );
+        expect(res20Percent.isFailure, isTrue);
+        expect(res20Percent.failureOrNull?.missingCount, equals(2));
+      },
+    );
+
+    test('8. Growth-stage Kc selection boundaries across developmental fractions (FAO-56 linear interpolation)', () {
+      // Wheat: kcIni=0.40, kcMid=1.15, kcEnd=0.35
+      // Initial stage (<= 0.20): kcIni (0.40)
+      expect(wheat.getKcForStageFraction(0.10), equals(0.40));
+      expect(wheat.getKcForStageFraction(0.20), equals(0.40));
+
+      // Development stage (0.20 - 0.50): linearly interpolated between kcIni (0.40) and kcMid (1.15)
+      // At 0.35 (midpoint of dev stage): 0.40 + 0.5 * (1.15 - 0.40) = 0.775
+      expect(wheat.getKcForStageFraction(0.35), closeTo(0.775, 0.001));
+
+      // Mid-season stage (0.50 - 0.80): constant kcMid (1.15)
+      expect(wheat.getKcForStageFraction(0.50), equals(1.15));
+      expect(wheat.getKcForStageFraction(0.65), equals(1.15));
+      expect(wheat.getKcForStageFraction(0.80), equals(1.15));
+
+      // Late-season stage (0.80 - 1.00): linearly interpolated between kcMid (1.15) and kcEnd (0.35)
+      // At 0.90 (midpoint of late stage): 1.15 + 0.5 * (0.35 - 1.15) = 0.75
+      expect(wheat.getKcForStageFraction(0.90), closeTo(0.75, 0.001));
+      // At 1.0 (harvest end): kcEnd (0.35)
+      expect(wheat.getKcForStageFraction(1.00), closeTo(0.35, 0.0001));
+    });
   });
 }
