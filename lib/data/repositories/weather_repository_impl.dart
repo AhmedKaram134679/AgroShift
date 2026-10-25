@@ -434,11 +434,20 @@ class WeatherRepositoryImpl implements IWeatherRepository {
       }
     }
 
+    final expectedStartDate = DateTime.utc(
+      nowCairo.year,
+      nowCairo.month,
+      nowCairo.day,
+    );
+    final expectedEndDate = expectedStartDate.add(Duration(days: days - 1));
+
     // 2. Check durable on-disk SQLite cache
     if (_localDataSource != null) {
       final cached = await _localDataSource.getCachedRecords(
         cacheKey: cacheKey,
         isForecast: true,
+        expectedStartDate: expectedStartDate,
+        expectedEndDate: expectedEndDate,
         now: _getCurrentTime(),
       );
       if (cached != null &&
@@ -463,10 +472,20 @@ class WeatherRepositoryImpl implements IWeatherRepository {
         forecastDays: days,
       );
 
+      final expectedStartDate = DateTime.utc(
+        nowCairo.year,
+        nowCairo.month,
+        nowCairo.day,
+      );
+      final expectedEndDate = expectedStartDate.add(Duration(days: days - 1));
+
       final domainResult = OpenMeteoAdapter.toDomainRecords(
         dto: dto,
         requestedCoordinate: coordinate,
         datasetLabel: 'Open-Meteo Best Match Forecast',
+        expectedStartDate: expectedStartDate,
+        expectedEndDate: expectedEndDate,
+        expectedCount: days,
       );
 
       if (domainResult.isSuccess) {
@@ -505,6 +524,8 @@ class WeatherRepositoryImpl implements IWeatherRepository {
           final offlineCached = await _localDataSource.getCachedRecords(
             cacheKey: cacheKey,
             isForecast: true,
+            expectedStartDate: expectedStartDate,
+            expectedEndDate: expectedEndDate,
           );
           if (offlineCached != null &&
               offlineCached.records.isNotEmpty &&

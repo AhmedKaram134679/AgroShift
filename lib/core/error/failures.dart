@@ -29,7 +29,7 @@ final class ParsingFailure extends Failure {
   });
 }
 
-/// Physical validation failure (value violates physical or agronomic bounds).
+/// Validation failure when a value violates configured operational screening envelopes or physical consistency constraints.
 final class PhysicalRangeFailure extends Failure {
   final String variableName;
   final dynamic actualValue;

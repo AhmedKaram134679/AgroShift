@@ -524,12 +524,13 @@ void main() {
       final repo = WeatherRepositoryImpl(
         remoteDataSource: OpenMeteoRemoteDataSource(dio: dio),
         localDataSource: brokenLocalSource,
+        referenceTimeProvider: () => DateTime.utc(2026, 6, 1, 12, 0),
       );
 
       const coord = Coordinate(latitude: 31.10, longitude: 30.95);
       final res = await repo.getForecastDailyRecords(
         coordinate: coord,
-        days: 7,
+        days: 2,
       );
 
       // Repository must deliver success with valid data despite the DB write error
@@ -2757,6 +2758,168 @@ void main() {
       test('60. era5ArchiveDelayDays and era5LandArchiveDelayDays alias are aligned', () {
         expect(WeatherRepositoryImpl.era5ArchiveDelayDays, equals(5));
         expect(WeatherRepositoryImpl.era5LandArchiveDelayDays, equals(5));
+      });
+
+      test('61. Forecast request of 7 days returning 6 days is rejected as truncated response', () async {
+        final dio = Dio();
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              handler.resolve(
+                Response(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: {
+                    'latitude': 31.1,
+                    'longitude': 30.95,
+                    'elevation': 6.0,
+                    'generationtime_ms': 0.1,
+                    'utc_offset_seconds': 10800,
+                    'timezone': 'Africa/Cairo',
+                    'daily_units': {},
+                    'daily': {
+                      // Returns 6 days instead of requested 7
+                      'time': [
+                        '2026-06-15',
+                        '2026-06-16',
+                        '2026-06-17',
+                        '2026-06-18',
+                        '2026-06-19',
+                        '2026-06-20',
+                      ],
+                      'temperature_2m_max': [
+                        35.0,
+                        34.0,
+                        33.0,
+                        32.0,
+                        33.0,
+                        34.0,
+                      ],
+                      'temperature_2m_min': [
+                        22.0,
+                        21.0,
+                        20.0,
+                        21.0,
+                        22.0,
+                        23.0,
+                      ],
+                      'precipitation_sum': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                      'et0_fao_evapotranspiration': [
+                        6.0,
+                        6.1,
+                        5.9,
+                        6.2,
+                        6.3,
+                        6.0,
+                      ],
+                    },
+                  },
+                ),
+              );
+            },
+          ),
+        );
+
+        final repo = WeatherRepositoryImpl(
+          remoteDataSource: OpenMeteoRemoteDataSource(dio: dio),
+          localDataSource: weatherLocalSource,
+          referenceTimeProvider: () => DateTime.utc(2026, 6, 15, 12, 0),
+        );
+
+        const coord = Coordinate(latitude: 31.10, longitude: 30.95);
+        final res = await repo.getForecastDailyRecords(
+          coordinate: coord,
+          days: 7,
+        );
+
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<ParsingFailure>());
+        expect(
+          res.failureOrNull!.technicalMessage.contains('expected') ||
+              res.failureOrNull!.technicalMessage.contains('match'),
+          isTrue,
+        );
+      });
+
+      test('62. Forecast request of 7 days returning 7 days succeeds with expectedPeriodDays=7', () async {
+        final dio = Dio();
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              handler.resolve(
+                Response(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: {
+                    'latitude': 31.1,
+                    'longitude': 30.95,
+                    'elevation': 6.0,
+                    'generationtime_ms': 0.1,
+                    'utc_offset_seconds': 10800,
+                    'timezone': 'Africa/Cairo',
+                    'daily_units': {},
+                    'daily': {
+                      'time': [
+                        '2026-06-15',
+                        '2026-06-16',
+                        '2026-06-17',
+                        '2026-06-18',
+                        '2026-06-19',
+                        '2026-06-20',
+                        '2026-06-21',
+                      ],
+                      'temperature_2m_max': [
+                        35.0,
+                        34.0,
+                        33.0,
+                        32.0,
+                        33.0,
+                        34.0,
+                        35.0,
+                      ],
+                      'temperature_2m_min': [
+                        22.0,
+                        21.0,
+                        20.0,
+                        21.0,
+                        22.0,
+                        23.0,
+                        22.0,
+                      ],
+                      'precipitation_sum': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                      'et0_fao_evapotranspiration': [
+                        6.0,
+                        6.1,
+                        5.9,
+                        6.2,
+                        6.3,
+                        6.0,
+                        6.4,
+                      ],
+                    },
+                  },
+                ),
+              );
+            },
+          ),
+        );
+
+        final repo = WeatherRepositoryImpl(
+          remoteDataSource: OpenMeteoRemoteDataSource(dio: dio),
+          localDataSource: weatherLocalSource,
+          referenceTimeProvider: () => DateTime.utc(2026, 6, 15, 12, 0),
+        );
+
+        const coord = Coordinate(latitude: 31.10, longitude: 30.95);
+        final res = await repo.getForecastDailyRecords(
+          coordinate: coord,
+          days: 7,
+        );
+
+        expect(res.isSuccess, isTrue);
+        final records = res.dataOrNull!;
+        expect(records.length, equals(7));
+        expect(records.first.provenance.expectedPeriodDays, equals(7));
       });
     });
   });

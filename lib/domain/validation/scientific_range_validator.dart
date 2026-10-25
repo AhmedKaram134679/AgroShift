@@ -26,8 +26,9 @@ class ScientificRangeValidator {
       return FailureResult(
         PhysicalRangeFailure(
           userMessageAr:
-              'درجة الحرارة العظمى ($tMax°C) خارج النطاق المناخي الممكن في مصر.',
-          technicalMessage: 'tMax ($tMax) is outside physical range.',
+              'درجة الحرارة العظمى ($tMax°C) خارج نطاق الفحص التشغيلي المعتمد في مصر [${AgroConstants.minAcceptableTempC}°C إلى ${AgroConstants.maxAcceptableTempC}°C].',
+          technicalMessage:
+              'tMax ($tMax) is outside configured operational screening range [${AgroConstants.minAcceptableTempC}, ${AgroConstants.maxAcceptableTempC}].',
           variableName: 'tMax',
           actualValue: tMax,
         ),
@@ -39,8 +40,9 @@ class ScientificRangeValidator {
       return FailureResult(
         PhysicalRangeFailure(
           userMessageAr:
-              'درجة الحرارة الصغرى ($tMin°C) خارج النطاق المناخي الممكن في مصر.',
-          technicalMessage: 'tMin ($tMin) is outside physical range.',
+              'درجة الحرارة الصغرى ($tMin°C) خارج نطاق الفحص التشغيلي المعتمد في مصر [${AgroConstants.minAcceptableTempC}°C إلى ${AgroConstants.maxAcceptableTempC}°C].',
+          technicalMessage:
+              'tMin ($tMin) is outside configured operational screening range [${AgroConstants.minAcceptableTempC}, ${AgroConstants.maxAcceptableTempC}].',
           variableName: 'tMin',
           actualValue: tMin,
         ),
@@ -51,8 +53,8 @@ class ScientificRangeValidator {
       return FailureResult(
         PhysicalRangeFailure(
           userMessageAr:
-              'خطأ في اتساق درجات الحرارة: العظمى ($tMax°C) أقل من الصغرى ($tMin°C).',
-          technicalMessage: 'tMax cannot be strictly less than tMin.',
+              'خطأ في الاتساق الفيزيائي لدرجات الحرارة: العظمى ($tMax°C) أقل من الصغرى ($tMin°C).',
+          technicalMessage: 'Physical consistency violation: tMax cannot be strictly less than tMin.',
           variableName: 'tMax_less_than_tMin',
           actualValue: '$tMax < $tMin',
         ),
@@ -79,8 +81,9 @@ class ScientificRangeValidator {
       return FailureResult(
         PhysicalRangeFailure(
           userMessageAr:
-              'قيمة البخر نتح المرجعي ($et0 مم/يوم) غير واقعية وغير مقبولة زراعياً.',
-          technicalMessage: 'ET0 ($et0) is outside physical limits.',
+              'قيمة البخر نتح المرجعي ($et0 مم/يوم) خارج نطاق الفحص التشغيلي المعتمد [${AgroConstants.minAcceptableEt0Mm} إلى ${AgroConstants.maxAcceptableEt0Mm} مم/يوم].',
+          technicalMessage:
+              'ET0 ($et0) is outside configured operational screening range [${AgroConstants.minAcceptableEt0Mm}, ${AgroConstants.maxAcceptableEt0Mm}].',
           variableName: 'et0',
           actualValue: et0,
         ),
@@ -106,10 +109,43 @@ class ScientificRangeValidator {
       return FailureResult(
         PhysicalRangeFailure(
           userMessageAr:
-              'قيمة هطول الأمطار ($p مم/يوم) خارج النطاق الفيزيائي المقبول.',
-          technicalMessage: 'Precipitation ($p) is outside physical limits.',
+              'قيمة هطول الأمطار ($p مم/يوم) خارج نطاق الفحص التشغيلي المعتمد [${AgroConstants.minAcceptablePrecipitationMm} إلى ${AgroConstants.maxAcceptablePrecipitationMm} مم/يوم].',
+          technicalMessage:
+              'Precipitation ($p) is outside configured operational screening range [${AgroConstants.minAcceptablePrecipitationMm}, ${AgroConstants.maxAcceptablePrecipitationMm}].',
           variableName: 'precipitation',
           actualValue: p,
+        ),
+      );
+    }
+    return const Success(null);
+  }
+
+  /// Evaluates composite missingness for calculations requiring multiple variables.
+  /// Counts a date as incomplete if at least one required input is missing on that date.
+  /// Refuses calculation if union of incomplete dates exceeds AgroConstants.maxAcceptableMissingDataRatio (> 10%).
+  static Result<void, InsufficientEvidenceFailure>
+  validateCompositeMissingness({
+    required int totalRequestedDays,
+    required Set<int> unionOfIncompleteDateIndices,
+    required String calculationLabel,
+    required List<String> requiredVariables,
+  }) {
+    if (totalRequestedDays <= 0) {
+      return const Success(null);
+    }
+    final incompleteCount = unionOfIncompleteDateIndices.length;
+    final ratio = incompleteCount / totalRequestedDays;
+    if (ratio > AgroConstants.maxAcceptableMissingDataRatio) {
+      return FailureResult(
+        InsufficientEvidenceFailure(
+          userMessageAr:
+              'نسبة الأيام غير المكتملة لعملية $calculationLabel (${(ratio * 100).toStringAsFixed(1)}%) تتجاوز الحد العلمي المقبول (10%).',
+          technicalMessage:
+              'Composite missing ratio for $calculationLabel across union of incomplete dates ($incompleteCount/$totalRequestedDays = ${(ratio * 100).toStringAsFixed(1)}%) exceeds 10% threshold. Required variables: ${requiredVariables.join(', ')}.',
+          missingRatio: ratio,
+          variableName: 'composite_$calculationLabel',
+          missingCount: incompleteCount,
+          totalCount: totalRequestedDays,
         ),
       );
     }

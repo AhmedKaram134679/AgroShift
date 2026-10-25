@@ -9,37 +9,37 @@
 
 | Source | Role in AgroShift | Variables Utilized | Spatial Resolution | Time Frequency | Verified Limitations | Status |
 |---|---|---|---|---|---|---|
-| **Open-Meteo Historical Archive** | Primary Environmental Baseline (`models=era5`) | $T_{2m,\max}$, $T_{2m,\min}$, $ET_{0,\text{FAO}}$, Precipitation sum | ~25 km (0.25°) ECMWF ERA5 reanalysis grid | Daily aggregations | Upstream publication delay of 5 calendar days; gridded reanalysis interpolation; not an in-situ station. Note on spatial resolution: ECMWF ERA5 native resolution is 0.25° (~27.8 km at the equator). Because longitude lines converge toward the poles ($\approx 111 \times \cos(\text{latitude})\text{ km}$), at Egyptian latitudes ($22^\circ\text{N} - 31.8^\circ\text{N}$), the longitudinal grid spacing corresponds to approximately $24–26\text{ km}$, giving an average spatial resolution of ~25 km. (Note: `models=era5_land` was experimentally verified to omit daily $ET_0$ and precipitation on Open-Meteo, returning null; `models=era5` fully provides all four required variables). | **Approved (Active Baseline: ERA5 Reanalysis)** |
+| **Open-Meteo Historical Archive** | Primary Environmental Baseline (`models=era5`) | $T_{2m,\max}$, $T_{2m,\min}$, $ET_{0,\text{FAO}}$, Precipitation sum | ~0.25° (~23.6–27.8 km) ECMWF ERA5 reanalysis grid | Daily aggregations | Upstream publication delay of 5 calendar days; gridded reanalysis interpolation; not an in-situ station. Note on spatial resolution: ECMWF ERA5 has a nominal angular grid resolution of 0.25°. Meridional (north–south) grid spacing is approximately constant at ~27.8 km ($111.13\text{ km} \times 0.25^\circ$). Zonal (east–west) grid spacing converges poleward with latitude ($\approx 111.32 \times \cos(\text{latitude}) \times 0.25^\circ\text{ km}$): at Egypt's southern boundary ($22.0^\circ\text{N}$) zonal spacing is approximately $25.8\text{ km}$, while at the northern Mediterranean coast ($31.8^\circ\text{N}$) it narrows to approximately $23.6\text{ km}$. Therefore, cell dimensions across Egypt range from ~24 km to ~28 km rather than a uniform single-kilometre dimension. (Note: `models=era5_land` was experimentally verified to omit daily $ET_0$ and precipitation on Open-Meteo, returning null; `models=era5` fully provides all four required variables). | **Approved (Active Baseline: ERA5 Reanalysis)** |
 | **Open-Meteo Forecast API** | Short-Term Operational Monitoring (Best Match) | $T_{2m,\max}$, $T_{2m,\min}$, $ET_{0,\text{FAO}}$, Precipitation sum | ~2–11 km Seamless multi-model blend (ICON, IFS, GFS) | Daily (up to 7 days) | Numerical weather prediction model uncertainty increases significantly past day 3. Labelled honestly as Open-Meteo Best Match Forecast rather than asserting a single proprietary model. | **Approved (Short-term Forecast)** |
-| **NASA POWER (Agroclimatology)** | Cross-Comparison / Validation Reference | $T_{2m}$, $RH_{2m}$, AllSky Insolation (`ALLSKY_SFC_SW_DWN`) | Meteorology: 0.5° × 0.625° (MERRA-2 GMAO); Solar: 1.0° × 1.0° (satellite CERES) | Daily | Coarse spatial resolution (50–100 km) blurs Nile River microclimates; FAO-56 $ET_0$ is not a native direct atmospheric variable in MERRA-2 (must be derived via Penman-Monteith). Furthermore, NASA POWER combines multiple assimilation streams and satellite instrument eras (e.g. MERRA-2 meteorological assimilation updates and transitions between satellite radiation instruments such as CERES and earlier sensors), introducing temporal discontinuities and structural heterogeneity that must be carefully controlled when conducting multi-decadal trend analyses. | **Secondary Reference Only (Not Queried at Runtime)** |
+| **NASA POWER (Agroclimatology)** | Cross-Comparison / Validation Reference | $T_{2m}$, $RH_{2m}$, AllSky Insolation (`ALLSKY_SFC_SW_DWN`) | Meteorology: 0.5° × 0.625° (MERRA-2 GMAO); Solar: 1.0° × 1.0° (satellite CERES) | Daily | Coarse spatial resolution (50–100 km) blurs Nile River microclimates; FAO-56 $ET_0$ is not a native direct atmospheric variable in MERRA-2 (must be derived via Penman-Monteith). Furthermore, per official NASA POWER documentation, the dataset integrates multiple assimilation and instrument streams across time: solar radiation transitions from SRB Release 4-IP (January 1984 through December 2000) to CERES SYN1deg (January 2001 to ~3–4 months prior to near-real-time) and CERES FLASHFlux for near-real-time (NRT). Meteorological data transitions from historical GMAO MERRA-2 to GEOS-IT in near-real-time, with NASA recommending ending meteorological trend analyses approximately 2 months prior to NRT due to assimilation stream transitions. Long-term multi-decadal series must account for these instrument transitions. | **Secondary Reference Only (Not Queried at Runtime)** |
 | **Space Apps Competition API** | Target Official Data Source | TBD | TBD | TBD | Endpoints and schema not yet released. No endpoints are assumed or invented. | **Awaiting Release** |
 
 > **Important Scientific Distinction:** Agreement between Open-Meteo (ERA5) and NASA POWER (MERRA-2) merely demonstrates that two atmospheric models with overlapping boundary inputs arrive at similar numerical results. **Model concordance is NOT proof of ground-truth accuracy.** Furthermore, daily FAO-56 reference evapotranspiration ($ET_0$) in AgroShift is obtained directly from the Open-Meteo daily endpoint (`et0_fao_evapotranspiration`, computed upstream via FAO-56 Penman-Monteith) and is not re-computed client-side.
 >
-> **Display Architecture Clarification:** In the application UI (e.g., `EnvironmentalAnalysisScreen` and `DashboardScreen`), a primary dataset provenance card (`ProvenanceCard`) is rendered at the foot of each meteorological view to represent the active dataset sequence that generated the charts and summary metrics (e.g., ERA5 Reanalysis Archive or Open-Meteo Best Match Forecast). This guarantees single-card visual clarity while exposing full provenance metadata (model name, provider, requested vs resolved coordinates, elevation, timestamp, and staleness flag).
+> **Display Architecture Clarification:** In the application UI (e.g., `EnvironmentalAnalysisScreen` and `DashboardScreen`), a primary dataset provenance card (`ProvenanceCard`) is rendered at the foot of each meteorological view to represent the active dataset sequence that generated the charts and summary metrics (e.g., ERA5 Reanalysis Archive or Open-Meteo Best Match Forecast). Multiple charts and summary metrics share this active dataset sequence and therefore share one provenance card. The card describes the sequence-level acquisition, coordinate resolution, and provider metadata, and does not claim independent per-metric lineage cards.
 
 ---
 
-## 2. Physical Range Validation & Operational Quality Gates
+## 2. Operational Screening Ranges & Physical Consistency Gates
 
-Every incoming data point must pass through the `ScientificRangeValidator` before domain entities are instantiated. If any value falls outside physical boundaries, the record is flagged as corrupted or invalid.
+Every incoming data point must pass through the `ScientificRangeValidator` before domain entities are instantiated. If any value falls outside configured operational screening ranges or violates physical consistency laws, the record is flagged as corrupted or invalid.
 
-### Physical Acceptance Ranges & Operational Thresholds for Egypt:
+### Operational Data-Quality Screening Ranges & Physical Consistency Rules for Egypt:
 
 | Parameter | Unit | Code Validation Limit (`AgroConstants`) | Scientific Nature & Documentation | Action on Out-of-Range |
 |---|---|---|---|---|
-| **Daily Temperature Extreme ($T_{\max}$, $T_{\min}$)** | °C | $[-5.0, +55.0]$ | **Operational Data-Quality Envelope**: Broad screening limits encompassing Sinai high-elevation frost ($T_{\min} \ge -5^\circ\text{C}$) to Western Desert summer peaks ($T_{\max} \le +55^\circ\text{C}$). | Reject record; flag `PhysicalRangeFailure` |
+| **Daily Temperature Extreme ($T_{\max}$, $T_{\min}$)** | °C | $[-5.0, +55.0]$ | **Operational Screening Envelope**: Configured data-quality screening bounds encompassing Sinai high-elevation frost ($T_{\min} \ge -5^\circ\text{C}$) to Western Desert summer peaks ($T_{\max} \le +55^\circ\text{C}$). Rejection indicates observation is outside configured operational screening range, not that higher/lower values are impossible globally. | Reject record; flag `PhysicalRangeFailure` (operational outlier) |
 | **Regional Daily $T_{\max}$ Expectation** | °C | Enforced by $[-5.0, +55.0]$ | Typical Nile agricultural valley $T_{\max} \in [+5.0, +55.0]^\circ\text{C}$. | Monitored |
 | **Regional Daily $T_{\min}$ Expectation** | °C | Enforced by $[-5.0, +55.0]$ | Typical Nile agricultural valley $T_{\min} \in [-5.0, +42.0]^\circ\text{C}$. | Monitored |
-| **Temperature Consistency** | Logic | $T_{\max} \ge T_{\min}$ | **Physical Law**: $T_{\max}$ cannot be strictly less than $T_{\min}$. | Reject record if $T_{\max} < $T_{\min}$ |
-| **Reference Evapotranspiration ($ET_0$)** | mm/day | $[0.0, 25.0]$ | **Operational Screening Threshold**: Captures hyper-arid summer advective peak demand ($<25\text{ mm/day}$) per FAO-56; non-negative. | Reject record if negative or $>25$ |
-| **Precipitation Sum ($P$)** | mm/day | $[0.0, 250.0]$ | **Operational Screening Threshold**: Arid baseline to extreme flash flood convective cloudburst ($<250\text{ mm/day}$); non-negative. | Reject record if negative or $>250$ |
-| **Geographic Latitude** | Decimal degrees | $[22.0000, 31.8000]$ | **Approximate Bounding Box Envelope**: Geospatial sanity box covering the Egyptian territory. Does not constitute a legal/political boundary polygon. | Reject coordinates outside bounding envelope |
-| **Geographic Longitude** | Decimal degrees | $[25.0000, 37.0000]$ | **Approximate Bounding Box Envelope**: Geospatial sanity box covering the Egyptian territory. Does not constitute a legal/political boundary polygon. | Reject coordinates outside bounding envelope |
+| **Temperature Consistency** | Logic | $T_{\max} \ge T_{\min}$ | **Physical Consistency Invariant**: Daily maximum temperature cannot be strictly less than daily minimum temperature over the same observation period. | Reject record if $T_{\max} < T_{\min}$ (physical consistency violation) |
+| **Reference Evapotranspiration ($ET_0$)** | mm/day | $[0.0, 25.0]$ | **Operational Screening Threshold**: Non-negative lower physical limit up to hyper-arid summer advective peak demand ($<25\text{ mm/day}$) per FAO-56. | Reject record if negative or $>25$ |
+| **Precipitation Sum ($P$)** | mm/day | $[0.0, 250.0]$ | **Operational Screening Threshold**: Non-negative lower physical limit up to extreme convective flash-flood burst ceiling ($<250\text{ mm/day}$). | Reject record if negative or $>250$ |
+| **Geographic Latitude** | Decimal degrees | $[22.0000, 31.8000]$ | **Operational Bounding Screening Box**: Geospatial bounding box covering the Egyptian agricultural territory. Does not constitute a legal or political boundary polygon. | Reject coordinates outside bounding envelope |
+| **Geographic Longitude** | Decimal degrees | $[25.0000, 37.0000]$ | **Operational Bounding Screening Box**: Geospatial bounding box covering the Egyptian agricultural territory. Does not constitute a legal or political boundary polygon. | Reject coordinates outside bounding envelope |
 
 > **Scientific Threshold Finding & Clarification:**
-> In `ScientificRangeValidator`, both $T_{\max}$ and $T_{\min}$ are validated against the operational envelope `[AgroConstants.minAcceptableTempC, AgroConstants.maxAcceptableTempC]` ($[-5.0^\circ\text{C}, +55.0^\circ\text{C}]$), combined with the strict invariant $T_{\max} \ge T_{\min}$. Regional climatological expectations describe typical agricultural baselines but are not used as hard rejection thresholds in code to prevent rejecting valid winter extremes in Sinai or hot nocturnal records in Upper Egypt.
-> Similarly, the coordinate rectangle $[22.0, 31.8]^\circ\text{N} \times [25.0, 37.0]^\circ\text{E}$ is an operational bounding screening box, preventing accidental global queries while supporting all Egyptian agricultural regions.
+> In `ScientificRangeValidator`, both $T_{\max}$ and $T_{\min}$ are screened against the operational envelope `[AgroConstants.minAcceptableTempC, AgroConstants.maxAcceptableTempC]` ($[-5.0^\circ\text{C}, +55.0^\circ\text{C}]$), combined with the strict physical invariant $T_{\max} \ge T_{\min}$. Error messages explicitly identify operational screening rejections as "outside configured operational screening range" rather than asserting universal physical impossibility.
+> Similarly, the coordinate rectangle $[22.0, 31.8]^\circ\text{N} \times [25.0, 37.0]^\circ\text{E}$ is an operational bounding screening box, preventing accidental global queries while supporting Egyptian agricultural regions. It does not establish that all interior coordinates represent Egyptian sovereign territory or fertile agricultural land.
 
 ---
 
@@ -49,7 +49,9 @@ Every incoming data point must pass through the `ScientificRangeValidator` befor
    - Rain gauge or model recording $0.0\text{ mm}$ indicates an affirmative measurement of **no rain**. It must be preserved as `0.0` and factored into aridity indices.
    - A missing day (null value, network dropout, or unpopulated index) must be stored as `null`. It must **never** be silently converted to `0.0`.
 2. **Missingness Thresholds for Decision Support:**
-   - In any calculation window (e.g., 30-day water requirement or seasonal GDD accumulation), if the percentage of missing days exceeds **10%**, the system MUST refuse to compute a composite score.
+   - **Variable-Specific Validity:** Each variable's missing ratio is evaluated over the full requested period against `AgroConstants.maxAcceptableMissingDataRatio` (10%). If missing days exceed 10% for a requested variable, the series is refused.
+   - **Composite Calculation Validity:** For calculations requiring multiple variables (e.g., crop water demand requiring both $ET_0$ and $P$, or energy-water indices), validity is evaluated on the **union of incomplete dates**. A date is incomplete if at least one required variable is missing on that date. The union of incomplete dates divided by the requested period days must not exceed 10%.
+   - A calculation requiring only one variable (e.g. cumulative $ET_0$ alone, or heat stress requiring only $T_{\max}$) is not rejected merely because an unrelated variable is missing on certain dates.
    - The UI will explicitly display:
      > **"بيانات الأرصاد غير مكتملة (نسبة الفقد > 10%): لا يمكن تقديم تقدير زراعي مؤكد"**  
      > *(Incomplete meteorological data: Evidence insufficient for agronomic estimation)*.
@@ -62,18 +64,20 @@ Every incoming data point must pass through the `ScientificRangeValidator` befor
 
 ## 4. Source Provenance Metadata
 
-Every displayed metric and chart in AgroShift exposes its provenance block via `DataSourceProvenance`:
+The meteorological view in AgroShift exposes its sequence provenance via `ProvenanceCard` (`DataSourceProvenance`):
 - **Provider Identity:** (e.g. `Open-Meteo Weather API`)
 - **Dataset / Model Identity:** (e.g. `ERA5 Reanalysis Archive` requested with `models=era5`)
 - **Requested Coordinates:** (e.g. `Lat: 31.1000, Lon: 30.9500` - Kafr El-Sheikh field location)
 - **Grid Coordinates:** (e.g. `Lat: 31.1250, Lon: 31.0000` - resolved atmospheric model cell)
 - **Grid Elevation:** Model grid elevation above sea level in meters
 - **Timestamp of Acquisition:** ISO-8601 UTC timestamp
+- **Expected Period Days:** Expected number of daily observations requested by the caller
 - **Freshness / Stale Status:** `isStaleFallback` boolean flag
 - **Uncertainty Note:** Gridded reanalysis data carries inherent spatial smoothing uncertainty.
 
-> **Provenance Status Audit:**
-> - **Implemented & Displayed:** Provider name, dataset name, requested coordinates, grid coordinates, grid elevation, acquisition timestamp, Arabic scientific disclaimer, and `isStaleFallback` state flag.
+> **Provenance Scope & Implementation:**
+> - The UI renders a primary provenance card describing the active meteorological sequence used by the view.
+> - Multiple charts and summary cards derived from that sequence share the same provenance card rather than duplicating redundant per-metric lineage cards.
 > - **Separation of Coordinates:** The UI explicitly presents requested field coordinates and resolved atmospheric grid coordinates on separate lines to prevent conflating user input with model resolution cells.
 
 ---

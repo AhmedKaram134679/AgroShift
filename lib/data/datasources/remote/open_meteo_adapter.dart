@@ -4,6 +4,7 @@ import 'package:agro_shift/data/models/open_meteo_dto.dart';
 import 'package:agro_shift/domain/environment/models/coordinate.dart';
 import 'package:agro_shift/domain/environment/models/daily_agro_record.dart';
 import 'package:agro_shift/domain/environment/models/data_source_provenance.dart';
+import 'package:agro_shift/core/constants/agro_constants.dart';
 import 'package:agro_shift/domain/validation/scientific_range_validator.dart';
 
 /// Adapts raw OpenMeteo DTOs into domain DailyAgroRecord entities.
@@ -231,6 +232,8 @@ class OpenMeteoAdapter {
       expectedPeriodDays: expectedCount ?? count,
     );
 
+    final Set<int> incompleteCompositeDateIndices = <int>{};
+
     for (int i = 0; i < count; i++) {
       final date = parsedRawDates[i];
       final rawTmax = tMaxList[i];
@@ -238,18 +241,25 @@ class OpenMeteoAdapter {
       final rawEt0 = et0List[i];
       final rawP = pList[i];
 
-      if (rawTmax == null || rawTmin == null) {
+      final bool isTempMissing = rawTmax == null || rawTmin == null;
+      final bool isEt0Missing = rawEt0 == null;
+      final bool isPrecipMissing = rawP == null;
+
+      if (isTempMissing) {
         missingTempCount++;
+        incompleteCompositeDateIndices.add(i);
       }
-      if (rawEt0 == null) {
+      if (isEt0Missing) {
         missingEt0Count++;
+        incompleteCompositeDateIndices.add(i);
       }
-      if (rawP == null) {
+      if (isPrecipMissing) {
         missingPrecipCount++;
+        incompleteCompositeDateIndices.add(i);
       }
 
       // If temperature is missing for the day, we cannot construct a valid DailyAgroRecord
-      if (rawTmax == null || rawTmin == null) {
+      if (isTempMissing) {
         continue;
       }
 
@@ -289,9 +299,9 @@ class OpenMeteoAdapter {
       );
     }
 
-    // Variable-specific missingness threshold checks (> 10%)
+    // 1. Variable-specific missingness threshold checks (> 10%)
     final tempMissingRatio = missingTempCount / count;
-    if (tempMissingRatio > 0.10) {
+    if (tempMissingRatio > AgroConstants.maxAcceptableMissingDataRatio) {
       return FailureResult(
         InsufficientEvidenceFailure(
           userMessageAr:
@@ -307,7 +317,7 @@ class OpenMeteoAdapter {
     }
 
     final et0MissingRatio = missingEt0Count / count;
-    if (et0MissingRatio > 0.10) {
+    if (et0MissingRatio > AgroConstants.maxAcceptableMissingDataRatio) {
       return FailureResult(
         InsufficientEvidenceFailure(
           userMessageAr:
@@ -323,7 +333,7 @@ class OpenMeteoAdapter {
     }
 
     final precipMissingRatio = missingPrecipCount / count;
-    if (precipMissingRatio > 0.10) {
+    if (precipMissingRatio > AgroConstants.maxAcceptableMissingDataRatio) {
       return FailureResult(
         InsufficientEvidenceFailure(
           userMessageAr:
@@ -338,6 +348,8 @@ class OpenMeteoAdapter {
       );
     }
 
+    // 2. Variable-specific missingness threshold checks (> 10%)
+    // Each individual variable has passed the 10% tolerance threshold.
     return Success(records);
   }
 }

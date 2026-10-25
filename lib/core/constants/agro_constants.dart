@@ -1,4 +1,4 @@
-/// Egypt national boundaries and agronomic physical limits.
+/// Egypt operational screening envelopes and agronomic constants.
 class AgroConstants {
   AgroConstants._();
 
@@ -11,15 +11,18 @@ class AgroConstants {
   static const double egyptMinLongitude = 25.0;
   static const double egyptMaxLongitude = 37.0;
 
-  // Temperature physical limits for Egypt (°C)
+  // Operational temperature screening envelope for Egypt (°C)
+  // Screening limits encompassing Sinai frost (-5°C) to Western Desert summer peaks (+55°C).
   static const double minAcceptableTempC = -5.0;
   static const double maxAcceptableTempC = 55.0;
 
-  // FAO-56 Reference ET0 limits (mm/day)
+  // Operational FAO-56 Reference ET0 screening envelope (mm/day)
+  // Non-negative lower physical limit up to hyper-arid summer advective peak demand (25 mm/day).
   static const double minAcceptableEt0Mm = 0.0;
   static const double maxAcceptableEt0Mm = 25.0;
 
-  // Precipitation limits (mm/day)
+  // Operational daily precipitation screening envelope (mm/day)
+  // Non-negative lower physical limit up to extreme convective flash-flood burst ceiling (250 mm/day).
   static const double minAcceptablePrecipitationMm = 0.0;
   static const double maxAcceptablePrecipitationMm = 250.0;
 

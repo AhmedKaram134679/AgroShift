@@ -3,6 +3,7 @@ import 'package:agro_shift/data/datasources/remote/open_meteo_adapter.dart';
 import 'package:agro_shift/data/models/open_meteo_dto.dart';
 import 'package:agro_shift/domain/environment/models/coordinate.dart';
 import 'package:agro_shift/core/error/failures.dart';
+import 'package:agro_shift/domain/validation/scientific_range_validator.dart';
 
 void main() {
   group('OpenMeteoAdapter & Provenance Tests', () {
@@ -902,6 +903,68 @@ void main() {
           expect(recs[2].precipitationMm, isNull);
         },
       );
+
+      test('Phase 2.1.x.7: Composite missingness: union of incomplete dates exceeding 10% is rejected by ScientificRangeValidator', () {
+        // 10 requested days
+        // Day 1 missing ET0 (1/10 = 10%)
+        // Day 2 missing Precipitation (1/10 = 10%)
+        // Both individual missingness ratios are <= 10%, but union of incomplete dates is 2/10 = 20% (> 10%)
+        final unionSet = <int>{0, 1};
+        final compositeVal =
+            ScientificRangeValidator.validateCompositeMissingness(
+              totalRequestedDays: 10,
+              unionOfIncompleteDateIndices: unionSet,
+              calculationLabel: 'احتياجات الري الحقلي المركبة',
+              requiredVariables: ['ET0', 'Precipitation'],
+            );
+
+        expect(compositeVal.isFailure, isTrue);
+        expect(compositeVal.failureOrNull, isA<InsufficientEvidenceFailure>());
+        final failure = compositeVal.failureOrNull!;
+        expect(failure.missingRatio, equals(0.20));
+        expect(failure.missingCount, equals(2));
+        expect(failure.totalCount, equals(10));
+        expect(
+          failure.technicalMessage,
+          contains(
+            'Composite missing ratio for احتياجات الري الحقلي المركبة across union of incomplete dates (2/10 = 20.0%) exceeds 10% threshold',
+          ),
+        );
+      });
+
+      test('Phase 2.1.x.7: Operational screening thresholds format as operational envelope rather than physical impossibility', () {
+        // Temperature above 55°C
+        final tempVal = ScientificRangeValidator.validateTemperature(
+          tMax: 56.0,
+          tMin: 25.0,
+        );
+        expect(tempVal.isFailure, isTrue);
+        expect(
+          tempVal.failureOrNull!.technicalMessage,
+          contains('is outside configured operational screening range'),
+        );
+        expect(
+          tempVal.failureOrNull!.userMessageAr,
+          contains('خارج نطاق الفحص التشغيلي المعتمد في مصر'),
+        );
+
+        // Physical consistency violation (tMax < tMin) remains a physical consistency violation
+        final consistencyVal = ScientificRangeValidator.validateTemperature(
+          tMax: 20.0,
+          tMin: 25.0,
+        );
+        expect(consistencyVal.isFailure, isTrue);
+        expect(
+          consistencyVal.failureOrNull!.technicalMessage,
+          contains(
+            'Physical consistency violation: tMax cannot be strictly less than tMin',
+          ),
+        );
+        expect(
+          consistencyVal.failureOrNull!.userMessageAr,
+          contains('خطأ في الاتساق الفيزيائي لدرجات الحرارة'),
+        );
+      });
     });
   });
 }

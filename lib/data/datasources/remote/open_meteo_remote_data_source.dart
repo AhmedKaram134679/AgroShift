@@ -10,6 +10,10 @@ class OpenMeteoRemoteDataSource {
   static const String _forecastBaseUrl =
       'https://api.open-meteo.com/v1/forecast';
 
+  /// ECMWF ERA5 reanalysis model parameter for the Open-Meteo archive API.
+  /// Verified to supply all 4 required daily variables (Tmax, Tmin, ET0, Precipitation).
+  static const String historicalModel = 'era5';
+
   OpenMeteoRemoteDataSource({Dio? dio})
     : _dio =
           dio ??
@@ -36,7 +40,7 @@ class OpenMeteoRemoteDataSource {
         'end_date': endDateIso,
         'daily': 'temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_sum',
         'timezone': 'Africa/Cairo',
-        'models': 'era5',
+        'models': historicalModel,
       },
     );
 
