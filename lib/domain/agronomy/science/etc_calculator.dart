@@ -67,21 +67,22 @@ class EtcCalculator {
     required int totalRequestedDays,
     required List<double?> dailyEt0Series,
   }) {
+    final availableRequestedDays = dailyEt0Series.length < totalRequestedDays
+        ? dailyEt0Series.length
+        : totalRequestedDays;
+
     final unionOfIncompleteDateIndices = <int>{};
-    final validEt0Series = <double>[];
 
-    for (var i = 0; i < dailyEt0Series.length; i++) {
-      final et0 = dailyEt0Series[i];
-      if (et0 == null) {
-        unionOfIncompleteDateIndices.add(i);
-      } else {
-        validEt0Series.add(et0);
+    for (var dayIndex = 0; dayIndex < totalRequestedDays; dayIndex++) {
+      if (dayIndex >= availableRequestedDays) {
+        unionOfIncompleteDateIndices.add(dayIndex);
+        continue;
       }
-    }
 
-    if (dailyEt0Series.length < totalRequestedDays) {
-      for (var i = dailyEt0Series.length; i < totalRequestedDays; i++) {
-        unionOfIncompleteDateIndices.add(i);
+      final et0 = dailyEt0Series[dayIndex];
+      if (et0 == null || !et0.isFinite) {
+        unionOfIncompleteDateIndices.add(dayIndex);
+        continue;
       }
     }
 
@@ -100,11 +101,16 @@ class EtcCalculator {
     // Preserve original day alignment and growth-stage fractions:
     // stageFraction must be computed using (dayIndex + 1) / totalRequestedDays
     // so missing days do not shift subsequent days or change their assigned Kc.
+    // Observations beyond totalRequestedDays are strictly ignored.
     double cumulativeEtcMm = 0.0;
     for (int dayIndex = 0; dayIndex < totalRequestedDays; dayIndex++) {
-      if (dayIndex >= dailyEt0Series.length) break;
+      if (dayIndex >= availableRequestedDays) {
+        break;
+      }
       final et0 = dailyEt0Series[dayIndex];
-      if (et0 == null) continue; // Skip missing day's numeric contribution without shifting subsequent days
+      if (et0 == null || !et0.isFinite) {
+        continue; // Skip missing or non-finite day's numeric contribution
+      }
 
       final stageFraction = (dayIndex + 1) / totalRequestedDays;
       final kc = crop.getKcForStageFraction(stageFraction);

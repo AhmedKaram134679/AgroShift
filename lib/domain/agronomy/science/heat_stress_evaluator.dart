@@ -91,21 +91,24 @@ class HeatStressEvaluator {
     required int totalRequestedDays,
     required List<double?> dailyTmaxSeries,
   }) {
+    final availableRequestedDays = dailyTmaxSeries.length < totalRequestedDays
+        ? dailyTmaxSeries.length
+        : totalRequestedDays;
+
     final unionOfIncompleteDateIndices = <int>{};
     final validTmaxSeries = <double>[];
 
-    for (var i = 0; i < dailyTmaxSeries.length; i++) {
-      final tMax = dailyTmaxSeries[i];
-      if (tMax == null) {
-        unionOfIncompleteDateIndices.add(i);
+    for (var dayIndex = 0; dayIndex < totalRequestedDays; dayIndex++) {
+      if (dayIndex >= availableRequestedDays) {
+        unionOfIncompleteDateIndices.add(dayIndex);
+        continue;
+      }
+
+      final tMax = dailyTmaxSeries[dayIndex];
+      if (tMax == null || !tMax.isFinite) {
+        unionOfIncompleteDateIndices.add(dayIndex);
       } else {
         validTmaxSeries.add(tMax);
-      }
-    }
-
-    if (dailyTmaxSeries.length < totalRequestedDays) {
-      for (var i = dailyTmaxSeries.length; i < totalRequestedDays; i++) {
-        unionOfIncompleteDateIndices.add(i);
       }
     }
 

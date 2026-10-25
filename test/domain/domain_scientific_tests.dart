@@ -514,4 +514,139 @@ void main() {
       });
     },
   );
+
+  group('Temporal Boundary & Requested Period Invariance Tests (P0/P1)', () {
+    final wheat = EgyptianCropsCatalog.wheat;
+
+    test('1. ETc: Shorter series than totalRequestedDays accounts for omitted days in missingness', () {
+      // 5 observations provided, 7 requested -> 2 missing days out of 7 = 28.6% > 10%
+      final shortEt0Series = [5.0, 5.2, 5.4, 5.1, 5.3];
+
+      final res = EtcCalculator.calculateCycleWaterRequirementValidated(
+        crop: wheat,
+        totalRequestedDays: 7,
+        dailyEt0Series: shortEt0Series,
+      );
+
+      expect(res.isFailure, isTrue);
+      expect(res.failureOrNull?.missingCount, equals(2));
+      expect(res.failureOrNull?.missingRatio, closeTo(2 / 7, 0.001));
+    });
+
+    test('2. ETc: Longer series ignores extra observations and extra nulls beyond requested period', () {
+      // Requested period: 7 days.
+      // Observations: 10 days, where days 7, 8, 9 contain nulls and non-finite values.
+      final valid7Days = [5.0, 5.2, 5.4, 5.1, 5.3, 5.0, 5.2];
+      final long10Days = [...valid7Days, null, double.nan, null];
+
+      final res7 = EtcCalculator.calculateCycleWaterRequirementValidated(
+        crop: wheat,
+        totalRequestedDays: 7,
+        dailyEt0Series: valid7Days,
+      );
+
+      final res10 = EtcCalculator.calculateCycleWaterRequirementValidated(
+        crop: wheat,
+        totalRequestedDays: 7,
+        dailyEt0Series: long10Days,
+      );
+
+      expect(res7.isSuccess, isTrue);
+      expect(res10.isSuccess, isTrue);
+      // Results must be strictly identical
+      expect(res10.dataOrNull?.totalEtcMm, equals(res7.dataOrNull?.totalEtcMm));
+      expect(
+        res10.dataOrNull?.totalVolumeM3PerFeddan,
+        equals(res7.dataOrNull?.totalVolumeM3PerFeddan),
+      );
+    });
+
+    test('3. ETc: Non-finite values (NaN / Infinity) within requested period are treated as incomplete', () {
+      // 10 requested days, day 1 is NaN, day 3 is Infinity -> 2 incomplete days (20%) -> FAILS
+      final nanSeries = [
+        5.0,
+        double.nan,
+        5.4,
+        double.infinity,
+        5.3,
+        5.0,
+        5.2,
+        5.1,
+        5.3,
+        5.0,
+      ];
+
+      final res = EtcCalculator.calculateCycleWaterRequirementValidated(
+        crop: wheat,
+        totalRequestedDays: 10,
+        dailyEt0Series: nanSeries,
+      );
+
+      expect(res.isFailure, isTrue);
+      expect(res.failureOrNull?.missingCount, equals(2));
+    });
+
+    test('4. GDD: Longer series ignores extra observations and extra nulls beyond requested period', () {
+      final validObs7 = List.generate(
+        7,
+        (i) => (date: DateTime.utc(2024, 6, i + 1), tMax: 30.0, tMin: 20.0),
+      );
+
+      final extraObs = [
+        (date: DateTime.utc(2024, 6, 8), tMax: null, tMin: null),
+        (date: DateTime.utc(2024, 6, 9), tMax: double.nan, tMin: 20.0),
+        (date: DateTime.utc(2024, 6, 10), tMax: 35.0, tMin: null),
+      ];
+
+      final res7 = GddCalculator.calculateAccumulatedGddValidated(
+        totalRequestedDays: 7,
+        observations: validObs7,
+        tBase: 10.0,
+      );
+
+      final resWithExtra = GddCalculator.calculateAccumulatedGddValidated(
+        totalRequestedDays: 7,
+        observations: [...validObs7, ...extraObs],
+        tBase: 10.0,
+      );
+
+      expect(res7.isSuccess, isTrue);
+      expect(resWithExtra.isSuccess, isTrue);
+      expect(resWithExtra.dataOrNull, equals(res7.dataOrNull));
+    });
+
+    test('5. Heat Stress: Longer series ignores extra observations and extra nulls beyond requested period', () {
+      final valid7 = [32.0, 33.0, 30.0, 29.0, 34.0, 35.0, 28.0];
+      final long10 = [
+        ...valid7,
+        null,
+        double.nan,
+        45.0,
+      ]; // Day 10 is 45.0, should be ignored
+
+      final res7 = HeatStressEvaluator.evaluateCropHeatStressValidated(
+        crop: wheat,
+        totalRequestedDays: 7,
+        dailyTmaxSeries: valid7,
+      );
+
+      final res10 = HeatStressEvaluator.evaluateCropHeatStressValidated(
+        crop: wheat,
+        totalRequestedDays: 7,
+        dailyTmaxSeries: long10,
+      );
+
+      expect(res7.isSuccess, isTrue);
+      expect(res10.isSuccess, isTrue);
+      expect(
+        res10.dataOrNull?.totalExceedanceDays,
+        equals(res7.dataOrNull?.totalExceedanceDays),
+      );
+      expect(
+        res10.dataOrNull?.peakObservedTempC,
+        equals(res7.dataOrNull?.peakObservedTempC),
+      );
+      expect(res10.dataOrNull?.riskLevel, equals(res7.dataOrNull?.riskLevel));
+    });
+  });
 }

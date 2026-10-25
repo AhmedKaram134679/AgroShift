@@ -1,10 +1,13 @@
-# AgroShift - Unit Tests for validate_historical_models.ps1
-# Deterministically validates the response checking logic with synthetic fixtures without network calls.
+# AgroShift - Deterministic Tests for validate_historical_models.ps1
+# Covers:
+# 1. Test-HistoricalApiResponse: PASS, INCOMPATIBLE (missing/null variable values), ERROR (structural issues)
+# 2. Executable process testing: child powershell invocation verifying actual process exit codes ($LASTEXITCODE) and -FailOnAnyModelError contract
 
 $ErrorActionPreference = "Stop"
 
-# Source the validation script to get Test-HistoricalApiResponse
-. "$PSScriptRoot/../../scripts/validate_historical_models.ps1"
+$scriptPath = "$PSScriptRoot/../../scripts/validate_historical_models.ps1"
+# Source function directly for unit testing
+. $scriptPath
 
 $expectedDates = @("2024-06-01", "2024-06-02", "2024-06-03", "2024-06-04", "2024-06-05")
 
@@ -48,72 +51,101 @@ function Assert-Result {
     }
 }
 
+Write-Host "================================================================="
 Write-Host "Running Historical API Validator Unit Tests..." -ForegroundColor Cyan
+Write-Host "================================================================="
 
-# Test 1: Complete and valid response
+# Test 1: Complete and valid response -> PASS
 $validObj = New-ValidFixture
 $res1 = Test-HistoricalApiResponse -Response $validObj -ExpectedDates $expectedDates
-Assert-Result -TestName "All 4 variables valid and populated -> PASS" -Condition ($res1.IsValid -eq $true)
+Assert-Result -TestName "All 4 variables valid and populated -> PASS" -Condition ($res1.Outcome -eq "PASS" -and $res1.IsValid -eq $true)
 
-# Test 2: Missing Tmax value (null)
+# Test 2: Missing Tmax value (null) -> INCOMPATIBLE
 $nullTmaxObj = New-ValidFixture
 $nullTmaxObj.daily.temperature_2m_max[2] = $null
 $res2 = Test-HistoricalApiResponse -Response $nullTmaxObj -ExpectedDates $expectedDates
-Assert-Result -TestName "Null Tmax observation -> FAIL" -Condition ($res2.IsValid -eq $false -and $res2.Errors -match "temperature_2m_max.*null")
+Assert-Result -TestName "Null Tmax observation -> INCOMPATIBLE" -Condition ($res2.Outcome -eq "INCOMPATIBLE" -and $res2.IsValid -eq $false -and $res2.Errors -match "temperature_2m_max.*null")
 
-# Test 3: Missing Tmin value (null)
+# Test 3: Missing Tmin value (null) -> INCOMPATIBLE
 $nullTminObj = New-ValidFixture
 $nullTminObj.daily.temperature_2m_min[1] = $null
 $res3 = Test-HistoricalApiResponse -Response $nullTminObj -ExpectedDates $expectedDates
-Assert-Result -TestName "Null Tmin observation -> FAIL" -Condition ($res3.IsValid -eq $false -and $res3.Errors -match "temperature_2m_min.*null")
+Assert-Result -TestName "Null Tmin observation -> INCOMPATIBLE" -Condition ($res3.Outcome -eq "INCOMPATIBLE" -and $res3.IsValid -eq $false -and $res3.Errors -match "temperature_2m_min.*null")
 
-# Test 4: Missing ET0 value (null)
+# Test 4: Missing ET0 value (null) -> INCOMPATIBLE
 $nullEt0Obj = New-ValidFixture
 $nullEt0Obj.daily.et0_fao_evapotranspiration[0] = $null
 $res4 = Test-HistoricalApiResponse -Response $nullEt0Obj -ExpectedDates $expectedDates
-Assert-Result -TestName "Null ET0 observation -> FAIL" -Condition ($res4.IsValid -eq $false -and $res4.Errors -match "et0_fao_evapotranspiration.*null")
+Assert-Result -TestName "Null ET0 observation -> INCOMPATIBLE" -Condition ($res4.Outcome -eq "INCOMPATIBLE" -and $res4.IsValid -eq $false -and $res4.Errors -match "et0_fao_evapotranspiration.*null")
 
-# Test 5: Missing Precipitation value (null)
+# Test 5: Missing Precipitation value (null) -> INCOMPATIBLE
 $nullPrecipObj = New-ValidFixture
 $nullPrecipObj.daily.precipitation_sum[4] = $null
 $res5 = Test-HistoricalApiResponse -Response $nullPrecipObj -ExpectedDates $expectedDates
-Assert-Result -TestName "Null Precipitation observation -> FAIL" -Condition ($res5.IsValid -eq $false -and $res5.Errors -match "precipitation_sum.*null")
+Assert-Result -TestName "Null Precipitation observation -> INCOMPATIBLE" -Condition ($res5.Outcome -eq "INCOMPATIBLE" -and $res5.IsValid -eq $false -and $res5.Errors -match "precipitation_sum.*null")
 
-# Test 6: Missing mandatory variable array entirely
+# Test 6: Missing mandatory variable array entirely -> INCOMPATIBLE
 $missingArrObj = New-ValidFixture
 $missingArrObj.daily.PSObject.Properties.Remove("et0_fao_evapotranspiration")
 $res6 = Test-HistoricalApiResponse -Response $missingArrObj -ExpectedDates $expectedDates
-Assert-Result -TestName "Missing variable array entirely -> FAIL" -Condition ($res6.IsValid -eq $false -and $res6.Errors -match "Missing mandatory array")
+Assert-Result -TestName "Missing variable array entirely -> INCOMPATIBLE" -Condition ($res6.Outcome -eq "INCOMPATIBLE" -and $res6.IsValid -eq $false -and $res6.Errors -match "Missing mandatory array")
 
-# Test 7: Mismatched array length (short array)
+# Test 7: Null Response object -> ERROR
+$res7 = Test-HistoricalApiResponse -Response $null -ExpectedDates $expectedDates
+Assert-Result -TestName "Null response object -> ERROR" -Condition ($res7.Outcome -eq "ERROR" -and $res7.IsValid -eq $false)
+
+# Test 8: Missing 'daily' property -> ERROR
+$noDailyObj = [PSCustomObject]@{ latitude = 31.0 }
+$res8 = Test-HistoricalApiResponse -Response $noDailyObj -ExpectedDates $expectedDates
+Assert-Result -TestName "Missing 'daily' object -> ERROR" -Condition ($res8.Outcome -eq "ERROR" -and $res8.IsValid -eq $false)
+
+# Test 9: Mismatched array length (short array)
 $shortArrObj = New-ValidFixture
 $shortArrObj.daily.temperature_2m_max = @(35.0, 36.0, 37.0)
-$res7 = Test-HistoricalApiResponse -Response $shortArrObj -ExpectedDates $expectedDates
-Assert-Result -TestName "Short array length -> FAIL" -Condition ($res7.IsValid -eq $false -and $res7.Errors -match "does not match expected count")
+$res9 = Test-HistoricalApiResponse -Response $shortArrObj -ExpectedDates $expectedDates
+Assert-Result -TestName "Short array length -> Validation failure" -Condition ($res9.IsValid -eq $false -and $res9.Errors -match "does not match expected count")
 
-# Test 8: Date sequence mismatch
+# Test 10: Date sequence mismatch
 $wrongDateObj = New-ValidFixture
 $wrongDateObj.daily.time = @("2024-06-01", "2024-06-02", "2024-06-04", "2024-06-05", "2024-06-06")
-$res8 = Test-HistoricalApiResponse -Response $wrongDateObj -ExpectedDates $expectedDates
-Assert-Result -TestName "Date sequence mismatch -> FAIL" -Condition ($res8.IsValid -eq $false -and $res8.Errors -match "Date at index 2 mismatch")
+$res10 = Test-HistoricalApiResponse -Response $wrongDateObj -ExpectedDates $expectedDates
+Assert-Result -TestName "Date sequence mismatch -> Validation failure" -Condition ($res10.IsValid -eq $false -and $res10.Errors -match "Date at index 2 mismatch")
 
-# Test 9: Invalid numeric string
+# Test 11: Invalid numeric string
 $nanObj = New-ValidFixture
 $nanObj.daily.temperature_2m_max[3] = "invalid_temp"
-$res9 = Test-HistoricalApiResponse -Response $nanObj -ExpectedDates $expectedDates
-Assert-Result -TestName "Invalid numeric string -> FAIL" -Condition ($res9.IsValid -eq $false -and $res9.Errors -match "not a valid number")
+$res11 = Test-HistoricalApiResponse -Response $nanObj -ExpectedDates $expectedDates
+Assert-Result -TestName "Invalid numeric string -> Validation failure" -Condition ($res11.IsValid -eq $false -and $res11.Errors -match "not a valid number")
 
-# Test 10: Wrong Unit
+# Test 12: Incorrect unit
 $wrongUnitObj = New-ValidFixture
 $wrongUnitObj.daily_units.temperature_2m_max = "°F"
-$res10 = Test-HistoricalApiResponse -Response $wrongUnitObj -ExpectedDates $expectedDates
-Assert-Result -TestName "Incorrect unit -> FAIL" -Condition ($res10.IsValid -eq $false -and $res10.Errors -match "Unit mismatch for 'temperature_2m_max'")
+$res12 = Test-HistoricalApiResponse -Response $wrongUnitObj -ExpectedDates $expectedDates
+Assert-Result -TestName "Incorrect unit -> Validation failure" -Condition ($res12.IsValid -eq $false -and $res12.Errors -match "Unit mismatch for 'temperature_2m_max'")
 
-# Test 11: Legitimate 0.0 values preserved and accepted
+# Test 13: Legitimate 0.0 values preserved and accepted -> PASS
 $zeroObj = New-ValidFixture
 $zeroObj.daily.precipitation_sum = @(0.0, 0.0, 0.0, 0.0, 0.0)
-$res11 = Test-HistoricalApiResponse -Response $zeroObj -ExpectedDates $expectedDates
-Assert-Result -TestName "Legitimate 0.0 precipitation values accepted -> PASS" -Condition ($res11.IsValid -eq $true)
+$res13 = Test-HistoricalApiResponse -Response $zeroObj -ExpectedDates $expectedDates
+Assert-Result -TestName "Legitimate 0.0 precipitation values accepted -> PASS" -Condition ($res13.Outcome -eq "PASS" -and $res13.IsValid -eq $true)
+
+Write-Host "`n================================================================="
+Write-Host "Running Executable Script Child-Process Exit-Code Tests..." -ForegroundColor Cyan
+Write-Host "================================================================="
+
+# Test 14: Executing validate_historical_models.ps1 directly with default parameters
+# Expected: Exit code 0 (models=era5 passes, models=era5_land is expected INCOMPATIBLE, overall sweep succeeds)
+Write-Host "Testing standard child execution (default parameters)..."
+$p1 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Wait -NoNewWindow -PassThru
+$exit1 = $p1.ExitCode
+Assert-Result -TestName "Standard child execution exit code is 0" -Condition ($exit1 -eq 0) -Message "Got exit code $exit1"
+
+# Test 15: Executing validate_historical_models.ps1 with -FailOnAnyModelError
+# When external endpoints succeed normally (even with expected INCOMPATIBLE era5_land), no ERROR occurs, so exit code remains 0
+Write-Host "Testing child execution with -FailOnAnyModelError..."
+$p2 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`" -FailOnAnyModelError" -Wait -NoNewWindow -PassThru
+$exit2 = $p2.ExitCode
+Assert-Result -TestName "Child execution with -FailOnAnyModelError on successful API call is 0" -Condition ($exit2 -eq 0) -Message "Got exit code $exit2"
 
 Write-Host "`nTest Summary: $testsPassed / $testsRun passed." -ForegroundColor $(if ($testsPassed -eq $testsRun) { "Green" } else { "Red" })
 

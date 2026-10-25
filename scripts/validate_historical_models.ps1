@@ -14,7 +14,7 @@ $ErrorActionPreference = "Stop"
 
 function Test-HistoricalApiResponse {
     param(
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $false)]
         $Response,
         [Parameter(Mandatory = $true)]
         [string[]]$ExpectedDates,
@@ -31,12 +31,12 @@ function Test-HistoricalApiResponse {
 
     if ($null -eq $Response) {
         $errors.Add("Response object is null")
-        return @{ IsValid = $false; Errors = $errors }
+        return @{ Outcome = "ERROR"; IsValid = $false; Errors = $errors; NullCounts = @{} }
     }
 
     if ($null -eq $Response.daily) {
         $errors.Add("Missing 'daily' object in response")
-        return @{ IsValid = $false; Errors = $errors }
+        return @{ Outcome = "ERROR"; IsValid = $false; Errors = $errors; NullCounts = @{} }
     }
 
     $daily = $Response.daily
@@ -73,12 +73,14 @@ function Test-HistoricalApiResponse {
     # 3. Variable arrays verification (all 4 required variables)
     $requiredVars = @("temperature_2m_max", "temperature_2m_min", "et0_fao_evapotranspiration", "precipitation_sum")
     $nullCounts = @{}
+    $hasMissingOrNullData = $false
 
     foreach ($varName in $requiredVars) {
         $arr = $daily.$varName
         if ($null -eq $arr) {
             $errors.Add("Missing mandatory array '$varName'")
             $nullCounts[$varName] = -1
+            $hasMissingOrNullData = $true
             continue
         }
 
@@ -104,12 +106,23 @@ function Test-HistoricalApiResponse {
         $nullCounts[$varName] = $varNullCount
         if ($varNullCount -gt 0) {
             $errors.Add("Array '$varName' contains $varNullCount null observations")
+            $hasMissingOrNullData = $true
+        }
+    }
+
+    $outcome = "PASS"
+    if ($errors.Count -gt 0) {
+        if ($hasMissingOrNullData) {
+            $outcome = "INCOMPATIBLE"
+        } else {
+            $outcome = "ERROR"
         }
     }
 
     return @{
-        IsValid = ($errors.Count -eq 0)
-        Errors = $errors
+        Outcome    = $outcome
+        IsValid    = ($outcome -eq "PASS")
+        Errors     = $errors
         NullCounts = $nullCounts
     }
 }
@@ -147,9 +160,12 @@ if ($MyInvocation.InvocationName -ne '.') {
     Write-Host "Target: Lat $lat, Lon $lon ($startDate to $endDate, TZ: Africa/Cairo)"
     Write-Host "Timestamp (UTC): $((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'))"
     Write-Host "Expected Days: $($expectedDatesList.Count) ($($expectedDatesList -join ', '))"
+    Write-Host "FailOnAnyModelError: $FailOnAnyModelError"
     Write-Host "=================================================================`n"
 
-    $overallSuccess = $true
+    $resultsSummary = [System.Collections.Generic.List[PSCustomObject]]::new()
+    $hasExpectationFailure = $false
+    $hasModelError = $false
 
     foreach ($cfg in $configs) {
         $url = "https://archive-api.open-meteo.com/v1/archive?latitude=$lat&longitude=$lon&start_date=$startDate&end_date=$endDate&daily=$daily&timezone=$tz$($cfg.ModelParam)"
@@ -157,9 +173,35 @@ if ($MyInvocation.InvocationName -ne '.') {
         Write-Host "Configuration: $($cfg.Name)"
         Write-Host "URL: $url"
 
+        $modelOutcome = "UNKNOWN"
+        $statusReported = "Unavailable"
+        $errorsReported = @()
+
         try {
             $startTime = Get-Date
-            $response = Invoke-RestMethod -Uri $url -Method Get
+            $response = $null
+            $statusCode = $null
+
+            # Use Invoke-WebRequest to reliably capture the real HTTP response status code
+            try {
+                $webResponse = Invoke-WebRequest -Uri $url -Method Get -UseBasicParsing -TimeoutSec 20
+                $statusCode = [int]$webResponse.StatusCode
+                $statusReported = "$statusCode $($webResponse.StatusDescription)"
+                $rawContent = $webResponse.Content
+                $response = $rawContent | ConvertFrom-Json
+            } catch [System.Net.WebException] {
+                if ($null -ne $_.Exception.Response) {
+                    $statusCode = [int]$_.Exception.Response.StatusCode
+                    $statusReported = "$statusCode $($_.Exception.Response.StatusDescription)"
+                } else {
+                    $statusReported = "Request Failed (No HTTP response)"
+                }
+                throw $_
+            } catch {
+                $statusReported = "Request Failed: $($_.Exception.Message)"
+                throw $_
+            }
+
             $endTime = Get-Date
             $durationMs = ($endTime - $startTime).TotalMilliseconds
 
@@ -167,44 +209,88 @@ if ($MyInvocation.InvocationName -ne '.') {
             $json = $response | ConvertTo-Json -Depth 10
             Set-Content -Path $filePath -Value $json -Encoding UTF8
 
-            Write-Host "HTTP Status: 200 OK ($([math]::Round($durationMs)) ms)"
+            Write-Host "HTTP Status: $statusReported ($([math]::Round($durationMs)) ms)"
             Write-Host "Saved Raw Response: $filePath"
             Write-Host "Returned Coordinates: ($($response.latitude), $($response.longitude)), Elevation: $($response.elevation) m"
 
             $validation = Test-HistoricalApiResponse -Response $response -ExpectedDates $expectedDatesList
             $nullCounts = $validation.NullCounts
+            $modelOutcome = $validation.Outcome
+            $errorsReported = $validation.Errors
 
             Write-Host "Null Counts: Tmax: $($nullCounts['temperature_2m_max']), Tmin: $($nullCounts['temperature_2m_min']), ET0: $($nullCounts['et0_fao_evapotranspiration']), Precip: $($nullCounts['precipitation_sum'])"
 
-            if ($validation.IsValid) {
+            if ($modelOutcome -eq "PASS") {
                 Write-Host "Assessment: PASS - All 4 variables populated and valid`n" -ForegroundColor Green
                 if (-not $cfg.ExpectPass) {
-                    Write-Host "WARNING: Configuration '$($cfg.Name)' was expected to fail but passed!" -ForegroundColor Yellow
+                    Write-Host "WARNING: Configuration '$($cfg.Name)' was expected to be INCOMPATIBLE but PASSED!" -ForegroundColor Yellow
+                    $hasExpectationFailure = $true
+                }
+            } elseif ($modelOutcome -eq "INCOMPATIBLE") {
+                Write-Host "Assessment: INCOMPATIBLE - Model response lacks mandatory variables or valid values:" -ForegroundColor Yellow
+                foreach ($err in $validation.Errors) {
+                    Write-Host " - $err" -ForegroundColor Yellow
+                }
+                Write-Host ""
+                if ($cfg.ExpectPass) {
+                    Write-Host "ERROR: Configuration '$($cfg.Name)' was expected to PASS but was INCOMPATIBLE!" -ForegroundColor Red
+                    $hasExpectationFailure = $true
                 }
             } else {
-                Write-Host "Assessment: FAIL - Validation errors:" -ForegroundColor Red
+                Write-Host "Assessment: ERROR - Structural validation errors:" -ForegroundColor Red
                 foreach ($err in $validation.Errors) {
                     Write-Host " - $err" -ForegroundColor Red
                 }
                 Write-Host ""
+                $hasModelError = $true
                 if ($cfg.ExpectPass) {
-                    $overallSuccess = $false
+                    $hasExpectationFailure = $true
                 }
             }
         }
         catch {
-            Write-Host "Assessment: HTTP/REQUEST ERROR - $($_.Exception.Message)`n" -ForegroundColor Red
+            $modelOutcome = "ERROR"
+            $hasModelError = $true
+            $errorsReported = @($_.Exception.Message)
+            Write-Host "HTTP Status: $statusReported"
+            Write-Host "Assessment: ERROR - $($_.Exception.Message)`n" -ForegroundColor Red
             if ($cfg.ExpectPass) {
-                $overallSuccess = $false
+                $hasExpectationFailure = $true
             }
         }
+
+        $resultsSummary.Add([PSCustomObject]@{
+            ModelName    = $cfg.Name
+            ExpectedPass = $cfg.ExpectPass
+            ActualOutcome= $modelOutcome
+            HttpStatus   = $statusReported
+            Errors       = ($errorsReported -join "; ")
+        })
     }
 
-    if (-not $overallSuccess) {
-        Write-Host "Overall Validation: FAILED" -ForegroundColor Red
+    # Print comprehensive tabular summary before deciding exit code
+    Write-Host "================================================================="
+    Write-Host "Final Model Compatibility Summary"
+    Write-Host "================================================================="
+    $resultsSummary | Format-Table -Property ModelName, ExpectedPass, ActualOutcome, HttpStatus -AutoSize | Out-String | Write-Host
+
+    $shouldFail = $false
+
+    if ($hasExpectationFailure) {
+        Write-Host "Execution Result: FAILED — One or more model expectation checks failed." -ForegroundColor Red
+        $shouldFail = $true
+    }
+
+    if ($FailOnAnyModelError -and $hasModelError) {
+        Write-Host "Execution Result: FAILED — -FailOnAnyModelError is active and at least one model encountered an ERROR." -ForegroundColor Red
+        $shouldFail = $true
+    }
+
+    if ($shouldFail) {
+        Write-Host "Overall Validation: FAILED (Exit Code 1)`n" -ForegroundColor Red
         exit 1
     } else {
-        Write-Host "Overall Validation: SUCCEEDED" -ForegroundColor Green
+        Write-Host "Overall Validation: SUCCEEDED (Exit Code 0)`n" -ForegroundColor Green
         exit 0
     }
 }

@@ -70,25 +70,27 @@ class GddCalculator {
     required double tBase,
     double? tCutoff,
   }) {
+    final availableRequestedDays = observations.length < totalRequestedDays
+        ? observations.length
+        : totalRequestedDays;
+
     final unionOfIncompleteDateIndices = <int>{};
     final validObservations = <({double tMax, double tMin})>[];
 
-    for (var i = 0; i < observations.length; i++) {
-      final obs = observations[i];
-      final isTmaxMissing = obs.tMax == null;
-      final isTminMissing = obs.tMin == null;
+    for (var dayIndex = 0; dayIndex < totalRequestedDays; dayIndex++) {
+      if (dayIndex >= availableRequestedDays) {
+        unionOfIncompleteDateIndices.add(dayIndex);
+        continue;
+      }
+
+      final obs = observations[dayIndex];
+      final isTmaxMissing = obs.tMax == null || !obs.tMax!.isFinite;
+      final isTminMissing = obs.tMin == null || !obs.tMin!.isFinite;
 
       if (isTmaxMissing || isTminMissing) {
-        unionOfIncompleteDateIndices.add(i);
+        unionOfIncompleteDateIndices.add(dayIndex);
       } else {
         validObservations.add((tMax: obs.tMax!, tMin: obs.tMin!));
-      }
-    }
-
-    // Account for any dates missing entirely from the observation sequence
-    if (observations.length < totalRequestedDays) {
-      for (var i = observations.length; i < totalRequestedDays; i++) {
-        unionOfIncompleteDateIndices.add(i);
       }
     }
 

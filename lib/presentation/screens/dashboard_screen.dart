@@ -240,13 +240,8 @@ class DashboardScreen extends ConsumerWidget {
                         .where((r) => r.referenceEt0Mm != null)
                         .fold(0.0, (acc, r) => acc + r.referenceEt0Mm!);
 
-                    final volumetricDemandM3 = etcResult?.dataOrNull != null
-                        ? etcResult!.dataOrNull!.totalVolumeM3PerFeddan
-                        : EtcCalculator.convertMmToCubicMetersPerFeddan(
-                            activeCrop != null
-                                ? totalForecastEt0 * activeCrop.kcMid
-                                : totalForecastEt0,
-                          );
+                    final volumetricDemandM3 =
+                        etcResult?.dataOrNull?.totalVolumeM3PerFeddan;
 
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -396,26 +391,59 @@ class DashboardScreen extends ConsumerWidget {
                                       ),
                                     ),
                                   ],
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    isCompleteEt0
-                                        ? 'حجم البخر نتح التقديري للمحصول: ${volumetricDemandM3.toStringAsFixed(0)} م³ / فدان'
-                                        : 'حجم البخر نتح التقديري الجزئي (للأيام المتوفرة): ${volumetricDemandM3.toStringAsFixed(0)} م³ / فدان',
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF0277BD),
+                                  if (activeCrop == null) ...[
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF5F5F5),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: const Color(0xFFE0E0E0),
+                                        ),
+                                      ),
+                                      child: const Row(
+                                        children: [
+                                          Icon(
+                                            Icons.info_outline,
+                                            size: 18,
+                                            color: Colors.blueGrey,
+                                          ),
+                                          SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              'يرجى تحديد المحصول القائم للحقل لحساب الاحتياج المائي الفعلي للمحصول (ETc).',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.black87,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  const Text(
-                                    '* يمثل الاستهلاك التبخري الصافي للمحصول (ETc = Kc × ET₀) خلال فترة التوقعات (7 أيام). لا يمثل هذا الرقم المقنن المائي الإجمالي للحقل، حيث يتطلب الري الحقلي الفعلي إضافة فواقد كفاءة شبكة الري وتوزيع المياه واحتياجات الغسيل الملحي.',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.grey,
-                                      height: 1.35,
+                                  ] else if (volumetricDemandM3 != null) ...[
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      isCompleteEt0
+                                          ? 'حجم البخر نتح التقديري للمحصول (${activeCrop.nameAr.split(' ')[0]}): ${volumetricDemandM3.toStringAsFixed(0)} م³ / فدان'
+                                          : 'حجم البخر نتح التقديري الجزئي للمحصول (${activeCrop.nameAr.split(' ')[0]} - للأيام المتوفرة): ${volumetricDemandM3.toStringAsFixed(0)} م³ / فدان',
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF0277BD),
+                                      ),
                                     ),
-                                  ),
+                                    const SizedBox(height: 6),
+                                    const Text(
+                                      '* يمثل الاستهلاك التبخري الصافي للمحصول (ETc = Kc × ET₀) وفق مراحل النمو الفسيولوجي المعتمدة من منظمة FAO. لا يمثل هذا الرقم المقنن المائي الإجمالي للحقل، حيث يتطلب الري الحقلي الفعلي إضافة فواقد كفاءة شبكة الري وتوزيع المياه واحتياجات الغسيل الملحي.',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey,
+                                        height: 1.35,
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
