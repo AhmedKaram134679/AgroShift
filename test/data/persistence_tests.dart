@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
+import 'package:sqlite3/sqlite3.dart';
 import 'package:agro_shift/data/datasources/local/database/app_database.dart';
 import 'package:agro_shift/data/datasources/local/weather_local_data_source.dart';
 import 'package:agro_shift/data/datasources/local/cache_policy.dart';
@@ -2920,6 +2921,206 @@ void main() {
         final records = res.dataOrNull!;
         expect(records.length, equals(7));
         expect(records.first.provenance.expectedPeriodDays, equals(7));
+      });
+    });
+
+    group('Drift Schema Migration Tests: v1 to v2', () {
+      test('Upgrades legacy v1 database with NOT NULL columns to v2 without data loss and allows null temperatures', () async {
+        // Step 1: Create a raw SQLite database with version 1 schema where max_temperature_c and min_temperature_c are NOT NULL
+        final rawSqliteDb = sqlite3.openInMemory();
+
+        // Create FarmFieldsTable
+        rawSqliteDb.execute('''
+          CREATE TABLE IF NOT EXISTS farm_fields_table (
+            id TEXT NOT NULL PRIMARY KEY,
+            name_ar TEXT NOT NULL,
+            governorate_ar TEXT NOT NULL,
+            latitude REAL NOT NULL,
+            longitude REAL NOT NULL,
+            area_in_feddan REAL NOT NULL,
+            soil_type TEXT NOT NULL,
+            active_crop_id TEXT,
+            is_default INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+          );
+        ''');
+
+        // Create DeletedDefaultFieldIdsTable
+        rawSqliteDb.execute('''
+          CREATE TABLE IF NOT EXISTS deleted_default_field_ids_table (
+            id TEXT NOT NULL PRIMARY KEY,
+            deleted_at INTEGER NOT NULL
+          );
+        ''');
+
+        // Create CachedDailyRecordsTable with v1 NOT NULL constraints on temperatures
+        rawSqliteDb.execute('''
+          CREATE TABLE IF NOT EXISTS cached_daily_records_table (
+            cache_key TEXT NOT NULL,
+            record_date INTEGER NOT NULL,
+            max_temperature_c REAL NOT NULL,
+            min_temperature_c REAL NOT NULL,
+            precipitation_mm REAL,
+            reference_et0_mm REAL,
+            provider_name TEXT NOT NULL,
+            dataset_name TEXT NOT NULL,
+            requested_latitude REAL NOT NULL,
+            requested_longitude REAL NOT NULL,
+            grid_latitude REAL NOT NULL,
+            grid_longitude REAL NOT NULL,
+            grid_elevation_meters REAL,
+            acquisition_timestamp INTEGER NOT NULL,
+            scientific_disclaimer_ar TEXT NOT NULL,
+            cached_at INTEGER NOT NULL,
+            PRIMARY KEY (cache_key, record_date)
+          );
+        ''');
+
+        // Insert a legacy record into v1 table
+        final legacyDate = DateTime.utc(2024, 6, 1).millisecondsSinceEpoch;
+        final legacyNow = DateTime.utc(
+          2024,
+          6,
+          1,
+          12,
+          0,
+        ).millisecondsSinceEpoch;
+        rawSqliteDb.execute('''
+          INSERT INTO cached_daily_records_table (
+            cache_key, record_date, max_temperature_c, min_temperature_c,
+            precipitation_mm, reference_et0_mm, provider_name, dataset_name,
+            requested_latitude, requested_longitude, grid_latitude, grid_longitude,
+            grid_elevation_meters, acquisition_timestamp, scientific_disclaimer_ar, cached_at
+          ) VALUES (
+            'hist_test_v1', $legacyDate, 35.5, 22.0,
+            0.0, 6.5, 'Open-Meteo', 'ERA5',
+            31.10, 30.95, 31.0, 31.0,
+            6.0, $legacyNow, 'disclaimer', $legacyNow
+          );
+        ''');
+
+        // Set pragma user_version = 1
+        rawSqliteDb.execute('PRAGMA user_version = 1;');
+
+        // Step 2: Open with AppDatabase (v2 with MigrationStrategy)
+        final upgradedDb = AppDatabase(NativeDatabase.opened(rawSqliteDb));
+
+        // Verify that onUpgrade ran and schemaVersion is now 2
+        expect(upgradedDb.schemaVersion, equals(2));
+
+        // Step 3: Verify the legacy record is preserved with its exact original values
+        final legacyRow = await (upgradedDb.select(
+          upgradedDb.cachedDailyRecordsTable,
+        )..where((t) => t.cacheKey.equals('hist_test_v1'))).getSingle();
+
+        expect(legacyRow.cacheKey, equals('hist_test_v1'));
+        expect(legacyRow.maxTemperatureC, equals(35.5));
+        expect(legacyRow.minTemperatureC, equals(22.0));
+        expect(legacyRow.referenceEt0Mm, equals(6.5));
+        expect(
+          legacyRow.precipitationMm,
+          equals(0.0),
+        ); // 0.0 preserved, not null
+
+        // Step 4: Insert new records into upgraded table with NULL temperatures
+        final date2 = DateTime.utc(2024, 6, 2);
+        final date3 = DateTime.utc(2024, 6, 3);
+
+        // Record with maxTemperatureC == null
+        await upgradedDb
+            .into(upgradedDb.cachedDailyRecordsTable)
+            .insert(
+              CachedDailyRecordsTableCompanion.insert(
+                cacheKey: 'hist_test_v1',
+                recordDate: date2,
+                maxTemperatureC: const Value.absent(), // null
+                minTemperatureC: const Value(21.5),
+                referenceEt0Mm: const Value(6.8),
+                precipitationMm: const Value(0.0),
+                providerName: 'Open-Meteo',
+                datasetName: 'ERA5',
+                requestedLatitude: 31.10,
+                requestedLongitude: 30.95,
+                gridLatitude: 31.0,
+                gridLongitude: 31.0,
+                acquisitionTimestamp: DateTime.utc(2024, 6, 2, 12, 0),
+                scientificDisclaimerAr: 'disclaimer',
+                cachedAt: DateTime.utc(2024, 6, 2, 12, 0),
+              ),
+            );
+
+        // Record with minTemperatureC == null
+        await upgradedDb
+            .into(upgradedDb.cachedDailyRecordsTable)
+            .insert(
+              CachedDailyRecordsTableCompanion.insert(
+                cacheKey: 'hist_test_v1',
+                recordDate: date3,
+                maxTemperatureC: const Value(36.0),
+                minTemperatureC: const Value.absent(), // null
+                referenceEt0Mm: const Value(7.0),
+                precipitationMm: const Value(1.5),
+                providerName: 'Open-Meteo',
+                datasetName: 'ERA5',
+                requestedLatitude: 31.10,
+                requestedLongitude: 30.95,
+                gridLatitude: 31.0,
+                gridLongitude: 31.0,
+                acquisitionTimestamp: DateTime.utc(2024, 6, 3, 12, 0),
+                scientificDisclaimerAr: 'disclaimer',
+                cachedAt: DateTime.utc(2024, 6, 3, 12, 0),
+              ),
+            );
+
+        // Step 5: Read back records and verify nullable semantics
+        final row2 =
+            await (upgradedDb.select(upgradedDb.cachedDailyRecordsTable)..where(
+                  (t) =>
+                      t.cacheKey.equals('hist_test_v1') &
+                      t.recordDate.equals(date2),
+                ))
+                .getSingle();
+        expect(row2.maxTemperatureC, isNull);
+        expect(row2.minTemperatureC, equals(21.5));
+        expect(row2.referenceEt0Mm, equals(6.8));
+
+        final row3 =
+            await (upgradedDb.select(upgradedDb.cachedDailyRecordsTable)..where(
+                  (t) =>
+                      t.cacheKey.equals('hist_test_v1') &
+                      t.recordDate.equals(date3),
+                ))
+                .getSingle();
+        expect(row3.maxTemperatureC, equals(36.0));
+        expect(row3.minTemperatureC, isNull);
+        expect(row3.precipitationMm, equals(1.5));
+
+        // Step 6: Verify primary key constraint is preserved (inserting duplicate cacheKey + recordDate fails)
+        expect(
+          () => upgradedDb
+              .into(upgradedDb.cachedDailyRecordsTable)
+              .insert(
+                CachedDailyRecordsTableCompanion.insert(
+                  cacheKey: 'hist_test_v1',
+                  recordDate: date2, // Duplicate
+                  maxTemperatureC: const Value(30.0),
+                  minTemperatureC: const Value(20.0),
+                  providerName: 'Open-Meteo',
+                  datasetName: 'ERA5',
+                  requestedLatitude: 31.10,
+                  requestedLongitude: 30.95,
+                  gridLatitude: 31.0,
+                  gridLongitude: 31.0,
+                  acquisitionTimestamp: DateTime.utc(2024, 6, 2, 12, 0),
+                  scientificDisclaimerAr: 'disclaimer',
+                  cachedAt: DateTime.utc(2024, 6, 2, 12, 0),
+                ),
+              ),
+          throwsA(anything),
+        );
+
+        await upgradedDb.close();
       });
     });
   });

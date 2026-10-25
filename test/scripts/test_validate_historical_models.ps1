@@ -1,0 +1,123 @@
+# AgroShift - Unit Tests for validate_historical_models.ps1
+# Deterministically validates the response checking logic with synthetic fixtures without network calls.
+
+$ErrorActionPreference = "Stop"
+
+# Source the validation script to get Test-HistoricalApiResponse
+. "$PSScriptRoot/../../scripts/validate_historical_models.ps1"
+
+$expectedDates = @("2024-06-01", "2024-06-02", "2024-06-03", "2024-06-04", "2024-06-05")
+
+function New-ValidFixture {
+    return [PSCustomObject]@{
+        latitude = 31.0
+        longitude = 31.0
+        elevation = 6.0
+        daily_units = [PSCustomObject]@{
+            time = "iso8601"
+            temperature_2m_max = "$([char]0x00B0)C"
+            temperature_2m_min = "$([char]0x00B0)C"
+            et0_fao_evapotranspiration = "mm"
+            precipitation_sum = "mm"
+        }
+        daily = [PSCustomObject]@{
+            time = @("2024-06-01", "2024-06-02", "2024-06-03", "2024-06-04", "2024-06-05")
+            temperature_2m_max = @(35.0, 36.2, 34.8, 37.0, 35.5)
+            temperature_2m_min = @(20.0, 21.1, 20.5, 22.0, 21.0)
+            et0_fao_evapotranspiration = @(6.5, 7.1, 6.8, 7.5, 6.9)
+            precipitation_sum = @(0.0, 0.0, 0.0, 0.0, 0.0) # 0.0 is legitimate numeric reading
+        }
+    }
+}
+
+$testsRun = 0
+$testsPassed = 0
+
+function Assert-Result {
+    param(
+        [string]$TestName,
+        [bool]$Condition,
+        [string]$Message = ""
+    )
+    $script:testsRun++
+    if ($Condition) {
+        $script:testsPassed++
+        Write-Host " [PASS] $TestName" -ForegroundColor Green
+    } else {
+        Write-Host " [FAIL] $TestName - $Message" -ForegroundColor Red
+    }
+}
+
+Write-Host "Running Historical API Validator Unit Tests..." -ForegroundColor Cyan
+
+# Test 1: Complete and valid response
+$validObj = New-ValidFixture
+$res1 = Test-HistoricalApiResponse -Response $validObj -ExpectedDates $expectedDates
+Assert-Result -TestName "All 4 variables valid and populated -> PASS" -Condition ($res1.IsValid -eq $true)
+
+# Test 2: Missing Tmax value (null)
+$nullTmaxObj = New-ValidFixture
+$nullTmaxObj.daily.temperature_2m_max[2] = $null
+$res2 = Test-HistoricalApiResponse -Response $nullTmaxObj -ExpectedDates $expectedDates
+Assert-Result -TestName "Null Tmax observation -> FAIL" -Condition ($res2.IsValid -eq $false -and $res2.Errors -match "temperature_2m_max.*null")
+
+# Test 3: Missing Tmin value (null)
+$nullTminObj = New-ValidFixture
+$nullTminObj.daily.temperature_2m_min[1] = $null
+$res3 = Test-HistoricalApiResponse -Response $nullTminObj -ExpectedDates $expectedDates
+Assert-Result -TestName "Null Tmin observation -> FAIL" -Condition ($res3.IsValid -eq $false -and $res3.Errors -match "temperature_2m_min.*null")
+
+# Test 4: Missing ET0 value (null)
+$nullEt0Obj = New-ValidFixture
+$nullEt0Obj.daily.et0_fao_evapotranspiration[0] = $null
+$res4 = Test-HistoricalApiResponse -Response $nullEt0Obj -ExpectedDates $expectedDates
+Assert-Result -TestName "Null ET0 observation -> FAIL" -Condition ($res4.IsValid -eq $false -and $res4.Errors -match "et0_fao_evapotranspiration.*null")
+
+# Test 5: Missing Precipitation value (null)
+$nullPrecipObj = New-ValidFixture
+$nullPrecipObj.daily.precipitation_sum[4] = $null
+$res5 = Test-HistoricalApiResponse -Response $nullPrecipObj -ExpectedDates $expectedDates
+Assert-Result -TestName "Null Precipitation observation -> FAIL" -Condition ($res5.IsValid -eq $false -and $res5.Errors -match "precipitation_sum.*null")
+
+# Test 6: Missing mandatory variable array entirely
+$missingArrObj = New-ValidFixture
+$missingArrObj.daily.PSObject.Properties.Remove("et0_fao_evapotranspiration")
+$res6 = Test-HistoricalApiResponse -Response $missingArrObj -ExpectedDates $expectedDates
+Assert-Result -TestName "Missing variable array entirely -> FAIL" -Condition ($res6.IsValid -eq $false -and $res6.Errors -match "Missing mandatory array")
+
+# Test 7: Mismatched array length (short array)
+$shortArrObj = New-ValidFixture
+$shortArrObj.daily.temperature_2m_max = @(35.0, 36.0, 37.0)
+$res7 = Test-HistoricalApiResponse -Response $shortArrObj -ExpectedDates $expectedDates
+Assert-Result -TestName "Short array length -> FAIL" -Condition ($res7.IsValid -eq $false -and $res7.Errors -match "does not match expected count")
+
+# Test 8: Date sequence mismatch
+$wrongDateObj = New-ValidFixture
+$wrongDateObj.daily.time = @("2024-06-01", "2024-06-02", "2024-06-04", "2024-06-05", "2024-06-06")
+$res8 = Test-HistoricalApiResponse -Response $wrongDateObj -ExpectedDates $expectedDates
+Assert-Result -TestName "Date sequence mismatch -> FAIL" -Condition ($res8.IsValid -eq $false -and $res8.Errors -match "Date at index 2 mismatch")
+
+# Test 9: Invalid numeric string
+$nanObj = New-ValidFixture
+$nanObj.daily.temperature_2m_max[3] = "invalid_temp"
+$res9 = Test-HistoricalApiResponse -Response $nanObj -ExpectedDates $expectedDates
+Assert-Result -TestName "Invalid numeric string -> FAIL" -Condition ($res9.IsValid -eq $false -and $res9.Errors -match "not a valid number")
+
+# Test 10: Wrong Unit
+$wrongUnitObj = New-ValidFixture
+$wrongUnitObj.daily_units.temperature_2m_max = "°F"
+$res10 = Test-HistoricalApiResponse -Response $wrongUnitObj -ExpectedDates $expectedDates
+Assert-Result -TestName "Incorrect unit -> FAIL" -Condition ($res10.IsValid -eq $false -and $res10.Errors -match "Unit mismatch for 'temperature_2m_max'")
+
+# Test 11: Legitimate 0.0 values preserved and accepted
+$zeroObj = New-ValidFixture
+$zeroObj.daily.precipitation_sum = @(0.0, 0.0, 0.0, 0.0, 0.0)
+$res11 = Test-HistoricalApiResponse -Response $zeroObj -ExpectedDates $expectedDates
+Assert-Result -TestName "Legitimate 0.0 precipitation values accepted -> PASS" -Condition ($res11.IsValid -eq $true)
+
+Write-Host "`nTest Summary: $testsPassed / $testsRun passed." -ForegroundColor $(if ($testsPassed -eq $testsRun) { "Green" } else { "Red" })
+
+if ($testsPassed -ne $testsRun) {
+    exit 1
+}
+exit 0

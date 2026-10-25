@@ -69,7 +69,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -77,7 +77,9 @@ class AppDatabase extends _$AppDatabase {
       await m.createAll();
     },
     onUpgrade: (m, from, to) async {
-      // Schema migrations will be handled here incrementally
+      if (from < 2) {
+        await m.alterTable(TableMigration(cachedDailyRecordsTable));
+      }
     },
   );
 }

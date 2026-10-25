@@ -190,6 +190,46 @@ void main() {
         closeTo(result.totalEtcMm * 4.2, 0.01),
       );
     });
+
+    test('Preserves growth-stage fraction alignment when ET0 observations are missing', () {
+      final wheat = EgyptianCropsCatalog.wheat;
+      // 10 requested days
+      // Complete series: 10 days of ET0 = 5.0 mm/day
+      final completeEt0 = List.filled(10, 5.0);
+      final completeRes = EtcCalculator.calculateCycleWaterRequirementValidated(
+        crop: wheat,
+        totalRequestedDays: 10,
+        dailyEt0Series: completeEt0,
+      );
+      expect(completeRes.isSuccess, isTrue);
+
+      // Now create series where Day 2 (index 1) is missing (null)
+      // If day alignment is preserved, days 3-10 still receive the exact same Kc as in complete series.
+      // Expected totalEtcMm is completeRes.totalEtcMm - (Day 2 contribution)
+      final day2Kc = wheat.getKcForStageFraction((1 + 1) / 10);
+      final day2EtcContribution = 5.0 * day2Kc;
+
+      final withMissingDay = List<double?>.generate(
+        10,
+        (i) => (i == 1) ? null : 5.0,
+      );
+      final partialRes = EtcCalculator.calculateCycleWaterRequirementValidated(
+        crop: wheat,
+        totalRequestedDays: 10,
+        dailyEt0Series: withMissingDay,
+      );
+      expect(partialRes.isSuccess, isTrue);
+
+      final expectedPartialEtc =
+          completeRes.dataOrNull!.totalEtcMm - day2EtcContribution;
+      expect(
+        partialRes.dataOrNull!.totalEtcMm,
+        closeTo(expectedPartialEtc, 0.0001),
+      );
+
+      // Contrast: if observations were compacted to a 9-day list, Kc calculation would use /9 instead of /10
+      // which would assign different Kc values to remaining days. Our test proves original day positions are strictly preserved.
+    });
   });
 
   group('HeatStressEvaluator Tests', () {

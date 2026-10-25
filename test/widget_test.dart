@@ -123,4 +123,156 @@ void main() {
       expect(find.text('7.5 متر'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'Dashboard displays heat stress alert card when missingness exceeds validation threshold',
+    (WidgetTester tester) async {
+      // 7-day forecast with 2 missing maxTemperature days (2/7 = ~28.5% > 10% threshold)
+      final prov = DataSourceProvenance(
+        providerName: 'Open-Meteo Weather API',
+        datasetName: 'Mock Forecast',
+        requestedLatitude: 31.1000,
+        requestedLongitude: 30.9500,
+        gridLatitude: 31.0,
+        gridLongitude: 31.0,
+        acquisitionTimestamp: DateTime.now().toUtc(),
+        expectedPeriodDays: 7,
+      );
+
+      final records = List.generate(7, (i) {
+        return DailyAgroRecord(
+          date: DateTime(2024, 6, 1 + i),
+          maxTemperatureC: i < 2 ? null : 36.0,
+          minTemperatureC: 20.0,
+          precipitationMm: 0.0,
+          referenceEt0Mm: 6.0,
+          provenance: prov,
+        );
+      });
+
+      final customRepo = _StaticWeatherRepository(records);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            weatherRepositoryProvider.overrideWithValue(customRepo),
+          ],
+          child: MaterialApp(
+            theme: AgroTheme.lightTheme,
+            locale: const Locale('ar', 'EG'),
+            supportedLocales: const [Locale('ar', 'EG'), Locale('en', 'US')],
+            localizationsDelegates: const [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            home: const Directionality(
+              textDirection: TextDirection.rtl,
+              child: MainNavigationShell(),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Verify that heat stress evaluation failed validation gracefully with the Arabic alert
+      expect(
+        find.text('تعذر تقييم الإجهاد الحراري — بيانات غير مكتملة'),
+        findsOneWidget,
+      );
+      // Verify ETc water requirement section renders successfully because ET0 is complete
+      expect(
+        find.textContaining('الاستهلاك المائي التبخري للمحصول (ETc)'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'Dashboard displays ETc failure alert card when missingness exceeds validation threshold',
+    (WidgetTester tester) async {
+      // 7-day forecast with 2 missing referenceEt0Mm days (2/7 = ~28.5% > 10% threshold)
+      final prov = DataSourceProvenance(
+        providerName: 'Open-Meteo Weather API',
+        datasetName: 'Mock Forecast',
+        requestedLatitude: 31.1000,
+        requestedLongitude: 30.9500,
+        gridLatitude: 31.0,
+        gridLongitude: 31.0,
+        acquisitionTimestamp: DateTime.now().toUtc(),
+        expectedPeriodDays: 7,
+      );
+
+      final records = List.generate(7, (i) {
+        return DailyAgroRecord(
+          date: DateTime(2024, 6, 1 + i),
+          maxTemperatureC: 36.0,
+          minTemperatureC: 20.0,
+          precipitationMm: 0.0,
+          referenceEt0Mm: i < 2 ? null : 6.0,
+          provenance: prov,
+        );
+      });
+
+      final customRepo = _StaticWeatherRepository(records);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            weatherRepositoryProvider.overrideWithValue(customRepo),
+          ],
+          child: MaterialApp(
+            theme: AgroTheme.lightTheme,
+            locale: const Locale('ar', 'EG'),
+            supportedLocales: const [Locale('ar', 'EG'), Locale('en', 'US')],
+            localizationsDelegates: const [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            home: const Directionality(
+              textDirection: TextDirection.rtl,
+              child: MainNavigationShell(),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Verify that ETc calculation failed validation gracefully with the Arabic alert
+      expect(
+        find.text('تعذر حساب الاحتياج المائي (ETc) — بيانات غير مكتملة'),
+        findsOneWidget,
+      );
+      // Heat stress succeeds because temperatures are 100% complete
+      expect(
+        find.text('مؤشر الإجهاد الحراري للمحصول:'),
+        findsOneWidget,
+      );
+    },
+  );
+}
+
+class _StaticWeatherRepository implements IWeatherRepository {
+  final List<DailyAgroRecord> records;
+  _StaticWeatherRepository(this.records);
+
+  @override
+  Future<Result<List<DailyAgroRecord>, Failure>> getForecastDailyRecords({
+    required Coordinate coordinate,
+    required int days,
+  }) async {
+    return Success(records);
+  }
+
+  @override
+  Future<Result<List<DailyAgroRecord>, Failure>> getHistoricalDailyRecords({
+    required Coordinate coordinate,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    return Success(records);
+  }
 }

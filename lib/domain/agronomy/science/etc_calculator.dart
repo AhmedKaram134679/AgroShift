@@ -97,11 +97,24 @@ class EtcCalculator {
       return FailureResult(validationResult.failureOrNull!);
     }
 
-    final result = calculateCycleWaterRequirement(
-      crop: crop,
-      dailyEt0Series: validEt0Series,
-    );
+    // Preserve original day alignment and growth-stage fractions:
+    // stageFraction must be computed using (dayIndex + 1) / totalRequestedDays
+    // so missing days do not shift subsequent days or change their assigned Kc.
+    double cumulativeEtcMm = 0.0;
+    for (int dayIndex = 0; dayIndex < totalRequestedDays; dayIndex++) {
+      if (dayIndex >= dailyEt0Series.length) break;
+      final et0 = dailyEt0Series[dayIndex];
+      if (et0 == null) continue; // Skip missing day's numeric contribution without shifting subsequent days
 
-    return Success(result);
+      final stageFraction = (dayIndex + 1) / totalRequestedDays;
+      final kc = crop.getKcForStageFraction(stageFraction);
+      cumulativeEtcMm += calculateDailyEtc(referenceEt0Mm: et0, cropKc: kc);
+    }
+
+    final volumeM3 = convertMmToCubicMetersPerFeddan(cumulativeEtcMm);
+    return Success((
+      totalEtcMm: cumulativeEtcMm,
+      totalVolumeM3PerFeddan: volumeM3,
+    ));
   }
 }

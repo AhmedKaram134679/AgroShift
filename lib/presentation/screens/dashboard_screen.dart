@@ -201,18 +201,6 @@ class DashboardScreen extends ConsumerWidget {
                       );
                     }
 
-                    // Compute summary metrics
-                    final tMaxList = records
-                        .map((r) => r.maxTemperatureC)
-                        .whereType<double>()
-                        .toList();
-                    final heatEval = activeCrop != null
-                        ? HeatStressEvaluator.evaluateCropHeatStress(
-                            crop: activeCrop,
-                            dailyTmaxSeries: tMaxList,
-                          )
-                        : null;
-
                     final expectedForecastDays =
                         records.first.provenance.expectedPeriodDays ??
                         records.length;
@@ -224,96 +212,214 @@ class DashboardScreen extends ConsumerWidget {
                         availableEt0Days == expectedForecastDays &&
                         totalForecastDays == expectedForecastDays;
 
+                    // Validated Heat Stress Evaluation
+                    final tMaxSeries = records
+                        .map((r) => r.maxTemperatureC)
+                        .toList();
+                    final heatEvalResult = activeCrop != null
+                        ? HeatStressEvaluator.evaluateCropHeatStressValidated(
+                            crop: activeCrop,
+                            totalRequestedDays: expectedForecastDays,
+                            dailyTmaxSeries: tMaxSeries,
+                          )
+                        : null;
+
+                    // Validated ETc Water Requirement
+                    final et0Series = records
+                        .map((r) => r.referenceEt0Mm)
+                        .toList();
+                    final etcResult = activeCrop != null
+                        ? EtcCalculator.calculateCycleWaterRequirementValidated(
+                            crop: activeCrop,
+                            totalRequestedDays: expectedForecastDays,
+                            dailyEt0Series: et0Series,
+                          )
+                        : null;
+
                     final totalForecastEt0 = records
                         .where((r) => r.referenceEt0Mm != null)
                         .fold(0.0, (acc, r) => acc + r.referenceEt0Mm!);
 
-                    final volumetricDemandM3 =
-                        EtcCalculator.convertMmToCubicMetersPerFeddan(
-                          activeCrop != null
-                              ? totalForecastEt0 * activeCrop.kcMid
-                              : totalForecastEt0,
-                        );
+                    final volumetricDemandM3 = etcResult?.dataOrNull != null
+                        ? etcResult!.dataOrNull!.totalVolumeM3PerFeddan
+                        : EtcCalculator.convertMmToCubicMetersPerFeddan(
+                            activeCrop != null
+                                ? totalForecastEt0 * activeCrop.kcMid
+                                : totalForecastEt0,
+                          );
 
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Heat stress warning card
-                        if (heatEval != null) _buildHeatStressCard(heatEval),
-
-                        const SizedBox(height: 8),
-
-                        // Evapotranspiration and water requirement
-                        Card(
-                          child: Padding(
-                            padding: const EdgeInsets.all(14.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
+                        // Heat stress assessment or validation failure alert
+                        if (heatEvalResult != null)
+                          heatEvalResult.when(
+                            failure: (failure) => Card(
+                              color: const Color(0xFFFFF3E0),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: const BorderSide(
+                                  color: Color(0xFFFFB74D),
+                                ),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(14.0),
+                                child: Row(
                                   children: [
                                     const Icon(
-                                      Icons.water_drop,
-                                      color: Color(0xFF0277BD),
+                                      Icons.warning_amber_rounded,
+                                      color: Color(0xFFE65100),
+                                      size: 24,
                                     ),
-                                    const SizedBox(width: 8),
+                                    const SizedBox(width: 10),
                                     Expanded(
-                                      child: Text(
-                                        isCompleteEt0
-                                            ? 'الاستهلاك المائي التبخري للمحصول (ETc) — فترة $expectedForecastDays أيام'
-                                            : 'الاستهلاك المائي التبخري للمحصول (ETc) — مجموع جزئي ($availableEt0Days من $expectedForecastDays أيام مطلوبة)',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleSmall
-                                            ?.copyWith(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'تعذر تقييم الإجهاد الحراري — بيانات غير مكتملة',
+                                            style: TextStyle(
                                               fontWeight: FontWeight.bold,
+                                              fontSize: 13,
+                                              color: Color(0xFFE65100),
                                             ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            failure.userMessageAr,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  isCompleteEt0
-                                      ? 'مجموع البخر نتح المرجعي (ET₀): ${totalForecastEt0.toStringAsFixed(1)} مم'
-                                      : 'مجموع جزئي للبخر نتح المرجعي ($availableEt0Days من أصل $expectedForecastDays يوماً مطلوبة): ${totalForecastEt0.toStringAsFixed(1)} مم',
-                                  style: const TextStyle(fontSize: 13),
-                                ),
-                                if (!isCompleteEt0) ...[
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'تنبيه: التوقعات غير مكتملة لكامل الفترة (${expectedForecastDays - availableEt0Days} أيام بدون قراءة ET₀ صالحة من أصل $expectedForecastDays يوماً). المجموع المعروض يمثل الأيام المتوفرة فقط.',
-                                    style: const TextStyle(
-                                      fontSize: 11.5,
-                                      color: Color(0xFFC62828),
-                                      fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            success: (eval) => _buildHeatStressCard(eval),
+                          ),
+
+                        const SizedBox(height: 8),
+
+                        // Evapotranspiration and water requirement
+                        if (etcResult != null && etcResult.isFailure)
+                          Card(
+                            color: const Color(0xFFFFF3E0),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: const BorderSide(color: Color(0xFFFFB74D)),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(14.0),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.warning_amber_rounded,
+                                    color: Color(0xFFE65100),
+                                    size: 24,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'تعذر حساب الاحتياج المائي (ETc) — بيانات غير مكتملة',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                            color: Color(0xFFE65100),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          etcResult
+                                              .failureOrNull!
+                                              .userMessageAr,
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ],
-                                const SizedBox(height: 4),
-                                Text(
-                                  isCompleteEt0
-                                      ? 'حجم البخر نتح التقديري للمحصول: ${volumetricDemandM3.toStringAsFixed(0)} م³ / فدان'
-                                      : 'حجم البخر نتح التقديري الجزئي (للأيام المتوفرة): ${volumetricDemandM3.toStringAsFixed(0)} م³ / فدان',
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF0277BD),
+                              ),
+                            ),
+                          )
+                        else
+                          Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(14.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.water_drop,
+                                        color: Color(0xFF0277BD),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          isCompleteEt0
+                                              ? 'الاستهلاك المائي التبخري للمحصول (ETc) — فترة $expectedForecastDays أيام'
+                                              : 'الاستهلاك المائي التبخري للمحصول (ETc) — مجموع جزئي ($availableEt0Days من $expectedForecastDays أيام مطلوبة)',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleSmall
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                                const SizedBox(height: 6),
-                                const Text(
-                                  '* يمثل الاستهلاك التبخري الصافي للمحصول (ETc = Kc × ET₀) خلال فترة التوقعات (7 أيام). لا يمثل هذا الرقم المقنن المائي الإجمالي للحقل، حيث يتطلب الري الحقلي الفعلي إضافة فواقد كفاءة شبكة الري وتوزيع المياه واحتياجات الغسيل الملحي.',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.grey,
-                                    height: 1.35,
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    isCompleteEt0
+                                        ? 'مجموع البخر نتح المرجعي (ET₀): ${totalForecastEt0.toStringAsFixed(1)} مم'
+                                        : 'مجموع جزئي للبخر نتح المرجعي ($availableEt0Days من أصل $expectedForecastDays يوماً مطلوبة): ${totalForecastEt0.toStringAsFixed(1)} مم',
+                                    style: const TextStyle(fontSize: 13),
                                   ),
-                                ),
-                              ],
+                                  if (!isCompleteEt0) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'تنبيه: التوقعات غير مكتملة لكامل الفترة (${expectedForecastDays - availableEt0Days} أيام بدون قراءة ET₀ صالحة من أصل $expectedForecastDays يوماً). المجموع المعروض يمثل الأيام المتوفرة فقط.',
+                                      style: const TextStyle(
+                                        fontSize: 11.5,
+                                        color: Color(0xFFC62828),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    isCompleteEt0
+                                        ? 'حجم البخر نتح التقديري للمحصول: ${volumetricDemandM3.toStringAsFixed(0)} م³ / فدان'
+                                        : 'حجم البخر نتح التقديري الجزئي (للأيام المتوفرة): ${volumetricDemandM3.toStringAsFixed(0)} م³ / فدان',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF0277BD),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  const Text(
+                                    '* يمثل الاستهلاك التبخري الصافي للمحصول (ETc = Kc × ET₀) خلال فترة التوقعات (7 أيام). لا يمثل هذا الرقم المقنن المائي الإجمالي للحقل، حيث يتطلب الري الحقلي الفعلي إضافة فواقد كفاءة شبكة الري وتوزيع المياه واحتياجات الغسيل الملحي.',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey,
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
 
                         const SizedBox(height: 8),
 

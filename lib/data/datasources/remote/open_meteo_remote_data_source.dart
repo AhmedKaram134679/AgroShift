@@ -11,7 +11,9 @@ class OpenMeteoRemoteDataSource {
       'https://api.open-meteo.com/v1/forecast';
 
   /// ECMWF ERA5 reanalysis model parameter for the Open-Meteo archive API.
-  /// Verified to supply all 4 required daily variables (Tmax, Tmin, ET0, Precipitation).
+  /// Selected because empirical validation on the Open-Meteo archive API confirmed
+  /// that `era5` populates all 4 required daily variables (Tmax, Tmin, ET0, Precipitation)
+  /// without the null arrays observed on `era5_land` (where ET0 and precipitation are omitted).
   static const String historicalModel = 'era5';
 
   OpenMeteoRemoteDataSource({Dio? dio})
