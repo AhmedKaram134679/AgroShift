@@ -1,0 +1,58 @@
+import 'package:agro_shift/core/constants/agro_constants.dart';
+import 'package:agro_shift/core/error/failures.dart';
+import 'package:agro_shift/core/error/result.dart';
+
+/// Immutable geographic coordinate representing a field location.
+class Coordinate {
+  final double latitude;
+  final double longitude;
+  final String? governorateName;
+
+  const Coordinate({
+    required this.latitude,
+    required this.longitude,
+    this.governorateName,
+  });
+
+  /// Validates whether the coordinate is within Egypt's terrestrial bounds.
+  Result<Coordinate, CoordinateOutOfBoundsFailure> validate() {
+    if (latitude < AgroConstants.egyptMinLatitude ||
+        latitude > AgroConstants.egyptMaxLatitude ||
+        longitude < AgroConstants.egyptMinLongitude ||
+        longitude > AgroConstants.egyptMaxLongitude) {
+      return FailureResult(
+        CoordinateOutOfBoundsFailure(
+          userMessageAr:
+              'الإحداثيات المدخلة تقع خارج الحدود الجغرافية المعتمدة لجمهورية مصر العربية '
+              '(خط العرض: 22.0 إلى 31.8 شمالاً، خط الطول: 25.0 إلى 37.0 شرقاً).',
+          technicalMessage:
+              'Coordinate ($latitude, $longitude) is out of bounds for Egypt.',
+          latitude: latitude,
+          longitude: longitude,
+        ),
+      );
+    }
+    return Success(this);
+  }
+
+  bool get isWithinEgypt =>
+      latitude >= AgroConstants.egyptMinLatitude &&
+      latitude <= AgroConstants.egyptMaxLatitude &&
+      longitude >= AgroConstants.egyptMinLongitude &&
+      longitude <= AgroConstants.egyptMaxLongitude;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Coordinate &&
+          runtimeType == other.runtimeType &&
+          latitude == other.latitude &&
+          longitude == other.longitude;
+
+  @override
+  int get hashCode => Object.hash(latitude, longitude);
+
+  @override
+  String toString() =>
+      'Coordinate(lat: $latitude, lon: $longitude, gov: $governorateName)';
+}

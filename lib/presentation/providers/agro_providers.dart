@@ -1,0 +1,182 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:agro_shift/domain/environment/repositories/i_weather_repository.dart';
+import 'package:agro_shift/domain/agronomy/repositories/i_farm_field_repository.dart';
+import 'package:agro_shift/data/repositories/weather_repository_impl.dart';
+import 'package:agro_shift/data/repositories/farm_field_repository_impl.dart';
+import 'package:agro_shift/data/datasources/local/database/app_database.dart';
+import 'package:agro_shift/data/datasources/local/database/connection.dart';
+import 'package:agro_shift/data/datasources/local/weather_local_data_source.dart';
+import 'package:agro_shift/domain/environment/models/coordinate.dart';
+import 'package:agro_shift/domain/environment/models/daily_agro_record.dart';
+import 'package:agro_shift/domain/agronomy/models/farm_field.dart';
+import 'package:agro_shift/core/error/failures.dart';
+import 'package:agro_shift/core/error/result.dart';
+
+// 0. Primary App Database Provider
+final appDatabaseProvider = Provider<AppDatabase>((ref) {
+  final db = AppDatabase(openConnection());
+  ref.onDispose(() => db.close());
+  return db;
+});
+
+// 1. Weather Local Data Source Provider
+final weatherLocalDataSourceProvider = Provider<WeatherLocalDataSource>((ref) {
+  final db = ref.watch(appDatabaseProvider);
+  return WeatherLocalDataSource(db);
+});
+
+// 2. Farm Field Repository Provider
+final farmFieldRepositoryProvider = Provider<IFarmFieldRepository>((ref) {
+  final db = ref.watch(appDatabaseProvider);
+  return FarmFieldRepositoryImpl(db);
+});
+
+// 3. Weather Repository Provider with persistent SQLite cache
+final weatherRepositoryProvider = Provider<IWeatherRepository>((ref) {
+  final localDataSource = ref.watch(weatherLocalDataSourceProvider);
+  return WeatherRepositoryImpl(localDataSource: localDataSource);
+});
+
+// 4. Pre-seeded Egyptian benchmark fields across governorates
+final defaultEgyptianFields = <FarmField>[
+  const FarmField(
+    id: 'field_kafr_sheikh',
+    nameAr: 'حقل سيدي سالم (كفر الشيخ)',
+    governorateAr: 'كفر الشيخ (شمال الدلتا)',
+    coordinate: Coordinate(
+      latitude: 31.27,
+      longitude: 30.79,
+      governorateName: 'كفر الشيخ',
+    ),
+    areaInFeddan: 5.0,
+    soilType: SoilType.clay,
+    activeCropId: 'wheat',
+  ),
+  const FarmField(
+    id: 'field_gharbia',
+    nameAr: 'مزرعة طنطا الإرشادية',
+    governorateAr: 'الغربية (وسط الدلتا)',
+    coordinate: Coordinate(
+      latitude: 30.79,
+      longitude: 31.00,
+      governorateName: 'الغربية',
+    ),
+    areaInFeddan: 3.5,
+    soilType: SoilType.clay,
+    activeCropId: 'berseem',
+  ),
+  const FarmField(
+    id: 'field_minya',
+    nameAr: 'حقل بني مزار (المنيا)',
+    governorateAr: 'المنيا (مصر الوسطى)',
+    coordinate: Coordinate(
+      latitude: 28.50,
+      longitude: 30.80,
+      governorateName: 'المنيا',
+    ),
+    areaInFeddan: 10.0,
+    soilType: SoilType.clayLoam,
+    activeCropId: 'maize',
+  ),
+];
+
+// 5. Registered Fields State Notifier with persistent SQLite backing
+class FieldListNotifier extends Notifier<List<FarmField>> {
+  @override
+  List<FarmField> build() {
+    _loadPersistedFields();
+    return defaultEgyptianFields;
+  }
+
+  Future<void> _loadPersistedFields() async {
+    final repo = ref.read(farmFieldRepositoryProvider);
+    // Ensure default benchmark fields are seeded if not previously deleted
+    await repo.seedDefaultFieldsIfNecessary(defaultEgyptianFields);
+
+    final res = await repo.getAllFields();
+    if (res.isSuccess && res.dataOrNull != null && res.dataOrNull!.isNotEmpty) {
+      state = res.dataOrNull!;
+    }
+  }
+
+  Future<Result<void, Failure>> addField(FarmField field) async {
+    final val = field.coordinate.validate();
+    if (val.isFailure) {
+      return FailureResult(val.failureOrNull!);
+    }
+
+    final repo = ref.read(farmFieldRepositoryProvider);
+    final saveRes = await repo.saveField(field);
+    if (saveRes.isSuccess) {
+      // Update state without duplicates
+      final updated = [...state.where((f) => f.id != field.id), field];
+      state = updated;
+      return const Success(null);
+    }
+    return saveRes;
+  }
+
+  Future<Result<void, Failure>> deleteField(String id) async {
+    final repo = ref.read(farmFieldRepositoryProvider);
+    final delRes = await repo.deleteField(id);
+    if (delRes.isSuccess) {
+      state = state.where((f) => f.id != id).toList();
+      return const Success(null);
+    }
+    return delRes;
+  }
+}
+
+final fieldListProvider = NotifierProvider<FieldListNotifier, List<FarmField>>(
+  FieldListNotifier.new,
+);
+
+// 6. Currently Selected Active Field Provider
+class SelectedFieldNotifier extends Notifier<FarmField> {
+  @override
+  FarmField build() {
+    final fields = ref.watch(fieldListProvider);
+    if (fields.isEmpty) {
+      return defaultEgyptianFields.first;
+    }
+    return fields.first;
+  }
+
+  void selectField(FarmField field) {
+    state = field;
+  }
+}
+
+final selectedFieldProvider =
+    NotifierProvider<SelectedFieldNotifier, FarmField>(
+      SelectedFieldNotifier.new,
+    );
+
+// 7. Active Field Forecast Weather Async Provider (7-day forecast)
+final fieldForecastProvider =
+    FutureProvider.autoDispose<Result<List<DailyAgroRecord>, Failure>>((
+      ref,
+    ) async {
+      final activeField = ref.watch(selectedFieldProvider);
+      final weatherRepo = ref.watch(weatherRepositoryProvider);
+      return await weatherRepo.getForecastDailyRecords(
+        coordinate: activeField.coordinate,
+        days: 7,
+      );
+    });
+
+// 8. Active Field Historical Weather Async Provider (Last 30 days)
+final fieldHistorical30DaysProvider =
+    FutureProvider.autoDispose<Result<List<DailyAgroRecord>, Failure>>((
+      ref,
+    ) async {
+      final activeField = ref.watch(selectedFieldProvider);
+      final weatherRepo = ref.watch(weatherRepositoryProvider);
+      final now = DateTime.now();
+      final startDate = now.subtract(const Duration(days: 30));
+      return await weatherRepo.getHistoricalDailyRecords(
+        coordinate: activeField.coordinate,
+        startDate: startDate,
+        endDate: now,
+      );
+    });
