@@ -41,19 +41,80 @@ function Get-SourceTreeFingerprint {
     param([string]$Root)
     try {
         $sourcePaths = @("lib", "test", "scripts", "docs", "pubspec.yaml", "pubspec.lock")
-        $trackedDiff = (git -C $Root diff HEAD -- @sourcePaths) -join "`n"
-        $untracked = (git -C $Root ls-files --others --exclude-standard -- @sourcePaths) -join "`n"
-        $combined = "DIFF:`n$trackedDiff`nUNTRACKED:`n$untracked"
+
+        # 1. Enumerate tracked files within monitored scope
+        $trackedFiles = @(git -C $Root ls-files -- @sourcePaths 2>$null)
+
+        # 2. Enumerate untracked, non-ignored files within monitored scope
+        $untrackedFiles = @(git -C $Root ls-files --others --exclude-standard -- @sourcePaths 2>$null)
+
+        # Merge and sort unique normalized relative paths (using forward slashes)
+        $allRelativePaths = @($trackedFiles + $untrackedFiles | Sort-Object -Unique)
+
         $sha = [System.Security.Cryptography.SHA256]::Create()
-        $bytes = [System.Text.Encoding]::UTF8.GetBytes($combined)
-        $hashBytes = $sha.ComputeHash($bytes)
-        return -join ($hashBytes | ForEach-Object { $_.ToString("x2") })
+        $manifestLines = [System.Collections.Generic.List[string]]::new()
+        $fileHashes = [System.Collections.Generic.Dictionary[string, string]]::new()
+
+        foreach ($relPath in $allRelativePaths) {
+            $normalizedPath = $relPath.Replace("\", "/").Trim()
+            if ([string]::IsNullOrWhiteSpace($normalizedPath)) { continue }
+
+            # Explicitly exclude generated verification run artifacts if ever located under monitored scope
+            if ($normalizedPath.StartsWith("artifacts/") -or $normalizedPath -eq "artifacts") {
+                continue
+            }
+
+            $fullPath = Join-Path $Root $normalizedPath
+            if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
+                # File listed by git but missing on filesystem during snapshot -> failure to establish authoritative inventory
+                return [PSCustomObject]@{
+                    Fingerprint = "unknown"
+                    FileCount = 0
+                    Files = @{}
+                    Error = "File missing or inaccessible: $normalizedPath"
+                }
+            }
+
+            try {
+                $fileBytes = [System.IO.File]::ReadAllBytes($fullPath)
+                $fileHashBytes = $sha.ComputeHash($fileBytes)
+                $fileHashHex = -join ($fileHashBytes | ForEach-Object { $_.ToString("x2") })
+                $manifestLines.Add("${normalizedPath}:${fileHashHex}")
+                $fileHashes[$normalizedPath] = $fileHashHex
+            } catch {
+                return [PSCustomObject]@{
+                    Fingerprint = "unknown"
+                    FileCount = 0
+                    Files = @{}
+                    Error = "Failed to hash ${normalizedPath}: $($_.Exception.Message)"
+                }
+            }
+        }
+
+        # Deterministic composite fingerprint over sorted "path:sha256" lines
+        $compositeManifest = $manifestLines -join "`n"
+        $compositeBytes = [System.Text.Encoding]::UTF8.GetBytes($compositeManifest)
+        $compositeHashBytes = $sha.ComputeHash($compositeBytes)
+        $compositeHex = -join ($compositeHashBytes | ForEach-Object { $_.ToString("x2") })
+
+        return [PSCustomObject]@{
+            Fingerprint = $compositeHex
+            FileCount = $manifestLines.Count
+            Files = $fileHashes
+            Error = $null
+        }
     } catch {
-        return "unknown"
+        return [PSCustomObject]@{
+            Fingerprint = "unknown"
+            FileCount = 0
+            Files = @{}
+            Error = $_.Exception.Message
+        }
     }
 }
 
-$initialSourceFingerprint = Get-SourceTreeFingerprint -Root $resolvedRepoRoot
+$initialSourceTreeObj = Get-SourceTreeFingerprint -Root $resolvedRepoRoot
+$initialSourceFingerprint = $initialSourceTreeObj.Fingerprint
 
 if ($RequireCleanRevision -and -not $isInitiallyClean) {
     Write-Error "Working tree is dirty and -RequireCleanRevision was specified. Refusing to run."
@@ -88,20 +149,40 @@ try {
 "@
     [System.IO.File]::WriteAllText($tempStageScript, $scriptBody, [System.Text.Encoding]::UTF8)
 
-    $pinfo = New-Object System.Diagnostics.ProcessStartInfo
-    $pinfo.FileName = "powershell.exe"
-    $pinfo.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$tempStageScript`""
-    $pinfo.WorkingDirectory = $resolvedRepoRoot
-    $pinfo.RedirectStandardOutput = $true
-    $pinfo.RedirectStandardError = $true
-    $pinfo.UseShellExecute = $false
-    $pinfo.CreateNoWindow = $true
+    $stdout = ""
+    $stderr = ""
+    $code = $null
+    $launchError = $null
 
-    $p = [System.Diagnostics.Process]::Start($pinfo)
-    $stdout = $p.StandardOutput.ReadToEnd()
-    $stderr = $p.StandardError.ReadToEnd()
-    $p.WaitForExit()
-    $code = $p.ExitCode
+    try {
+        $pinfo = New-Object System.Diagnostics.ProcessStartInfo
+        $pinfo.FileName = "powershell.exe"
+        $pinfo.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$tempStageScript`""
+        $pinfo.WorkingDirectory = $resolvedRepoRoot
+        $pinfo.RedirectStandardOutput = $true
+        $pinfo.RedirectStandardError = $true
+        $pinfo.UseShellExecute = $false
+        $pinfo.CreateNoWindow = $true
+
+        $p = [System.Diagnostics.Process]::Start($pinfo)
+        if ($null -eq $p) {
+            throw "System.Diagnostics.Process.Start returned null."
+        }
+        $stdout = $p.StandardOutput.ReadToEnd()
+        $stderr = $p.StandardError.ReadToEnd()
+        $p.WaitForExit()
+        $code = $p.ExitCode
+    } catch {
+        $launchError = $_.Exception.ToString()
+        $stderr = if ([string]::IsNullOrWhiteSpace($stderr)) {
+            "PROCESS_LAUNCH_FAILURE: $launchError"
+        } else {
+            "$stderr`nPROCESS_LAUNCH_FAILURE: $launchError"
+        }
+        # Documented failure code -1 indicates execution launch failure rather than child process exit
+        $code = -1
+    }
+
     $stageEndUtc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 
     [System.IO.File]::WriteAllText($stdoutFile, $stdout, [System.Text.Encoding]::UTF8)
@@ -119,6 +200,7 @@ try {
         StdoutPath = $stdoutFile
         StderrPath = $stderrFile
         ExitCodePath = $exitCodeFile
+        LaunchError = $launchError
     }
 }
 
@@ -150,11 +232,13 @@ try {
     # Non-fatal in synthetic test environments
 }
 
-$finalSourceFingerprint = Get-SourceTreeFingerprint -Root $resolvedRepoRoot
+$finalSourceTreeObj = Get-SourceTreeFingerprint -Root $resolvedRepoRoot
+$finalSourceFingerprint = $finalSourceTreeObj.Fingerprint
 $sourceMutated = ($initialCommit -ne $finalCommit) -or ($initialSourceFingerprint -ne "unknown" -and $initialSourceFingerprint -ne $finalSourceFingerprint)
+$fingerprintError = if ($initialSourceTreeObj.Error) { $initialSourceTreeObj.Error } elseif ($finalSourceTreeObj.Error) { $finalSourceTreeObj.Error } else { $null }
 
 $failedStages = @($summary | Where-Object { $_.ExitCode -ne 0 })
-$overallStatus = if ($failedStages.Count -eq 0) { "PASS" } else { "FAIL" }
+$overallStatus = if ($failedStages.Count -eq 0 -and $null -eq $fingerprintError) { "PASS" } else { "FAIL" }
 
 $summaryObj = [PSCustomObject]@{
     RunStartUtc = $runStartUtc.ToString("yyyy-MM-ddTHH:mm:ssZ")
@@ -170,8 +254,12 @@ $summaryObj = [PSCustomObject]@{
         StartingWorkingTreeEntries = $initialWorkingTreeStatus
         IsEndingWorkingTreeClean = $isFinallyClean
         EndingWorkingTreeEntries = $finalWorkingTreeStatus
+        MonitoredSourceScope = @("lib", "test", "scripts", "docs", "pubspec.yaml", "pubspec.lock")
+        InitialSourceFileCount = $initialSourceTreeObj.FileCount
+        FinalSourceFileCount = $finalSourceTreeObj.FileCount
         InitialSourceTreeFingerprint = $initialSourceFingerprint
         FinalSourceTreeFingerprint = $finalSourceFingerprint
+        FingerprintError = $fingerprintError
         SourceTreeMutatedDuringRun = $sourceMutated
         ValidationScope = if ($isInitiallyClean) { "Clean Committed Revision ($initialCommit)" } else { "Modified Working Tree over ($initialCommit)" }
     }
@@ -190,8 +278,8 @@ $summaryPath = Join-Path $evidenceDir "verification_summary.json"
 Write-Host "All verification stages and logs recorded in: $evidenceDir"
 Write-Host $summaryJson
 
-if ($failedStages.Count -gt 0) {
-    Write-Host "`nERROR: Verification failed in $($failedStages.Count) stage(s). Exit code 1." -ForegroundColor Red
+if ($failedStages.Count -gt 0 -or $null -ne $fingerprintError) {
+    Write-Host "`nERROR: Verification failed (Failed stages: $($failedStages.Count), FingerprintError: $fingerprintError). Exit code 1." -ForegroundColor Red
     exit 1
 }
 

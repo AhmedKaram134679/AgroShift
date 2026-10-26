@@ -628,6 +628,113 @@ try {
     }
     Assert-Result -TestName "Evidence runner preserved native exit code 7 and prevented later pass from hiding failure" -Condition ($summary31Exists -and $native7Preserved -and $laterPassRecorded) -Message "SummaryExists: $summary31Exists, Native7Preserved: $native7Preserved, LaterPassRecorded: $laterPassRecorded"
 
+    # Test 32: Process-launch failure handling (e.g. invalid executable path or missing process target)
+    Write-Host "Testing evidence runner: Simulating process-launch failure in Run-Stage..."
+    $runnerEvidenceDir32 = Join-Path $runnerTestDir "evidence32"
+    New-Item -ItemType Directory -Path $runnerEvidenceDir32 -Force | Out-Null
+
+    # Generate runner where Run-Stage targets a non-existent binary to simulate process launch failure
+    $fakeRunner32 = Join-Path $runnerTestDir "fake_runner_launch_fail.ps1"
+    $launchFailRunnerContent = $runnerContent -replace '\$pinfo\.FileName = "powershell\.exe"', '$pinfo.FileName = "non_existent_process_executable_binary_12345.exe"'
+    $mockStages32 = @"
+`$summary = [System.Collections.Generic.List[hashtable]]::new()
+`$summary.Add((Run-Stage -StageName "Launch Fail Stage" -Command "Write-Host Stage1" -OutPrefix "launch_fail"))
+`$summary.Add((Run-Stage -StageName "Later Stage" -Command "Write-Host StageLater" -OutPrefix "later_stage"))
+"@
+    $modified32 = $launchFailRunnerContent.Substring(0, $launchFailRunnerContent.IndexOf("# --- BEGIN VERIFICATION STAGES ---")) + $mockStages32 + $launchFailRunnerContent.Substring($launchFailRunnerContent.IndexOf("# --- END VERIFICATION STAGES ---") + "# --- END VERIFICATION STAGES ---".Length)
+    Set-Content -Path $fakeRunner32 -Value $modified32 -Encoding UTF8
+
+    $wrapper32 = Join-Path $testOutputDir "run_test32.ps1"
+    @"
+    & '$fakeRunner32' -RepoRoot '$PSScriptRoot/../..' -OutputDir '$runnerEvidenceDir32'
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper32 -Encoding UTF8
+
+    $p32 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper32`"" -Wait -NoNewWindow -PassThru
+    $exit32 = $p32.ExitCode
+    Assert-Result -TestName "Evidence runner exits with code 1 when process launch fails" -Condition ($exit32 -eq 1) -Message "Exit: $exit32 (expected 1)"
+
+    $sumPath32 = Join-Path $runnerEvidenceDir32 "verification_summary.json"
+    $summary32Exists = Test-Path $sumPath32
+    $launchFailRecorded = $false
+    if ($summary32Exists) {
+        $rawJson32 = Get-Content -Path $sumPath32 -Raw | ConvertFrom-Json
+        $failStage32 = $rawJson32.Stages | Where-Object { $_.Stage -eq "Launch Fail Stage" }
+        if ($rawJson32.OverallStatus -eq "FAIL" -and $null -ne $failStage32 -and [int]$failStage32.ExitCode -eq -1 -and -not [string]::IsNullOrWhiteSpace($failStage32.LaunchError)) {
+            $launchFailRecorded = $true
+        }
+    }
+    Assert-Result -TestName "Evidence runner recorded launch failure as exit code -1 and preserved launch error details" -Condition ($summary32Exists -and $launchFailRecorded) -Message "SummaryExists: $summary32Exists, LaunchFailRecorded: $launchFailRecorded"
+
+    # =================================================================
+    # Tests 33-38: Content-Based Source Tree Fingerprint Unit Tests
+    # =================================================================
+    Write-Host "Testing Get-SourceTreeFingerprint in isolated synthetic test repositories..."
+    $synthRepoDir = Join-Path $testOutputDir "synth_repo"
+    New-Item -ItemType Directory -Path $synthRepoDir -Force | Out-Null
+
+    # Initialize real isolated git repository for deterministic content hashing tests
+    git -C $synthRepoDir init | Out-Null
+    git -C $synthRepoDir config user.name "AgroShift Test" | Out-Null
+    git -C $synthRepoDir config user.email "test@agroshift.local" | Out-Null
+
+    New-Item -ItemType Directory -Path (Join-Path $synthRepoDir "lib") -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $synthRepoDir "test") -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $synthRepoDir "artifacts/runs") -Force | Out-Null
+
+    $trackedTestFile = Join-Path $synthRepoDir "lib/file1.dart"
+    Set-Content -Path $trackedTestFile -Value "// initial content" -Encoding UTF8
+    $trackedBinaryFile = Join-Path $synthRepoDir "lib/model.bin"
+    [System.IO.File]::WriteAllBytes($trackedBinaryFile, [byte[]]@(0x01, 0x02, 0x03, 0x04, 0x05))
+
+    git -C $synthRepoDir add . | Out-Null
+    git -C $synthRepoDir commit -m "initial commit" | Out-Null
+
+    # Test 33: Baseline fingerprint establishment
+    $recorderText = Get-Content -Path $recorderScript -Raw -Encoding UTF8
+    $fpFuncStartIndex = $recorderText.IndexOf("function Get-SourceTreeFingerprint {")
+    $fpFuncEndIndex = $recorderText.IndexOf("`$initialSourceTreeObj = Get-SourceTreeFingerprint")
+    $fpFuncDef = $recorderText.Substring($fpFuncStartIndex, $fpFuncEndIndex - $fpFuncStartIndex)
+    . ([scriptblock]::Create($fpFuncDef))
+
+    $fpBase = Get-SourceTreeFingerprint -Root $synthRepoDir
+    Assert-Result -TestName "Content fingerprint established on clean baseline synthetic repository" -Condition ($fpBase.Fingerprint -ne "unknown" -and $fpBase.FileCount -eq 2) -Message "FP: $($fpBase.Fingerprint), Count: $($fpBase.FileCount)"
+
+    # Test 34: Tracked text file modified -> fingerprint changes
+    Set-Content -Path $trackedTestFile -Value "// modified content" -Encoding UTF8
+    $fpTrackedMod = Get-SourceTreeFingerprint -Root $synthRepoDir
+    Assert-Result -TestName "Content fingerprint changes when tracked text file content changes" -Condition ($fpTrackedMod.Fingerprint -ne $fpBase.Fingerprint -and $fpTrackedMod.Fingerprint -ne "unknown") -Message "Before: $($fpBase.Fingerprint), After: $($fpTrackedMod.Fingerprint)"
+
+    # Revert tracked file
+    git -C $synthRepoDir checkout -- lib/file1.dart | Out-Null
+
+    # Test 35: Untracked file created, then untracked file content changes without path changing
+    $untrackedFile = Join-Path $synthRepoDir "test/untracked_script.dart"
+    Set-Content -Path $untrackedFile -Value "// untracked version 1" -Encoding UTF8
+    $fpUntracked1 = Get-SourceTreeFingerprint -Root $synthRepoDir
+    Set-Content -Path $untrackedFile -Value "// untracked version 2 modified bytes" -Encoding UTF8
+    $fpUntracked2 = Get-SourceTreeFingerprint -Root $synthRepoDir
+    Assert-Result -TestName "Content fingerprint changes when existing untracked file content changes at same path" -Condition ($fpUntracked1.Fingerprint -ne $fpUntracked2.Fingerprint -and $fpUntracked2.Fingerprint -ne "unknown") -Message "V1: $($fpUntracked1.Fingerprint), V2: $($fpUntracked2.Fingerprint)"
+    Remove-Item -Path $untrackedFile -Force
+
+    # Test 36: Binary file content changes -> fingerprint changes
+    [System.IO.File]::WriteAllBytes($trackedBinaryFile, [byte[]]@(0x01, 0x02, 0x03, 0xFF, 0xEE))
+    $fpBinaryMod = Get-SourceTreeFingerprint -Root $synthRepoDir
+    Assert-Result -TestName "Content fingerprint changes when binary file bytes change" -Condition ($fpBinaryMod.Fingerprint -ne $fpBase.Fingerprint -and $fpBinaryMod.Fingerprint -ne "unknown") -Message "Base: $($fpBase.Fingerprint), BinaryMod: $($fpBinaryMod.Fingerprint)"
+    git -C $synthRepoDir checkout -- lib/model.bin | Out-Null
+
+    # Test 37: Expected artifacts directory output mutations do NOT alter source fingerprint
+    $artifactFile = Join-Path $synthRepoDir "artifacts/runs/new_run_evidence.txt"
+    Set-Content -Path $artifactFile -Value "Some test run output evidence text" -Encoding UTF8
+    $fpArtifactAdded = Get-SourceTreeFingerprint -Root $synthRepoDir
+    Assert-Result -TestName "Generated artifacts additions are excluded and do not cause false source mutation" -Condition ($fpArtifactAdded.Fingerprint -eq $fpBase.Fingerprint) -Message "Expected: $($fpBase.Fingerprint), Got: $($fpArtifactAdded.Fingerprint)"
+
+    # Test 38: Inaccessible or unreadable file reports failure honestly (unknown)
+    # Simulate by pointing Get-SourceTreeFingerprint to an invalid non-git directory or unreadable target
+    $invalidDir = Join-Path $testOutputDir "non_existent_folder_abc123"
+    $fpFailed = Get-SourceTreeFingerprint -Root $invalidDir
+    Assert-Result -TestName "Fingerprinting failure is reported honestly as unknown with error detail" -Condition ($fpFailed.Fingerprint -eq "unknown" -and -not [string]::IsNullOrWhiteSpace($fpFailed.Error)) -Message "FP: $($fpFailed.Fingerprint), Error: $($fpFailed.Error)"
+
 } finally {
     if (Test-Path $testOutputDir) {
         Remove-Item -Path $testOutputDir -Recurse -Force -ErrorAction SilentlyContinue
