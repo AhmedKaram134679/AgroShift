@@ -1,0 +1,92 @@
+﻿{
+    "RunStartUtc":  "2026-10-26T10:14:44Z",
+    "RunEndUtc":  "2026-10-26T10:16:00Z",
+    "DurationSeconds":  76.18,
+    "Provenance":  {
+                       "Branch":  "main",
+                       "StartingHeadCommit":  "adebe0ad1ecee5c3fcaf3026b7adb385b7049524",
+                       "StartingHeadShort":  "adebe0a",
+                       "EndingHeadCommit":  "adebe0ad1ecee5c3fcaf3026b7adb385b7049524",
+                       "EndingHeadShort":  "adebe0a",
+                       "IsStartingWorkingTreeClean":  false,
+                       "StartingWorkingTreeEntries":  [
+                                                          "M  docs/historical_api_validation.md",
+                                                          "MM scripts/record_verification_evidence.ps1",
+                                                          "MM test/scripts/test_validate_historical_models.ps1"
+                                                      ],
+                       "IsEndingWorkingTreeClean":  false,
+                       "EndingWorkingTreeEntries":  [
+                                                        "M  docs/historical_api_validation.md",
+                                                        "MM scripts/record_verification_evidence.ps1",
+                                                        "MM test/scripts/test_validate_historical_models.ps1",
+                                                        "?? artifacts/validation_runs/20261026_101444/"
+                                                    ],
+                       "SourceTreeMutatedDuringRun":  false,
+                       "ValidationScope":  "Modified Working Tree over (adebe0ad1ecee5c3fcaf3026b7adb385b7049524)"
+                   },
+    "OverallStatus":  "PASS",
+    "EvidenceDirectory":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_101444",
+    "Stages":  [
+                   {
+                       "CompletedAtUtc":  "2026-10-26T10:14:46Z",
+                       "Command":  "dart format --output=none --set-exit-if-changed lib/ test/",
+                       "StartedAtUtc":  "2026-10-26T10:14:44Z",
+                       "ExitCodePath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_101444\\dart_format.exitcode.txt",
+                       "StderrPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_101444\\dart_format.stderr.txt",
+                       "ExitCode":  0,
+                       "Status":  "PASS",
+                       "Stage":  "Dart Format",
+                       "StdoutPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_101444\\dart_format.stdout.txt"
+                   },
+                   {
+                       "CompletedAtUtc":  "2026-10-26T10:14:54Z",
+                       "Command":  "flutter analyze",
+                       "StartedAtUtc":  "2026-10-26T10:14:46Z",
+                       "ExitCodePath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_101444\\flutter_analyze.exitcode.txt",
+                       "StderrPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_101444\\flutter_analyze.stderr.txt",
+                       "ExitCode":  0,
+                       "Status":  "PASS",
+                       "Stage":  "Flutter Analyze",
+                       "StdoutPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_101444\\flutter_analyze.stdout.txt"
+                   },
+                   {
+                       "CompletedAtUtc":  "2026-10-26T10:15:03Z",
+                       "Command":  "flutter test",
+                       "StartedAtUtc":  "2026-10-26T10:14:54Z",
+                       "ExitCodePath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_101444\\flutter_test.exitcode.txt",
+                       "StderrPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_101444\\flutter_test.stderr.txt",
+                       "ExitCode":  0,
+                       "Status":  "PASS",
+                       "Stage":  "Flutter Tests",
+                       "StdoutPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_101444\\flutter_test.stdout.txt"
+                   },
+                   {
+                       "CompletedAtUtc":  "2026-10-26T10:15:28Z",
+                       "Command":  "powershell.exe -NoProfile -ExecutionPolicy Bypass -File test/scripts/test_validate_historical_models.ps1",
+                       "StartedAtUtc":  "2026-10-26T10:15:03Z",
+                       "ExitCodePath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_101444\\powershell_tests.exitcode.txt",
+                       "StderrPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_101444\\powershell_tests.stderr.txt",
+                       "ExitCode":  0,
+                       "Status":  "PASS",
+                       "Stage":  "PowerShell Tests",
+                       "StdoutPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_101444\\powershell_tests.stdout.txt"
+                   },
+                   {
+                       "CompletedAtUtc":  "2026-10-26T10:16:00Z",
+                       "Command":  "flutter build apk --release",
+                       "StartedAtUtc":  "2026-10-26T10:15:28Z",
+                       "ExitCodePath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_101444\\release_build.exitcode.txt",
+                       "StderrPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_101444\\release_build.stderr.txt",
+                       "ExitCode":  0,
+                       "Status":  "PASS",
+                       "Stage":  "Release Build",
+                       "StdoutPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_101444\\release_build.stdout.txt"
+                   }
+               ],
+    "DeferredItems":  [
+                          {
+                              "Name":  "Physical Android Database Migration",
+                              "Status":  "DEFERRED - NO PHYSICAL ANDROID DEVICE CONNECTED"
+                          }
+                      ]
+}

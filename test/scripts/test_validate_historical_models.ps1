@@ -514,6 +514,78 @@ try {
     $realFixturesUntouched27C = Test-SnapshotsEqual -SnapA $baselineSnapshot -SnapB $realFixturesAfter27C
     Assert-Result -TestName "Ordinary directory with -SaveCommittedFixtures allowed and writes output (Exit 0)" -Condition ($exit27C -eq 0 -and $authFileWrittenOrd -and $realFixturesUntouched27C) -Message "Exit: $exit27C, Written: $authFileWrittenOrd"
 
+    # =================================================================
+    # Tests 28-30: Verification Evidence Runner (record_verification_evidence.ps1) Exit Code Semantics
+    # =================================================================
+    $recorderScript = Join-Path $PSScriptRoot "../../scripts/record_verification_evidence.ps1"
+
+    # Test 28: Mock test of evidence runner exit semantics when a stage fails -> exits 1, preserves logs and summary
+    Write-Host "Testing evidence runner exit semantics: Simulating stage failure in isolated environment..."
+    $runnerTestDir = Join-Path $testOutputDir "runner_test_env"
+    $runnerEvidenceDir28 = Join-Path $runnerTestDir "evidence28"
+    New-Item -ItemType Directory -Path $runnerEvidenceDir28 -Force | Out-Null
+
+    $runnerContent = Get-Content -Path $recorderScript -Raw -Encoding UTF8
+    $mockStages28 = @"
+`$summary = [System.Collections.Generic.List[hashtable]]::new()
+`$summary.Add((Run-Stage -StageName "Mock Pass 1" -Command "Write-Host Stage1" -OutPrefix "mock_1"))
+`$summary.Add((Run-Stage -StageName "Mock Fail 2" -Command "exit 2" -OutPrefix "mock_2"))
+`$summary.Add((Run-Stage -StageName "Mock Pass 3" -Command "Write-Host Stage3" -OutPrefix "mock_3"))
+"@
+    $startIndex = $runnerContent.IndexOf("# --- BEGIN VERIFICATION STAGES ---")
+    $endIndex = $runnerContent.IndexOf("# --- END VERIFICATION STAGES ---") + "# --- END VERIFICATION STAGES ---".Length
+    $modified28 = $runnerContent.Substring(0, $startIndex) + $mockStages28 + $runnerContent.Substring($endIndex)
+    $fakeRunner28 = Join-Path $runnerTestDir "fake_runner_fail.ps1"
+    Set-Content -Path $fakeRunner28 -Value $modified28 -Encoding UTF8
+
+    $wrapper28 = Join-Path $testOutputDir "run_test28.ps1"
+    @"
+    & '$fakeRunner28' -RepoRoot '$PSScriptRoot/../..' -OutputDir '$runnerEvidenceDir28'
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper28 -Encoding UTF8
+
+    $p28 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper28`"" -Wait -NoNewWindow -PassThru
+    $exit28 = $p28.ExitCode
+    Assert-Result -TestName "Evidence runner exits with code 1 when a verification stage fails" -Condition ($exit28 -eq 1) -Message "Exit: $exit28 (expected 1)"
+
+    # Test 29: Verify failure evidence and logs were preserved on disk before exit 1
+    Write-Host "Testing evidence runner: Verifying logs and summary were written before failure exit..."
+    $sumPath28 = Join-Path $runnerEvidenceDir28 "verification_summary.json"
+    $summaryExists = Test-Path $sumPath28
+    $mock2ExitPreserved = $false
+    if ($summaryExists) {
+        $rawJson = Get-Content -Path $sumPath28 -Raw | ConvertFrom-Json
+        $failStage = $rawJson.Stages | Where-Object { $_.Stage -eq "Mock Fail 2" }
+        if ($rawJson.OverallStatus -eq "FAIL" -and $null -ne $failStage -and [int]$failStage.ExitCode -eq 2) {
+            $mock2ExitPreserved = $true
+        }
+    }
+    Assert-Result -TestName "Evidence runner preserved failure summary and exit code 2 before exiting" -Condition ($summaryExists -and $mock2ExitPreserved) -Message "SummaryExists: $summaryExists, ExitCodePreserved: $mock2ExitPreserved"
+
+    # Test 30: Mock test of evidence runner exit semantics when all stages succeed -> exits 0
+    Write-Host "Testing evidence runner exit semantics: Simulating all stages passing..."
+    $runnerEvidenceDir30 = Join-Path $runnerTestDir "evidence30"
+    New-Item -ItemType Directory -Path $runnerEvidenceDir30 -Force | Out-Null
+
+    $mockStages30 = @"
+`$summary = [System.Collections.Generic.List[hashtable]]::new()
+`$summary.Add((Run-Stage -StageName "Mock Pass 1" -Command "Write-Host Stage1" -OutPrefix "mock_pass_1"))
+`$summary.Add((Run-Stage -StageName "Mock Pass 2" -Command "Write-Host Stage2" -OutPrefix "mock_pass_2"))
+"@
+    $modified30 = $runnerContent.Substring(0, $startIndex) + $mockStages30 + $runnerContent.Substring($endIndex)
+    $fakeRunner30 = Join-Path $runnerTestDir "fake_runner_pass.ps1"
+    Set-Content -Path $fakeRunner30 -Value $modified30 -Encoding UTF8
+
+    $wrapper30 = Join-Path $testOutputDir "run_test30.ps1"
+    @"
+    & '$fakeRunner30' -RepoRoot '$PSScriptRoot/../..' -OutputDir '$runnerEvidenceDir30'
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper30 -Encoding UTF8
+
+    $p30 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper30`"" -Wait -NoNewWindow -PassThru
+    $exit30 = $p30.ExitCode
+    Assert-Result -TestName "Evidence runner exits with code 0 when all verification stages pass" -Condition ($exit30 -eq 0) -Message "Exit: $exit30 (expected 0)"
+
 } finally {
     if (Test-Path $testOutputDir) {
         Remove-Item -Path $testOutputDir -Recurse -Force -ErrorAction SilentlyContinue

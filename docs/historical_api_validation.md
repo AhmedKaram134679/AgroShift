@@ -89,6 +89,18 @@ and observed project responses:
      variables were returned by `era5`, `era5_seamless`, and the default model
      configuration.
 
+4. **Operational Range Validation vs. Full FAO-56 Compliance:**
+   - $ET_0$ boundary tests verify the configured operational screening envelope
+     ([$0.0, 25.0$] mm/day) and the software's handling of selected valid, invalid,
+     and non-finite numeric inputs.
+   - These tests confirm that invalid observations do not enter domain records;
+     they do not, by themselves, establish full compliance with the FAO-56
+     Penman–Monteith calculation methodology.
+   - Full scientific-method compliance requires independent validation of the
+     underlying atmospheric energy balance, aerodynamic resistance formulations,
+     solar radiation estimates, vapor pressure deficit derivations, and ground-truth
+     lysimeter comparisons, rather than software input range screening alone.
+
 ---
 
 ## 2. Experimental Execution and Results Summary

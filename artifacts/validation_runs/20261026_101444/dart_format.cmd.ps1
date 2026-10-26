@@ -1,0 +1,1 @@
+﻿dart format --output=none --set-exit-if-changed lib/ test/

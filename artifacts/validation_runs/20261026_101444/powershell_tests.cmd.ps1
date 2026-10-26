@@ -1,0 +1,1 @@
+﻿powershell.exe -NoProfile -ExecutionPolicy Bypass -File test/scripts/test_validate_historical_models.ps1
