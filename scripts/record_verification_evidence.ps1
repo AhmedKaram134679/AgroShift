@@ -263,9 +263,17 @@ try {
             try {
                 if ($null -ne $p -and -not $p.HasExited) {
                     $p.Kill()
+                    # Bounded wait for process exit after requesting termination (5000ms)
+                    $exitedInTime = $p.WaitForExit(5000)
+                    if (-not $exitedInTime) {
+                        $cleanupDiag = "PROCESS_CLEANUP_WARNING: Process $(try { $p.Id } catch { 'unknown' }) did not exit within 5000ms after Kill."
+                        $stderr = if ([string]::IsNullOrWhiteSpace($stderr)) { $cleanupDiag } else { "$stderr`n$cleanupDiag" }
+                    }
                 }
             } catch {
-                # Ignore cleanup error if process already exited
+                # Preserve cleanup diagnostic without masking stage failure
+                $cleanupDiag = "PROCESS_CLEANUP_WARNING: $($_.Exception.Message)"
+                $stderr = if ([string]::IsNullOrWhiteSpace($stderr)) { $cleanupDiag } else { "$stderr`n$cleanupDiag" }
             }
         }
     }
