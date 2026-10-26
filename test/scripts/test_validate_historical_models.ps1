@@ -821,6 +821,166 @@ try {
     }
     Assert-Result -TestName "Run-Stage does not misclassify normal execution or nonzero exit as a launch failure" -Condition ($summary44Exists -and $normalClassifiedCorrectly -and $nonzeroClassifiedCorrectly) -Message "NormalOK: $normalClassifiedCorrectly, NonzeroOK: $nonzeroClassifiedCorrectly"
 
+    # =================================================================
+    # Tests 45-48: Targeted Error Path Tests (Preparation, Output, Wait, Evidence Write)
+    # =================================================================
+    # Test 45: Stage Preparation Failure (temporary script creation failure)
+    Write-Host "Testing Run-Stage: Stage preparation failure handling..."
+    $runnerEvidenceDir45 = Join-Path $runnerTestDir "evidence45"
+    New-Item -ItemType Directory -Path $runnerEvidenceDir45 -Force | Out-Null
+
+    $fakeRunner45 = Join-Path $runnerTestDir "fake_runner_prep_fail.ps1"
+    $mockStages45 = @"
+`$summary = [System.Collections.Generic.List[hashtable]]::new()
+`$summary.Add((Run-Stage -StageName "Prep Fail Stage" -Command "Write-Host Stage1" -OutPrefix "prep_fail"))
+`$summary.Add((Run-Stage -StageName "Later Passing Stage" -Command "Write-Host StageLater" -OutPrefix "later_stage"))
+"@
+    $modified45 = $runnerContent.Substring(0, $runnerContent.IndexOf("# --- BEGIN VERIFICATION STAGES ---")) + $mockStages45 + $runnerContent.Substring($runnerContent.IndexOf("# --- END VERIFICATION STAGES ---") + "# --- END VERIFICATION STAGES ---".Length)
+    Set-Content -Path $fakeRunner45 -Value $modified45 -Encoding UTF8
+
+    $wrapper45 = Join-Path $testOutputDir "run_test45.ps1"
+    @"
+    `$env:AGROSHIFT_TEST_FAIL_PREPARATION = 'Prep Fail Stage'
+    try {
+        & '$fakeRunner45' -RepoRoot '$PSScriptRoot/../..' -OutputDir '$runnerEvidenceDir45'
+        exit `$LASTEXITCODE
+    } finally {
+        Remove-Item env:AGROSHIFT_TEST_FAIL_PREPARATION -ErrorAction SilentlyContinue
+    }
+"@ | Set-Content -Path $wrapper45 -Encoding UTF8
+
+    $p45 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper45`"" -Wait -NoNewWindow -PassThru
+    $sumPath45 = Join-Path $runnerEvidenceDir45 "verification_summary.json"
+    $summary45Exists = Test-Path $sumPath45
+    $prepFailClassified = $false
+    $laterStageRan45 = $false
+    if ($summary45Exists) {
+        $rawJson45 = Get-Content -Path $sumPath45 -Raw | ConvertFrom-Json
+        $failStage45 = $rawJson45.Stages | Where-Object { $_.Stage -eq "Prep Fail Stage" }
+        $passStage45 = $rawJson45.Stages | Where-Object { $_.Stage -eq "Later Passing Stage" }
+        if ($rawJson45.OverallStatus -eq "FAIL" -and $null -ne $failStage45 -and [int]$failStage45.ExitCode -eq -1 -and -not [string]::IsNullOrWhiteSpace($failStage45.PreparationError) -and $null -eq $failStage45.LaunchError) {
+            $prepFailClassified = $true
+        }
+        if ($null -ne $passStage45 -and [int]$passStage45.ExitCode -eq 0) {
+            $laterStageRan45 = $true
+        }
+    }
+    Assert-Result -TestName "Stage preparation failure is recorded with PreparationError and allows subsequent stage" -Condition ($p45.ExitCode -eq 1 -and $summary45Exists -and $prepFailClassified -and $laterStageRan45) -Message "Exit: $($p45.ExitCode), PrepFailOK: $prepFailClassified, LaterRan: $laterStageRan45"
+
+    # Test 46: Output Collection Failure
+    Write-Host "Testing Run-Stage: Output collection failure handling..."
+    $runnerEvidenceDir46 = Join-Path $runnerTestDir "evidence46"
+    New-Item -ItemType Directory -Path $runnerEvidenceDir46 -Force | Out-Null
+
+    $fakeRunner46 = Join-Path $runnerTestDir "fake_runner_output_fail.ps1"
+    $mockStages46 = @"
+`$summary = [System.Collections.Generic.List[hashtable]]::new()
+`$summary.Add((Run-Stage -StageName "Output Fail Stage" -Command "Write-Host StageOutput" -OutPrefix "output_fail"))
+`$summary.Add((Run-Stage -StageName "Later Passing Stage" -Command "Write-Host StageLater" -OutPrefix "later_stage"))
+"@
+    $modified46 = $runnerContent.Substring(0, $runnerContent.IndexOf("# --- BEGIN VERIFICATION STAGES ---")) + $mockStages46 + $runnerContent.Substring($runnerContent.IndexOf("# --- END VERIFICATION STAGES ---") + "# --- END VERIFICATION STAGES ---".Length)
+    Set-Content -Path $fakeRunner46 -Value $modified46 -Encoding UTF8
+
+    $wrapper46 = Join-Path $testOutputDir "run_test46.ps1"
+    @"
+    `$env:AGROSHIFT_TEST_FAIL_OUTPUT = 'Output Fail Stage'
+    try {
+        & '$fakeRunner46' -RepoRoot '$PSScriptRoot/../..' -OutputDir '$runnerEvidenceDir46'
+        exit `$LASTEXITCODE
+    } finally {
+        Remove-Item env:AGROSHIFT_TEST_FAIL_OUTPUT -ErrorAction SilentlyContinue
+    }
+"@ | Set-Content -Path $wrapper46 -Encoding UTF8
+
+    $p46 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper46`"" -Wait -NoNewWindow -PassThru
+    $sumPath46 = Join-Path $runnerEvidenceDir46 "verification_summary.json"
+    $summary46Exists = Test-Path $sumPath46
+    $outputFailClassified = $false
+    if ($summary46Exists) {
+        $rawJson46 = Get-Content -Path $sumPath46 -Raw | ConvertFrom-Json
+        $failStage46 = $rawJson46.Stages | Where-Object { $_.Stage -eq "Output Fail Stage" }
+        if ($rawJson46.OverallStatus -eq "FAIL" -and $null -ne $failStage46 -and [int]$failStage46.ExitCode -eq 1 -and -not [string]::IsNullOrWhiteSpace($failStage46.OutputError) -and $null -eq $failStage46.LaunchError) {
+            $outputFailClassified = $true
+        }
+    }
+    Assert-Result -TestName "Output collection failure is classified with OutputError rather than LaunchError" -Condition ($p46.ExitCode -eq 1 -and $summary46Exists -and $outputFailClassified) -Message "Exit: $($p46.ExitCode), OutputFailOK: $outputFailClassified"
+
+    # Test 47: Process Wait Failure
+    Write-Host "Testing Run-Stage: Process wait failure handling..."
+    $runnerEvidenceDir47 = Join-Path $runnerTestDir "evidence47"
+    New-Item -ItemType Directory -Path $runnerEvidenceDir47 -Force | Out-Null
+
+    $fakeRunner47 = Join-Path $runnerTestDir "fake_runner_wait_fail.ps1"
+    $mockStages47 = @"
+`$summary = [System.Collections.Generic.List[hashtable]]::new()
+`$summary.Add((Run-Stage -StageName "Wait Fail Stage" -Command "Write-Host StageWait" -OutPrefix "wait_fail"))
+`$summary.Add((Run-Stage -StageName "Later Passing Stage" -Command "Write-Host StageLater" -OutPrefix "later_stage"))
+"@
+    $modified47 = $runnerContent.Substring(0, $runnerContent.IndexOf("# --- BEGIN VERIFICATION STAGES ---")) + $mockStages47 + $runnerContent.Substring($runnerContent.IndexOf("# --- END VERIFICATION STAGES ---") + "# --- END VERIFICATION STAGES ---".Length)
+    Set-Content -Path $fakeRunner47 -Value $modified47 -Encoding UTF8
+
+    $wrapper47 = Join-Path $testOutputDir "run_test47.ps1"
+    @"
+    `$env:AGROSHIFT_TEST_FAIL_WAIT = 'Wait Fail Stage'
+    try {
+        & '$fakeRunner47' -RepoRoot '$PSScriptRoot/../..' -OutputDir '$runnerEvidenceDir47'
+        exit `$LASTEXITCODE
+    } finally {
+        Remove-Item env:AGROSHIFT_TEST_FAIL_WAIT -ErrorAction SilentlyContinue
+    }
+"@ | Set-Content -Path $wrapper47 -Encoding UTF8
+
+    $p47 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper47`"" -Wait -NoNewWindow -PassThru
+    $sumPath47 = Join-Path $runnerEvidenceDir47 "verification_summary.json"
+    $summary47Exists = Test-Path $sumPath47
+    $waitFailClassified = $false
+    if ($summary47Exists) {
+        $rawJson47 = Get-Content -Path $sumPath47 -Raw | ConvertFrom-Json
+        $failStage47 = $rawJson47.Stages | Where-Object { $_.Stage -eq "Wait Fail Stage" }
+        if ($rawJson47.OverallStatus -eq "FAIL" -and $null -ne $failStage47 -and [int]$failStage47.ExitCode -eq 1 -and -not [string]::IsNullOrWhiteSpace($failStage47.WaitError) -and $null -eq $failStage47.LaunchError) {
+            $waitFailClassified = $true
+        }
+    }
+    Assert-Result -TestName "Process wait failure is classified with WaitError rather than LaunchError" -Condition ($p47.ExitCode -eq 1 -and $summary47Exists -and $waitFailClassified) -Message "Exit: $($p47.ExitCode), WaitFailOK: $waitFailClassified"
+
+    # Test 48: Evidence Write Failure
+    Write-Host "Testing Run-Stage: Evidence write failure handling..."
+    $runnerEvidenceDir48 = Join-Path $runnerTestDir "evidence48"
+    New-Item -ItemType Directory -Path $runnerEvidenceDir48 -Force | Out-Null
+
+    $fakeRunner48 = Join-Path $runnerTestDir "fake_runner_evidence_fail.ps1"
+    $mockStages48 = @"
+`$summary = [System.Collections.Generic.List[hashtable]]::new()
+`$summary.Add((Run-Stage -StageName "Evidence Write Fail Stage" -Command "Write-Host StageEvidence" -OutPrefix "evidence_fail"))
+`$summary.Add((Run-Stage -StageName "Later Passing Stage" -Command "Write-Host StageLater" -OutPrefix "later_stage"))
+"@
+    $modified48 = $runnerContent.Substring(0, $runnerContent.IndexOf("# --- BEGIN VERIFICATION STAGES ---")) + $mockStages48 + $runnerContent.Substring($runnerContent.IndexOf("# --- END VERIFICATION STAGES ---") + "# --- END VERIFICATION STAGES ---".Length)
+    Set-Content -Path $fakeRunner48 -Value $modified48 -Encoding UTF8
+
+    $wrapper48 = Join-Path $testOutputDir "run_test48.ps1"
+    @"
+    `$env:AGROSHIFT_TEST_FAIL_EVIDENCE_WRITE = 'Evidence Write Fail Stage'
+    try {
+        & '$fakeRunner48' -RepoRoot '$PSScriptRoot/../..' -OutputDir '$runnerEvidenceDir48'
+        exit `$LASTEXITCODE
+    } finally {
+        Remove-Item env:AGROSHIFT_TEST_FAIL_EVIDENCE_WRITE -ErrorAction SilentlyContinue
+    }
+"@ | Set-Content -Path $wrapper48 -Encoding UTF8
+
+    $p48 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper48`"" -Wait -NoNewWindow -PassThru
+    $sumPath48 = Join-Path $runnerEvidenceDir48 "verification_summary.json"
+    $summary48Exists = Test-Path $sumPath48
+    $evidenceWriteFailClassified = $false
+    if ($summary48Exists) {
+        $rawJson48 = Get-Content -Path $sumPath48 -Raw | ConvertFrom-Json
+        $failStage48 = $rawJson48.Stages | Where-Object { $_.Stage -eq "Evidence Write Fail Stage" }
+        if ($rawJson48.OverallStatus -eq "FAIL" -and $null -ne $failStage48 -and [int]$failStage48.ExitCode -eq 1 -and -not [string]::IsNullOrWhiteSpace($failStage48.EvidenceWriteError) -and $null -eq $failStage48.LaunchError) {
+            $evidenceWriteFailClassified = $true
+        }
+    }
+    Assert-Result -TestName "Evidence write failure fails stage honestly and records EvidenceWriteError" -Condition ($p48.ExitCode -eq 1 -and $summary48Exists -and $evidenceWriteFailClassified) -Message "Exit: $($p48.ExitCode), EvidenceWriteFailOK: $evidenceWriteFailClassified"
+
 } finally {
     if (Test-Path $testOutputDir) {
         Remove-Item -Path $testOutputDir -Recurse -Force -ErrorAction SilentlyContinue

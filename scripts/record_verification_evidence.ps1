@@ -147,79 +147,109 @@ try {
     exit 1
 }
 "@
-    [System.IO.File]::WriteAllText($tempStageScript, $scriptBody, [System.Text.Encoding]::UTF8)
 
     $stdout = ""
     $stderr = ""
     $code = $null
+    $preparationError = $null
     $launchError = $null
     $outputError = $null
     $waitError = $null
     $evidenceWriteError = $null
 
-    $p = $null
     try {
-        $pinfo = New-Object System.Diagnostics.ProcessStartInfo
-        $executable = if ($env:AGROSHIFT_TEST_FAIL_STAGE -and $env:AGROSHIFT_TEST_FAIL_STAGE -eq $StageName) {
-            "non_existent_process_executable_binary_12345.exe"
-        } else {
-            "powershell.exe"
+        if ($env:AGROSHIFT_TEST_FAIL_PREPARATION -and $env:AGROSHIFT_TEST_FAIL_PREPARATION -eq $StageName) {
+            throw "SIMULATED_STAGE_PREPARATION_FAILURE: Could not create temporary stage script."
         }
-        $pinfo.FileName = $executable
-        $pinfo.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$tempStageScript`""
-        $pinfo.WorkingDirectory = $resolvedRepoRoot
-        $pinfo.RedirectStandardOutput = $true
-        $pinfo.RedirectStandardError = $true
-        $pinfo.UseShellExecute = $false
-        $pinfo.CreateNoWindow = $true
-
-        $p = [System.Diagnostics.Process]::Start($pinfo)
-        if ($null -eq $p) {
-            throw "System.Diagnostics.Process.Start returned null."
-        }
+        [System.IO.File]::WriteAllText($tempStageScript, $scriptBody, [System.Text.Encoding]::UTF8)
     } catch {
-        $launchError = $_.Exception.ToString()
-        $stderr = "PROCESS_LAUNCH_FAILURE: $launchError"
-        # Documented failure code -1 indicates execution launch failure rather than child process exit
+        $preparationError = $_.Exception.ToString()
+        $stderr = "STAGE_PREPARATION_FAILURE: $preparationError"
         $code = -1
     }
 
-    if ($null -ne $p -and $null -eq $launchError) {
-        # Read output streams asynchronously to avoid pipe buffer deadlocks
-        $stdoutTask = $p.StandardOutput.ReadToEndAsync()
-        $stderrTask = $p.StandardError.ReadToEndAsync()
-
+    $p = $null
+    if ($null -eq $preparationError) {
         try {
-            $p.WaitForExit()
-            $code = $p.ExitCode
-        } catch {
-            $waitError = $_.Exception.ToString()
-            if ($null -eq $code) {
-                $code = 1
+            $pinfo = New-Object System.Diagnostics.ProcessStartInfo
+            $executable = if ($env:AGROSHIFT_TEST_FAIL_STAGE -and $env:AGROSHIFT_TEST_FAIL_STAGE -eq $StageName) {
+                "non_existent_process_executable_binary_12345.exe"
+            } else {
+                "powershell.exe"
             }
-        }
+            $pinfo.FileName = $executable
+            $pinfo.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$tempStageScript`""
+            $pinfo.WorkingDirectory = $resolvedRepoRoot
+            $pinfo.RedirectStandardOutput = $true
+            $pinfo.RedirectStandardError = $true
+            $pinfo.UseShellExecute = $false
+            $pinfo.CreateNoWindow = $true
 
+            $p = [System.Diagnostics.Process]::Start($pinfo)
+            if ($null -eq $p) {
+                throw "System.Diagnostics.Process.Start returned null."
+            }
+        } catch {
+            $launchError = $_.Exception.ToString()
+            $stderr = "PROCESS_LAUNCH_FAILURE: $launchError"
+            # Documented failure code -1 indicates execution launch failure rather than child process exit
+            $code = -1
+        }
+    }
+
+    if ($null -ne $p -and $null -eq $launchError -and $null -eq $preparationError) {
         try {
-            [System.Threading.Tasks.Task]::WaitAll(@($stdoutTask, $stderrTask))
-            $stdout = $stdoutTask.Result
-            $stderr = $stderrTask.Result
-        } catch {
-            $outputError = $_.Exception.ToString()
-            $stderr = if ([string]::IsNullOrWhiteSpace($stderr)) {
-                "OUTPUT_COLLECTION_FAILURE: $outputError"
-            } else {
-                "$stderr`nOUTPUT_COLLECTION_FAILURE: $outputError"
-            }
-            if ($null -eq $code -or $code -eq 0) {
-                $code = 1
-            }
-        }
+            # Read output streams asynchronously to avoid pipe buffer deadlocks
+            $stdoutTask = $p.StandardOutput.ReadToEndAsync()
+            $stderrTask = $p.StandardError.ReadToEndAsync()
 
-        if ($null -ne $waitError) {
-            $stderr = if ([string]::IsNullOrWhiteSpace($stderr)) {
-                "PROCESS_WAIT_FAILURE: $waitError"
-            } else {
-                "$stderr`nPROCESS_WAIT_FAILURE: $waitError"
+            try {
+                if ($env:AGROSHIFT_TEST_FAIL_WAIT -and $env:AGROSHIFT_TEST_FAIL_WAIT -eq $StageName) {
+                    throw "SIMULATED_PROCESS_WAIT_FAILURE"
+                }
+                $p.WaitForExit()
+                $code = $p.ExitCode
+            } catch {
+                $waitError = $_.Exception.ToString()
+                if ($null -eq $code) {
+                    $code = 1
+                }
+            }
+
+            try {
+                if ($env:AGROSHIFT_TEST_FAIL_OUTPUT -and $env:AGROSHIFT_TEST_FAIL_OUTPUT -eq $StageName) {
+                    throw "SIMULATED_OUTPUT_COLLECTION_FAILURE"
+                }
+                [System.Threading.Tasks.Task]::WaitAll(@($stdoutTask, $stderrTask))
+                $stdout = $stdoutTask.Result
+                $stderr = $stderrTask.Result
+            } catch {
+                $outputError = $_.Exception.ToString()
+                $stderr = if ([string]::IsNullOrWhiteSpace($stderr)) {
+                    "OUTPUT_COLLECTION_FAILURE: $outputError"
+                } else {
+                    "$stderr`nOUTPUT_COLLECTION_FAILURE: $outputError"
+                }
+                if ($null -eq $code -or $code -eq 0) {
+                    $code = 1
+                }
+            }
+
+            if ($null -ne $waitError) {
+                $stderr = if ([string]::IsNullOrWhiteSpace($stderr)) {
+                    "PROCESS_WAIT_FAILURE: $waitError"
+                } else {
+                    "$stderr`nPROCESS_WAIT_FAILURE: $waitError"
+                }
+            }
+        } finally {
+            # Ensure no child process is left running unintentionally
+            try {
+                if ($null -ne $p -and -not $p.HasExited) {
+                    $p.Kill()
+                }
+            } catch {
+                # Ignore cleanup error if process already exited
             }
         }
     }
@@ -227,6 +257,9 @@ try {
     $stageEndUtc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 
     try {
+        if ($env:AGROSHIFT_TEST_FAIL_EVIDENCE_WRITE -and $env:AGROSHIFT_TEST_FAIL_EVIDENCE_WRITE -eq $StageName) {
+            throw "SIMULATED_EVIDENCE_WRITE_FAILURE"
+        }
         [System.IO.File]::WriteAllText($stdoutFile, $stdout, [System.Text.Encoding]::UTF8)
         [System.IO.File]::WriteAllText($stderrFile, $stderr, [System.Text.Encoding]::UTF8)
         [System.IO.File]::WriteAllText($exitCodeFile, "$code", [System.Text.Encoding]::UTF8)
@@ -248,6 +281,7 @@ try {
         StdoutPath = $stdoutFile
         StderrPath = $stderrFile
         ExitCodePath = $exitCodeFile
+        PreparationError = $preparationError
         LaunchError = $launchError
         OutputError = $outputError
         WaitError = $waitError
