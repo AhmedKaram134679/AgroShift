@@ -415,6 +415,59 @@ void main() {
       final volSingle = EtcCalculator.convertMmToCubicMetersPerFeddan(12.0);
       expect(volSingle, closeTo(12.0 * 4.2, 0.001));
     });
+
+    test(
+      'ETc preserves original growth-stage day indices when ET0 is missing',
+      () {
+        // 10 requested days: Day 2 (index 1) is null (missing), all others 5.0 mm/day
+        // Missing ratio = 1/10 = 10% <= 10% threshold -> validated calculation succeeds
+        final dailyEt0Series = List<double?>.generate(
+          10,
+          (index) => index == 1 ? null : 5.0,
+        );
+
+        final result = EtcCalculator.calculateCycleWaterRequirementValidated(
+          crop: EgyptianCropsCatalog.maize,
+          totalRequestedDays: 10,
+          dailyEt0Series: dailyEt0Series,
+        );
+
+        expect(result.isSuccess, isTrue);
+
+        // Independent numerical oracle for EgyptianCropsCatalog.maize (kcIni=0.30, kcMid=1.20, kcEnd=0.60):
+        // Day 1 (p=0.10, <=0.20): Kc=0.30 -> 5.0 * 0.30 = 1.50 mm
+        // Day 2 (p=0.20, <=0.20): Missing -> 0.00 mm
+        // Day 3 (p=0.30, 0.20..0.50): Kc=0.30 + (0.10/0.30)*(1.20-0.30) = 0.60 -> 5.0 * 0.60 = 3.00 mm
+        // Day 4 (p=0.40, 0.20..0.50): Kc=0.30 + (0.20/0.30)*(1.20-0.30) = 0.90 -> 5.0 * 0.90 = 4.50 mm
+        // Day 5 (p=0.50, <=0.50): Kc=1.20 -> 5.0 * 1.20 = 6.00 mm
+        // Day 6 (p=0.60, 0.50..0.80): Kc=1.20 -> 5.0 * 1.20 = 6.00 mm
+        // Day 7 (p=0.70, 0.50..0.80): Kc=1.20 -> 5.0 * 1.20 = 6.00 mm
+        // Day 8 (p=0.80, <=0.80): Kc=1.20 -> 5.0 * 1.20 = 6.00 mm
+        // Day 9 (p=0.90, 0.80..1.00): Kc=1.20 + (0.10/0.20)*(0.60-1.20) = 0.90 -> 5.0 * 0.90 = 4.50 mm
+        // Day 10 (p=1.00, <=1.00): Kc=0.60 -> 5.0 * 0.60 = 3.00 mm
+        // Sum = 1.50 + 0 + 3.00 + 4.50 + 6.00 + 6.00 + 6.00 + 6.00 + 4.50 + 3.00 = 40.5 mm
+        // Volume = 40.5 * 4.2 = 170.1 m³/feddan
+        expect(result.dataOrNull?.totalEtcMm, closeTo(40.5, 0.001));
+
+        expect(
+          result.dataOrNull?.totalVolumeM3PerFeddan,
+          closeTo(170.1, 0.001),
+        );
+
+        // Verification against incorrect compacted series (where Day 2 is shifted out and denominator becomes 9):
+        // If compacted to 9 days, Day 3 would be evaluated at fraction 2/9, Day 4 at 3/9, etc., yielding a different sum.
+        final compacted9Et0 = List.filled(9, 5.0);
+        final compactedSum = [
+          for (var i = 0; i < 9; i++)
+            compacted9Et0[i] *
+                EgyptianCropsCatalog.maize.getKcForStageFraction((i + 1) / 9),
+        ].reduce((a, b) => a + b);
+        expect(
+          (result.dataOrNull!.totalEtcMm - compactedSum).abs(),
+          greaterThan(0.01),
+        );
+      },
+    );
   });
 
   group('HeatStressEvaluator Tests', () {

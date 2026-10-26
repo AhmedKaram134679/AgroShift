@@ -10,6 +10,7 @@ import 'package:agro_shift/domain/environment/models/coordinate.dart';
 import 'package:agro_shift/domain/environment/models/daily_agro_record.dart';
 import 'package:agro_shift/domain/environment/models/data_source_provenance.dart';
 import 'package:agro_shift/domain/agronomy/models/farm_field.dart';
+import 'package:agro_shift/data/datasources/local/database/connection.dart';
 import 'package:agro_shift/presentation/widgets/provenance_card.dart';
 import 'package:agro_shift/core/error/failures.dart';
 import 'package:agro_shift/core/error/result.dart';
@@ -53,9 +54,13 @@ class MockWeatherRepository implements IWeatherRepository {
 
 void main() {
   testWidgets('AgroShiftApp bootstrap smoke test', (WidgetTester tester) async {
+    final testDb = constructTestDb();
+    addTearDown(() => testDb.close());
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          appDatabaseProvider.overrideWithValue(testDb),
           weatherRepositoryProvider.overrideWithValue(MockWeatherRepository()),
         ],
         child: MaterialApp(
@@ -152,10 +157,15 @@ void main() {
       });
 
       final customRepo = _StaticWeatherRepository(records);
+      final testDb = constructTestDb();
+      addTearDown(() => testDb.close());
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [weatherRepositoryProvider.overrideWithValue(customRepo)],
+          overrides: [
+            appDatabaseProvider.overrideWithValue(testDb),
+            weatherRepositoryProvider.overrideWithValue(customRepo),
+          ],
           child: MaterialApp(
             theme: AgroTheme.lightTheme,
             locale: const Locale('ar', 'EG'),
@@ -215,10 +225,15 @@ void main() {
       });
 
       final customRepo = _StaticWeatherRepository(records);
+      final testDb = constructTestDb();
+      addTearDown(() => testDb.close());
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [weatherRepositoryProvider.overrideWithValue(customRepo)],
+          overrides: [
+            appDatabaseProvider.overrideWithValue(testDb),
+            weatherRepositoryProvider.overrideWithValue(customRepo),
+          ],
           child: MaterialApp(
             theme: AgroTheme.lightTheme,
             locale: const Locale('ar', 'EG'),
@@ -274,6 +289,8 @@ void main() {
       });
 
       final customRepo = _StaticWeatherRepository(records);
+      final testDb = constructTestDb();
+      addTearDown(() => testDb.close());
 
       // Create a field without an active crop
       const noCropField = FarmField(
@@ -289,6 +306,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            appDatabaseProvider.overrideWithValue(testDb),
             weatherRepositoryProvider.overrideWithValue(customRepo),
             fieldListProvider.overrideWith(
               () => _StaticFieldListNotifier([noCropField]),
@@ -363,10 +381,15 @@ void main() {
       });
 
       final customRepo = _StaticWeatherRepository(records);
+      final testDb = constructTestDb();
+      addTearDown(() => testDb.close());
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [weatherRepositoryProvider.overrideWithValue(customRepo)],
+          overrides: [
+            appDatabaseProvider.overrideWithValue(testDb),
+            weatherRepositoryProvider.overrideWithValue(customRepo),
+          ],
           child: MaterialApp(
             theme: AgroTheme.lightTheme,
             locale: const Locale('ar', 'EG'),
@@ -430,10 +453,15 @@ void main() {
       });
 
       final customRepo = _StaticWeatherRepository(records);
+      final testDb = constructTestDb();
+      addTearDown(() => testDb.close());
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [weatherRepositoryProvider.overrideWithValue(customRepo)],
+          overrides: [
+            appDatabaseProvider.overrideWithValue(testDb),
+            weatherRepositoryProvider.overrideWithValue(customRepo),
+          ],
           child: MaterialApp(
             theme: AgroTheme.lightTheme,
             locale: const Locale('ar', 'EG'),

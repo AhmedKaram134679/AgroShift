@@ -3015,7 +3015,11 @@ void main() {
         rawSqliteDb.execute('PRAGMA user_version = 1;');
 
         // Step 2: Open with AppDatabase (v2 with MigrationStrategy)
-        final upgradedDb = AppDatabase(NativeDatabase.opened(rawSqliteDb));
+        // Pass closeUnderlyingOnClose: false so closing upgradedDb does not destroy
+        // the in-memory SQLite connection before Step 8 reopenedDb tests idempotency.
+        final upgradedDb = AppDatabase(
+          NativeDatabase.opened(rawSqliteDb, closeUnderlyingOnClose: false),
+        );
 
         // Verify that onUpgrade ran and schemaVersion is now 2
         expect(upgradedDb.schemaVersion, equals(2));

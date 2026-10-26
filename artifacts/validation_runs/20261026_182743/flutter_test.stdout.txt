@@ -1,0 +1,9 @@
+﻿00:00 +0: loading D:/Programming projects/agro_shift/test/widget_test.dart
+00:00 +0: AgroShiftApp bootstrap smoke test
+00:01 +1: ProvenanceCard displays requested and grid coordinates distinctly
+00:02 +2: Dashboard displays heat stress alert card when missingness exceeds validation threshold
+00:02 +3: Dashboard displays ETc failure alert card when missingness exceeds validation threshold
+00:02 +4: Dashboard displays prompt to select crop when activeField has no selected crop
+00:02 +5: Dashboard displays unavailable data state when zero valid ET0 observations exist
+00:03 +6: Dashboard displays successful ETc calculation and volumetric demand when ET0 series is complete
+00:03 +7: All tests passed!
