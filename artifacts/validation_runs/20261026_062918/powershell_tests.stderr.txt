@@ -1,0 +1,40 @@
+﻿Refusing to write into the committed historical API fixtures directory without -SaveCommittedFixtures. Resolved 
+destination: D:\Programming projects\agro_shift\docs\fixtures\historical_api
+At D:\Programming projects\agro_shift\scripts\validate_historical_models.ps1:192 char:9
++         throw (
++         ~~~~~~~
+    + CategoryInfo          : OperationStopped: (Refusing to wri...\historical_api:String) [], RuntimeException
+    + FullyQualifiedErrorId : Refusing to write into the committed historical API fixtures directory without -SaveComm 
+   ittedFixtures. Resolved destination: D:\Programming projects\agro_shift\docs\fixtures\historical_api
+ 
+Refusing to write into the committed historical API fixtures directory without -SaveCommittedFixtures. Resolved 
+destination: D:\Programming projects\agro_shift\docs\fixtures\historical_api\subfolder_not_yet_created
+At D:\Programming projects\agro_shift\scripts\validate_historical_models.ps1:192 char:9
++         throw (
++         ~~~~~~~
+    + CategoryInfo          : OperationStopped: (Refusing to wri...not_yet_created:String) [], RuntimeException
+    + FullyQualifiedErrorId : Refusing to write into the committed historical API fixtures directory without -SaveComm 
+   ittedFixtures. Resolved destination: D:\Programming projects\agro_shift\docs\fixtures\historical_api\subfolder_not  
+  _yet_created
+ 
+Refusing to write into the committed historical API fixtures directory without -SaveCommittedFixtures. Resolved 
+destination: D:\Programming projects\agro_shift\docs\fixtures\historical_api
+At D:\Programming projects\agro_shift\scripts\validate_historical_models.ps1:192 char:9
++         throw (
++         ~~~~~~~
+    + CategoryInfo          : OperationStopped: (Refusing to wri...\historical_api:String) [], RuntimeException
+    + FullyQualifiedErrorId : Refusing to write into the committed historical API fixtures directory without -SaveComm 
+   ittedFixtures. Resolved destination: D:\Programming projects\agro_shift\docs\fixtures\historical_api
+ 
+Refusing to write into the committed historical API fixtures directory without -SaveCommittedFixtures. Resolved 
+destination: C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_test_f9954b9ef5c44f16910c0fcae17efca7\isolated_
+repo_tree\docs\fixtures\historical_api
+At C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_test_f9954b9ef5c44f16910c0fcae17efca7\isolated_repo_tree\
+scripts\validate_historical_models.ps1:192 char:9
++         throw (
++         ~~~~~~~
+    + CategoryInfo          : OperationStopped: (Refusing to wri...\historical_api:String) [], RuntimeException
+    + FullyQualifiedErrorId : Refusing to write into the committed historical API fixtures directory without -SaveComm 
+   ittedFixtures. Resolved destination: C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_test_f9954b9ef5c44  
+  f16910c0fcae17efca7\isolated_repo_tree\docs\fixtures\historical_api
+ 

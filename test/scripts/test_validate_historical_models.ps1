@@ -438,22 +438,81 @@ try {
         }
     }
 
-    # Test 27: Explicit committed fixture directory WITH -SaveCommittedFixtures -> Allowed by authorization guard
-    Write-Host "Testing child execution: Isolated mock fixture copy with -SaveCommittedFixtures..."
-    # To test authorized writing safely without mutating real committed fixtures, we test against a dedicated temp directory
-    $safeAuthorizedDir = Join-Path $testOutputDir "safe_authorized_fixtures"
-    $wrapper27 = Join-Path $testOutputDir "run_test27.ps1"
+    # Test 27: Isolated project tree tests for protected fixture destination guard
+    # We construct a full temporary project tree:
+    #   <temp-root>/scripts/validate_historical_models.ps1
+    #   <temp-root>/docs/fixtures/historical_api/
+    # In this isolated tree, the copied validator's own $PSScriptRoot resolves to <temp-root>/scripts,
+    # so its protected destination is specifically <temp-root>/docs/fixtures/historical_api.
+    # This exercises the real protected-path guard without modifying the repository's real fixtures.
+    Write-Host "Setting up isolated temporary project tree for protected-path authorization tests..."
+    $isolatedProjectRoot = Join-Path $testOutputDir "isolated_repo_tree"
+    $isolatedScriptsDir = Join-Path $isolatedProjectRoot "scripts"
+    $isolatedFixturesDir = Join-Path $isolatedProjectRoot "docs/fixtures/historical_api"
+    New-Item -ItemType Directory -Path $isolatedScriptsDir -Force | Out-Null
+    New-Item -ItemType Directory -Path $isolatedFixturesDir -Force | Out-Null
+
+    # Copy script and existing fixtures into isolated tree
+    $isolatedScriptPath = Join-Path $isolatedScriptsDir "validate_historical_models.ps1"
+    Copy-Item -LiteralPath $scriptPath -Destination $isolatedScriptPath -Force
+    Get-ChildItem -LiteralPath $committedFixturesDir -File | ForEach-Object {
+        Copy-Item -LiteralPath $_.FullName -Destination $isolatedFixturesDir -Force
+    }
+
+    $isolatedMockFile = Join-Path $testOutputDir "isolated_mock_valid.json"
+    (New-ValidFixture) | ConvertTo-Json -Depth 10 | Set-Content -Path $isolatedMockFile -Encoding UTF8
+
+    # Test 27A: In isolated tree, writing to its protected fixture directory without -SaveCommittedFixtures -> Rejected (Exit 1)
+    Write-Host "Testing child execution (Isolated Tree): Writing to protected fixture destination without -SaveCommittedFixtures..."
+    $wrapper27A = Join-Path $testOutputDir "run_test27A.ps1"
     @"
-    `$cfg = @(@{ Name = 'test_auth'; ModelParam = ''; ExpectPass = `$true })
-    `$mocks = @{ 'test_auth' = '$validMockFile' }
+    `$cfg = @(@{ Name = 'test_iso_unauth'; ModelParam = ''; ExpectPass = `$true })
+    `$mocks = @{ 'test_iso_unauth' = '$isolatedMockFile' }
+    & '$isolatedScriptPath' -OutputDir '$isolatedFixturesDir' -ConfigsOverride `$cfg -MockResponseFiles `$mocks
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper27A -Encoding UTF8
+
+    $p27A = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper27A`"" -Wait -NoNewWindow -PassThru
+    $exit27A = $p27A.ExitCode
+    $realFixturesAfter27A = Get-FixtureSnapshot -FixtureRoot $committedFixturesDir
+    $realFixturesUntouched27A = Test-SnapshotsEqual -SnapA $baselineSnapshot -SnapB $realFixturesAfter27A
+    Assert-Result -TestName "Isolated project: Protected fixture destination rejected without -SaveCommittedFixtures (Exit 1)" -Condition ($exit27A -eq 1 -and $realFixturesUntouched27A) -Message "Exit: $exit27A, RealFixturesUntouched: $realFixturesUntouched27A"
+
+    # Test 27B: In isolated tree, writing to its protected fixture directory WITH -SaveCommittedFixtures -> Accepted (Exit 0)
+    Write-Host "Testing child execution (Isolated Tree): Writing to protected fixture destination WITH -SaveCommittedFixtures..."
+    $wrapper27B = Join-Path $testOutputDir "run_test27B.ps1"
+    @"
+    `$cfg = @(@{ Name = 'test_iso_auth'; ModelParam = ''; ExpectPass = `$true })
+    `$mocks = @{ 'test_iso_auth' = '$isolatedMockFile' }
+    & '$isolatedScriptPath' -OutputDir '$isolatedFixturesDir' -SaveCommittedFixtures -ConfigsOverride `$cfg -MockResponseFiles `$mocks
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper27B -Encoding UTF8
+
+    $p27B = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper27B`"" -Wait -NoNewWindow -PassThru
+    $exit27B = $p27B.ExitCode
+    $isolatedWrittenFile = Join-Path $isolatedFixturesDir "test_iso_auth_raw.json"
+    $fileWasWrittenInIsolated = Test-Path -LiteralPath $isolatedWrittenFile
+    $realFixturesAfter27B = Get-FixtureSnapshot -FixtureRoot $committedFixturesDir
+    $realFixturesUntouched27B = Test-SnapshotsEqual -SnapA $baselineSnapshot -SnapB $realFixturesAfter27B
+    Assert-Result -TestName "Isolated project: Protected fixture destination accepted WITH -SaveCommittedFixtures (Exit 0)" -Condition ($exit27B -eq 0 -and $fileWasWrittenInIsolated -and $realFixturesUntouched27B) -Message "Exit: $exit27B, FileWritten: $fileWasWrittenInIsolated, RealFixturesUntouched: $realFixturesUntouched27B"
+
+    # Test 27C: Normal temporary directory with -SaveCommittedFixtures allowed and writes output (Exit 0)
+    Write-Host "Testing child execution: Ordinary temporary directory with -SaveCommittedFixtures..."
+    $safeAuthorizedDir = Join-Path $testOutputDir "safe_authorized_ordinary"
+    $wrapper27C = Join-Path $testOutputDir "run_test27C.ps1"
+    @"
+    `$cfg = @(@{ Name = 'test_auth_ord'; ModelParam = ''; ExpectPass = `$true })
+    `$mocks = @{ 'test_auth_ord' = '$validMockFile' }
     & '$scriptPath' -OutputDir '$safeAuthorizedDir' -SaveCommittedFixtures -ConfigsOverride `$cfg -MockResponseFiles `$mocks
     exit `$LASTEXITCODE
-"@ | Set-Content -Path $wrapper27 -Encoding UTF8
+"@ | Set-Content -Path $wrapper27C -Encoding UTF8
 
-    $p27 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper27`"" -Wait -NoNewWindow -PassThru
-    $exit27 = $p27.ExitCode
-    $authFileWritten = Test-Path -LiteralPath (Join-Path $safeAuthorizedDir "test_auth_raw.json")
-    Assert-Result -TestName "Normal directory with -SaveCommittedFixtures allowed and writes output (Exit 0)" -Condition ($exit27 -eq 0 -and $authFileWritten) -Message "Exit: $exit27, Written: $authFileWritten"
+    $p27C = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper27C`"" -Wait -NoNewWindow -PassThru
+    $exit27C = $p27C.ExitCode
+    $authFileWrittenOrd = Test-Path -LiteralPath (Join-Path $safeAuthorizedDir "test_auth_ord_raw.json")
+    $realFixturesAfter27C = Get-FixtureSnapshot -FixtureRoot $committedFixturesDir
+    $realFixturesUntouched27C = Test-SnapshotsEqual -SnapA $baselineSnapshot -SnapB $realFixturesAfter27C
+    Assert-Result -TestName "Ordinary directory with -SaveCommittedFixtures allowed and writes output (Exit 0)" -Condition ($exit27C -eq 0 -and $authFileWrittenOrd -and $realFixturesUntouched27C) -Message "Exit: $exit27C, Written: $authFileWrittenOrd"
 
 } finally {
     if (Test-Path $testOutputDir) {

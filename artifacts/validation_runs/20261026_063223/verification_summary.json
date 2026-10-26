@@ -1,0 +1,58 @@
+﻿{
+    "RunTimestampUtc":  "2026-10-26T06:33:31Z",
+    "CommitHash":  "6dd0bde10425743fae99e8a97ecdcb0e97053444",
+    "EvidenceDirectory":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_063223",
+    "Stages":  [
+                   {
+                       "StdoutPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_063223\\dart_format.stdout.txt",
+                       "ExitCode":  0,
+                       "Stage":  "Dart Format",
+                       "Command":  "dart format --output=none --set-exit-if-changed lib/ test/",
+                       "StderrPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_063223\\dart_format.stderr.txt",
+                       "ExitCodePath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_063223\\dart_format.exitcode.txt",
+                       "Status":  "PASS"
+                   },
+                   {
+                       "StdoutPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_063223\\flutter_analyze.stdout.txt",
+                       "ExitCode":  0,
+                       "Stage":  "Flutter Analyze",
+                       "Command":  "flutter analyze",
+                       "StderrPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_063223\\flutter_analyze.stderr.txt",
+                       "ExitCodePath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_063223\\flutter_analyze.exitcode.txt",
+                       "Status":  "PASS"
+                   },
+                   {
+                       "StdoutPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_063223\\flutter_test.stdout.txt",
+                       "ExitCode":  0,
+                       "Stage":  "Flutter Tests",
+                       "Command":  "flutter test",
+                       "StderrPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_063223\\flutter_test.stderr.txt",
+                       "ExitCodePath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_063223\\flutter_test.exitcode.txt",
+                       "Status":  "PASS"
+                   },
+                   {
+                       "StdoutPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_063223\\powershell_tests.stdout.txt",
+                       "ExitCode":  0,
+                       "Stage":  "PowerShell Tests",
+                       "Command":  "powershell.exe -NoProfile -ExecutionPolicy Bypass -File test/scripts/test_validate_historical_models.ps1",
+                       "StderrPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_063223\\powershell_tests.stderr.txt",
+                       "ExitCodePath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_063223\\powershell_tests.exitcode.txt",
+                       "Status":  "PASS"
+                   },
+                   {
+                       "StdoutPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_063223\\release_build.stdout.txt",
+                       "ExitCode":  0,
+                       "Stage":  "Release Build",
+                       "Command":  "flutter build apk --release",
+                       "StderrPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_063223\\release_build.stderr.txt",
+                       "ExitCodePath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_063223\\release_build.exitcode.txt",
+                       "Status":  "PASS"
+                   }
+               ],
+    "DeferredItems":  [
+                          {
+                              "Name":  "Physical Android Database Migration",
+                              "Status":  "DEFERRED - NO PHYSICAL ANDROID DEVICE CONNECTED"
+                          }
+                      ]
+}

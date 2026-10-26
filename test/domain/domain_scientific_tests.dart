@@ -64,13 +64,24 @@ void main() {
     });
 
     test('Rejects negative or extreme ET0', () {
-      expect(ScientificRangeValidator.validateEt0(-1.0).isFailure, isTrue);
-      expect(ScientificRangeValidator.validateEt0(30.0).isFailure, isTrue);
-      expect(ScientificRangeValidator.validateEt0(4.5).isSuccess, isTrue);
+      expect(ScientificRangeValidator.validateEt0(null).isSuccess, isTrue);
+      expect(ScientificRangeValidator.validateEt0(0.0).isSuccess, isTrue);
+      expect(ScientificRangeValidator.validateEt0(7.5).isSuccess, isTrue);
+      expect(ScientificRangeValidator.validateEt0(25.0).isSuccess, isTrue);
+      expect(ScientificRangeValidator.validateEt0(-0.01).isFailure, isTrue);
+      expect(ScientificRangeValidator.validateEt0(25.01).isFailure, isTrue);
       expect(
-        ScientificRangeValidator.validateEt0(null).isSuccess,
+        ScientificRangeValidator.validateEt0(double.nan).isFailure,
         isTrue,
-      ); // Missing allowed as null
+      );
+      expect(
+        ScientificRangeValidator.validateEt0(double.infinity).isFailure,
+        isTrue,
+      );
+      expect(
+        ScientificRangeValidator.validateEt0(double.negativeInfinity).isFailure,
+        isTrue,
+      );
     });
 
     test('Rejects negative or extreme precipitation', () {
