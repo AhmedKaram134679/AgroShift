@@ -11,11 +11,10 @@ class OpenMeteoRemoteDataSource {
       'https://api.open-meteo.com/v1/forecast';
 
   /// ECMWF ERA5 reanalysis model parameter for the Open-Meteo archive API.
-  /// Selected because AgroShift requires four complete daily variables (Tmax, Tmin, ET0, Precipitation).
-  /// While official Open-Meteo documentation lists ET0 as available for `era5_land`,
-  /// empirical queries for Egyptian coordinates (Nile Delta and Cairo) returned null arrays
-  /// for both ET0 and precipitation under `era5_land`. `era5` is empirically verified to supply
-  /// complete, finite readings across all four required variables.
+  /// Selected because it returned numeric values for all four required daily variables
+  /// (Tmax, Tmin, ET0, Precipitation) in tested requests and aligns with the project's
+  /// preference for a consistent historical reanalysis dataset. In recorded tests for
+  /// Egyptian coordinates, `era5_land` returned null values for ET0 and precipitation.
   static const String historicalModel = 'era5';
 
   OpenMeteoRemoteDataSource({Dio? dio})

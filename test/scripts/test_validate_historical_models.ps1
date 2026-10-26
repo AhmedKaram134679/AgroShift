@@ -138,49 +138,63 @@ $testOutputDir = Join-Path ([System.IO.Path]::GetTempPath()) "agro_shift_ps_test
 New-Item -ItemType Directory -Path $testOutputDir -Force | Out-Null
 
 try {
-    # Test 14: Deterministic HTTP network/endpoint failure (ERROR) with -FailOnAnyModelError omitted
+    # Dynamically allocate an ephemeral loopback port and close it immediately.
+    # This guarantees that connecting to this port triggers a deterministic connection refused / transport failure
+    # without making any fixed-port assumptions (such as 54321).
+    $dynamicPort = 0
+    $tcpListener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
+    try {
+        $tcpListener.Start()
+        $dynamicPort = ($tcpListener.LocalEndpoint).Port
+    } finally {
+        $tcpListener.Stop()
+    }
+    $unreachableBaseUrl = "http://127.0.0.1:$dynamicPort/transport_failure_test"
+    Write-Host "Allocated closed ephemeral loopback test URL: $unreachableBaseUrl"
+
+    # Test 14: Deterministic HTTP transport/connection failure (ERROR) with -FailOnAnyModelError omitted
     # Model is configured with ExpectPass = $false (so an error does not violate an expectation of passing),
     # and -FailOnAnyModelError is NOT passed.
     # Expected outcome: ERROR recorded, but exit code is 0 because no passing expectation failed and -FailOnAnyModelError is off.
-    Write-Host "Testing child execution: HTTP failure with ExpectPass=`$false and -FailOnAnyModelError omitted..."
+    Write-Host "Testing child execution: HTTP transport failure with ExpectPass=`$false and -FailOnAnyModelError omitted..."
     $wrapper14 = Join-Path $testOutputDir "run_test14.ps1"
     @"
     `$cfg = @(@{ Name = 'test_err'; ModelParam = ''; ExpectPass = `$false })
-    & '$scriptPath' -OutputDir '$testOutputDir' -BaseUrl 'http://127.0.0.1:54321/nonexistent' -ConfigsOverride `$cfg
+    & '$scriptPath' -OutputDir '$testOutputDir' -BaseUrl '$unreachableBaseUrl' -ConfigsOverride `$cfg
     exit `$LASTEXITCODE
 "@ | Set-Content -Path $wrapper14 -Encoding UTF8
 
     $p14 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper14`"" -Wait -NoNewWindow -PassThru
     $exit14 = $p14.ExitCode
-    Assert-Result -TestName "Model ERROR without -FailOnAnyModelError (and ExpectPass=`$false) -> Exit code 0" -Condition ($exit14 -eq 0) -Message "Got exit code $exit14 (expected 0)"
+    Assert-Result -TestName "Transport ERROR without -FailOnAnyModelError (and ExpectPass=`$false) -> Exit code 0" -Condition ($exit14 -eq 0) -Message "Got exit code $exit14 (expected 0)"
 
-    # Test 15: Deterministic HTTP network/endpoint failure (ERROR) with -FailOnAnyModelError enabled
+    # Test 15: Deterministic HTTP transport/connection failure (ERROR) with -FailOnAnyModelError enabled
     # Expected outcome: ERROR recorded, -FailOnAnyModelError is active -> exit code 1.
-    Write-Host "Testing child execution: HTTP failure with -FailOnAnyModelError enabled..."
+    Write-Host "Testing child execution: HTTP transport failure with -FailOnAnyModelError enabled..."
     $wrapper15 = Join-Path $testOutputDir "run_test15.ps1"
     @"
     `$cfg = @(@{ Name = 'test_err'; ModelParam = ''; ExpectPass = `$false })
-    & '$scriptPath' -OutputDir '$testOutputDir' -BaseUrl 'http://127.0.0.1:54321/nonexistent' -ConfigsOverride `$cfg -FailOnAnyModelError
+    & '$scriptPath' -OutputDir '$testOutputDir' -BaseUrl '$unreachableBaseUrl' -ConfigsOverride `$cfg -FailOnAnyModelError
     exit `$LASTEXITCODE
 "@ | Set-Content -Path $wrapper15 -Encoding UTF8
 
     $p15 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper15`"" -Wait -NoNewWindow -PassThru
     $exit15 = $p15.ExitCode
-    Assert-Result -TestName "Model ERROR with -FailOnAnyModelError enabled -> Exit code 1" -Condition ($exit15 -eq 1) -Message "Got exit code $exit15 (expected 1)"
+    Assert-Result -TestName "Transport ERROR with -FailOnAnyModelError enabled -> Exit code 1" -Condition ($exit15 -eq 1) -Message "Got exit code $exit15 (expected 1)"
 
-    # Test 16: Deterministic Expectation Failure: Model expected to pass returns ERROR
+    # Test 16: Deterministic Expectation Failure: Model expected to pass encounters transport ERROR
     # Model has ExpectPass = $true, but network error occurs -> hasExpectationFailure = $true -> exit code 1
-    Write-Host "Testing child execution: ExpectPass=`$true model encounters ERROR..."
+    Write-Host "Testing child execution: ExpectPass=`$true model encounters transport ERROR..."
     $wrapper16 = Join-Path $testOutputDir "run_test16.ps1"
     @"
     `$cfg = @(@{ Name = 'test_expect_pass'; ModelParam = ''; ExpectPass = `$true })
-    & '$scriptPath' -OutputDir '$testOutputDir' -BaseUrl 'http://127.0.0.1:54321/nonexistent' -ConfigsOverride `$cfg
+    & '$scriptPath' -OutputDir '$testOutputDir' -BaseUrl '$unreachableBaseUrl' -ConfigsOverride `$cfg
     exit `$LASTEXITCODE
 "@ | Set-Content -Path $wrapper16 -Encoding UTF8
 
     $p16 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper16`"" -Wait -NoNewWindow -PassThru
     $exit16 = $p16.ExitCode
-    Assert-Result -TestName "Model expected to PASS encounters ERROR -> Exit code 1" -Condition ($exit16 -eq 1) -Message "Got exit code $exit16 (expected 1)"
+    Assert-Result -TestName "Model expected to PASS encounters transport ERROR -> Exit code 1" -Condition ($exit16 -eq 1) -Message "Got exit code $exit16 (expected 1)"
 
     # Test 17: Mock Response File providing a complete valid response -> Exit code 0
     Write-Host "Testing child execution with mock response file providing valid response..."
@@ -232,6 +246,40 @@ try {
     $exit19 = $p19.ExitCode
     Assert-Result -TestName "Model expected to be INCOMPATIBLE returns INCOMPATIBLE -> Exit code 0" -Condition ($exit19 -eq 0) -Message "Got exit code $exit19 (expected 0)"
 
+    # Test 20: Malformed JSON response -> Diagnosed as ERROR, not INCOMPATIBLE
+    Write-Host "Testing child execution: Malformed JSON response..."
+    $malformedJsonFile = Join-Path $testOutputDir "mock_malformed.json"
+    "This is not valid JSON { missing quotes: true " | Set-Content -Path $malformedJsonFile -Encoding UTF8
+
+    $wrapper20 = Join-Path $testOutputDir "run_test20.ps1"
+    @"
+    `$cfg = @(@{ Name = 'test_malformed'; ModelParam = ''; ExpectPass = `$false })
+    `$mocks = @{ 'test_malformed' = '$malformedJsonFile' }
+    & '$scriptPath' -OutputDir '$testOutputDir' -ConfigsOverride `$cfg -MockResponseFiles `$mocks -FailOnAnyModelError
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper20 -Encoding UTF8
+
+    $p20 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper20`"" -Wait -NoNewWindow -PassThru
+    $exit20 = $p20.ExitCode
+    Assert-Result -TestName "Malformed JSON diagnosed as ERROR (-FailOnAnyModelError exit 1)" -Condition ($exit20 -eq 1) -Message "Got exit code $exit20 (expected 1)"
+
+    # Test 21: Valid JSON with unexpected structure (missing 'daily' property) -> Diagnosed as ERROR
+    Write-Host "Testing child execution: Valid JSON with unexpected structure (missing daily)..."
+    $unexpectedStructureFile = Join-Path $testOutputDir "mock_unexpected_struct.json"
+    @{ latitude = 31.0; longitude = 31.0; error = "Some server error notice" } | ConvertTo-Json -Depth 5 | Set-Content -Path $unexpectedStructureFile -Encoding UTF8
+
+    $wrapper21 = Join-Path $testOutputDir "run_test21.ps1"
+    @"
+    `$cfg = @(@{ Name = 'test_unexpected'; ModelParam = ''; ExpectPass = `$false })
+    `$mocks = @{ 'test_unexpected' = '$unexpectedStructureFile' }
+    & '$scriptPath' -OutputDir '$testOutputDir' -ConfigsOverride `$cfg -MockResponseFiles `$mocks -FailOnAnyModelError
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper21 -Encoding UTF8
+
+    $p21 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper21`"" -Wait -NoNewWindow -PassThru
+    $exit21 = $p21.ExitCode
+    Assert-Result -TestName "Unexpected JSON structure diagnosed as ERROR (-FailOnAnyModelError exit 1)" -Condition ($exit21 -eq 1) -Message "Got exit code $exit21 (expected 1)"
+
 } finally {
     if (Test-Path $testOutputDir) {
         Remove-Item -Path $testOutputDir -Recurse -Force -ErrorAction SilentlyContinue
@@ -251,16 +299,40 @@ try {
     Write-Host "Notice: Live Open-Meteo API is unreachable ($($_.Exception.Message)). Skipping live integration test." -ForegroundColor Yellow
 }
 
+$deterministicTestsRun = $script:testsRun
+$deterministicTestsPassed = $script:testsPassed
+$liveTestExecuted = $false
+$liveTestPassed = $false
+
 if ($canReachLiveApi) {
-    Write-Host "Executing live Open-Meteo validation sweep..."
-    $pLive = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Wait -NoNewWindow -PassThru
-    $exitLive = $pLive.ExitCode
-    Assert-Result -TestName "Live Open-Meteo sweep execution completed successfully (Exit code 0)" -Condition ($exitLive -eq 0) -Message "Got exit code $exitLive"
+    Write-Host "Executing live Open-Meteo validation sweep (output isolated to temp dir to protect committed fixtures)..."
+    $liveTempDir = Join-Path ([System.IO.Path]::GetTempPath()) "agro_shift_live_sweep_$([Guid]::NewGuid().ToString('N'))"
+    New-Item -ItemType Directory -Path $liveTempDir -Force | Out-Null
+    try {
+        $pLive = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`" -OutputDir `"$liveTempDir`"" -Wait -NoNewWindow -PassThru
+        $exitLive = $pLive.ExitCode
+        $liveTestExecuted = $true
+        $liveTestPassed = ($exitLive -eq 0)
+        Assert-Result -TestName "Live Open-Meteo sweep execution completed successfully (Exit code 0)" -Condition ($exitLive -eq 0) -Message "Got exit code $exitLive"
+    } finally {
+        if (Test-Path $liveTempDir) {
+            Remove-Item -Path $liveTempDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
 } else {
     Write-Host " [SKIPPED] Live Open-Meteo sweep skipped due to network/firewall unavailability." -ForegroundColor Yellow
 }
 
-Write-Host "`nTest Summary: $testsPassed / $testsRun passed." -ForegroundColor $(if ($testsPassed -eq $testsRun) { "Green" } else { "Red" })
+Write-Host "`n================================================================="
+Write-Host "Execution Summary:"
+Write-Host "Deterministic Tests: $deterministicTestsPassed / $deterministicTestsRun passed." -ForegroundColor $(if ($deterministicTestsPassed -eq $deterministicTestsRun) { "Green" } else { "Red" })
+if ($liveTestExecuted) {
+    Write-Host "Optional Live Integration Test: Executed (Result: $(if ($liveTestPassed) { 'PASS' } else { 'FAIL' }))" -ForegroundColor $(if ($liveTestPassed) { "Green" } else { "Red" })
+} else {
+    Write-Host "Optional Live Integration Test: NOT RUN / SKIPPED" -ForegroundColor Yellow
+}
+Write-Host "Total Suite Checks: $testsPassed / $testsRun passed." -ForegroundColor $(if ($testsPassed -eq $testsRun) { "Green" } else { "Red" })
+Write-Host "================================================================="
 
 if ($testsPassed -ne $testsRun) {
     exit 1

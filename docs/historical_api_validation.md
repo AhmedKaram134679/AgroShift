@@ -30,34 +30,40 @@ documentation across four configurations:
 
 ### Official Open-Meteo Documentation vs. Empirical Project Observations
 
-A critical distinction must be maintained between official documentation and
-observed responses:
+A critical distinction must be maintained between official provider documentation
+and observed project responses:
 
-1. **Official Provider Compatibility Table:**
+1. **Officially Documented Availability:**
    - Primary Reference:
      [Open-Meteo Historical Weather API Documentation](https://open-meteo.com/en/docs/historical-weather-api).
    - In the official documentation's historical model availability matrix:
      - `models=era5` lists reference evapotranspiration
        (`et0_fao_evapotranspiration`) and precipitation (`precipitation_sum`) as
        available.
+     - `models=era5_seamless` is documented as providing seamless
+       forecast/reanalysis blending.
      - `models=era5_land` explicitly lists reference evapotranspiration ($ET_0$)
        as available.
      - `models=era5_land` does **not** list precipitation (`precipitation_sum`)
-       as an available variable.
+       as an available variable in the relevant compatibility table.
+     - Default configuration (no `models` parameter specified) is documented by
+       the provider as a Best Match dataset combining multiple models
+       seamlessly (such as ECMWF IFS, ERA5, and national weather services),
+       rather than a single fixed standalone dataset.
 
-2. **Observed Project Experiments:**
-   - **Original Saved Request (Kafr El-Sheikh, Nile Delta):**
+2. **Empirical Project Observations:**
+   - **Kafr El-Sheikh, Nile Delta (5 requested days):**
      - Target: Lat 31.10°N, Lon 30.95°E (returned cell: 31.1°N, 31.0°E, 6.0m
        elevation).
-     - Period: 2024-06-01 to 2024-06-05 (5 days).
+     - Period: 2024-06-01 to 2024-06-05.
      - Result: Returned HTTP 200 OK. $T_{2m,\max}$ and $T_{2m,\min}$ were fully
        populated with finite numbers. However, both the
        `et0_fao_evapotranspiration` and `precipitation_sum` daily arrays
        contained exclusively `null` values (5 nulls / 5 requested days for each
        array).
-   - **Second Independent Experiment (Cairo):**
+   - **Cairo (3 requested days):**
      - Target: Lat 30.04°N, Lon 31.23°E (returned cell: 30.0°N, 31.2°E).
-     - Period: 2024-07-01 to 2024-07-03 (3 days).
+     - Period: 2024-07-01 to 2024-07-03.
      - Result: Returned HTTP 200 OK. $T_{2m,\max}$ and $T_{2m,\min}$ were
        populated with valid numbers (`[37.9, 37.4, 38.1]` and
        `[23.1, 21.0, 20.3]`). However, both `et0_fao_evapotranspiration` and
@@ -65,21 +71,20 @@ observed responses:
        nulls / 3 days).
 
 3. **Interpretation and Unresolved Scientific Questions:**
-   - These empirical observations establish that for the specific geographic
-     regions and dates requested, the Open-Meteo archive endpoint returned
-     `null` for $ET_0$ under `models=era5_land`.
-   - This empirical finding does **not** prove that $ET_0$ is universally
-     unavailable across all global land points in ERA5-Land. The discrepancy
-     between the documented variable availability (which lists $ET_0$ as
-     available for ERA5-Land) and our observed response (where $ET_0$ returned
-     nulls) requires further upstream investigation with Open-Meteo maintainers.
-   - For precipitation, the null observations are consistent with official
-     documentation (which does not list precipitation as available for
-     ERA5-Land).
-   - Because AgroShift's domain calculations require both validated temperature
-     series, valid $ET_0$, and precipitation, `models=era5` remains the only
-     verified, fully-populated model configuration meeting the operational
-     requirements of the project.
+   - For both recorded ERA5-Land requests, the reported HTTP status was 200,
+     temperature arrays contained numeric values, and $ET_0$ and precipitation
+     arrays contained null values.
+   - The available evidence does not establish why $ET_0$ returned null in
+     these ERA5-Land responses despite being listed as available in the official
+     compatibility table. These observations reflect the specific saved requests
+     and date ranges and must not be generalized to all locations, dates, or
+     ERA5-Land requests.
+   - For precipitation under ERA5-Land, the observed null values are consistent
+     with the official compatibility table, which does not list precipitation
+     as available for ERA5-Land.
+   - In the recorded experiment, complete numeric values for the required
+     variables were returned by `era5`, `era5_seamless`, and the default model
+     configuration.
 
 ---
 
@@ -88,12 +93,12 @@ observed responses:
 All four configurations were queried live on **2026-10-25T18:55:20Z** using
 `scripts/validate_historical_models.ps1` with identical parameters.
 
-| Model Configuration    | HTTP Status | Returned Grid (Lat, Lon, Elev) | $T_{2m,\max}$ Array (°C)         | $T_{2m,\min}$ Array (°C)         | $ET_{0,\text{FAO}}$ Array (mm)   | Precip Array (mm)                | Null Count | Compatibility Assessment                                             |
-| ---------------------- | ----------- | ------------------------------ | -------------------------------- | -------------------------------- | -------------------------------- | -------------------------------- | ---------- | -------------------------------------------------------------------- |
-| `models=era5`          | **200 OK**  | 31.0°N, 31.0°E, 6.0m           | `[37.8, 35.2, 35.4, 36.6, 37.5]` | `[20.8, 21.3, 21.5, 21.4, 22.1]` | `[7.89, 7.82, 7.76, 7.43, 7.59]` | `[0.0, 0.0, 0.0, 0.0, 0.0]`      | 0 / 20     | **PASS** — Complete numeric readings across all 4 variables.         |
-| `models=era5_seamless` | **200 OK**  | 31.1°N, 31.0°E, 6.0m           | `[38.3, 36.1, 36.0, 37.5, 38.6]` | `[20.6, 20.0, 20.4, 20.0, 21.1]` | `[7.91, 7.89, 7.90, 7.54, 7.73]` | `[0.0, 0.0, 0.0, 0.0, 0.0]`      | 0 / 20     | **PASS** — Complete numeric readings across all 4 variables.         |
-| `models=era5_land`     | **200 OK**  | 31.1°N, 31.0°E, 6.0m           | `[38.3, 36.1, 36.0, 37.5, 38.6]` | `[20.6, 20.0, 20.4, 20.0, 21.1]` | `[null, null, null, null, null]` | `[null, null, null, null, null]` | 10 / 20    | **FAIL** — $ET_0$ and precipitation are completely omitted.          |
-| Default (no model)     | **200 OK**  | 31.107°N, 30.998°E, 6.0m       | `[40.7, 38.0, 36.8, 38.5, 39.4]` | `[20.9, 21.1, 21.0, 20.6, 20.9]` | `[8.23, 8.20, 8.38, 7.89, 8.15]` | `[0.0, 0.0, 0.0, 0.0, 0.0]`      | 0 / 20     | **PASS** — Populated, but dataset identity is ambiguous and blended. |
+| Model Configuration    | HTTP Status | Returned Grid (Lat, Lon, Elev) | $T_{2m,\max}$ Array (°C)         | $T_{2m,\min}$ Array (°C)         | $ET_{0,\text{FAO}}$ Array (mm)   | Precip Array (mm)                | Null Count | Compatibility Assessment                                                              |
+| ---------------------- | ----------- | ------------------------------ | -------------------------------- | -------------------------------- | -------------------------------- | -------------------------------- | ---------- | ------------------------------------------------------------------------------------- |
+| `models=era5`          | **200 OK**  | 31.0°N, 31.0°E, 6.0m           | `[37.8, 35.2, 35.4, 36.6, 37.5]` | `[20.8, 21.3, 21.5, 21.4, 22.1]` | `[7.89, 7.82, 7.76, 7.43, 7.59]` | `[0.0, 0.0, 0.0, 0.0, 0.0]`      | 0 / 20     | **PASS** — Returned numeric values for all 4 required variables in tested requests.  |
+| `models=era5_seamless` | **200 OK**  | 31.1°N, 31.0°E, 6.0m           | `[38.3, 36.1, 36.0, 37.5, 38.6]` | `[20.6, 20.0, 20.4, 20.0, 21.1]` | `[7.91, 7.89, 7.90, 7.54, 7.73]` | `[0.0, 0.0, 0.0, 0.0, 0.0]`      | 0 / 20     | **PASS** — Returned numeric values for all 4 required variables in tested requests.  |
+| `models=era5_land`     | **200 OK**  | 31.1°N, 31.0°E, 6.0m           | `[38.3, 36.1, 36.0, 37.5, 38.6]` | `[20.6, 20.0, 20.4, 20.0, 21.1]` | `[null, null, null, null, null]` | `[null, null, null, null, null]` | 10 / 20    | **INCOMPATIBLE** — $ET_0$ and precipitation returned null arrays in tested requests.  |
+| Default (no model)     | **200 OK**  | 31.107°N, 30.998°E, 6.0m       | `[40.7, 38.0, 36.8, 38.5, 39.4]` | `[20.9, 21.1, 21.0, 20.6, 20.9]` | `[8.23, 8.20, 8.38, 7.89, 8.15]` | `[0.0, 0.0, 0.0, 0.0, 0.0]`      | 0 / 20     | **PASS** — Returned numeric values for all 4 required variables in tested requests.  |
 
 ---
 
@@ -358,20 +363,30 @@ Raw JSON responses for each configuration are saved in
 
 ## 4. Architectural Selection and Rationale
 
-1. **`models=era5` Selected as Verified Production Baseline:**
-   - Explicit selection `models=era5` guarantees an unblended, authoritative
-     ECMWF global atmospheric reanalysis dataset.
-   - All four required variables ($T_{\max}$, $T_{\min}$, $ET_0$, precipitation)
-     are fully populated and physically consistent.
+1. **Model Selection Rationale:**
+   - ERA5 was selected as the application's primary historical data source because
+     it returned the required variables in the recorded tests and aligns with
+     the project's preference for a consistent historical reanalysis dataset.
+   - ERA5-Seamless and the default configuration also returned complete data in
+     the recorded experiment. These observations do not establish that ERA5 is
+     the only compatible option or that it is scientifically more accurate for
+     agricultural decisions.
+   - Returning numeric values for the required variables in the tested requests
+     demonstrates compatibility with the application's input parser; it does
+     not prove physical consistency or agricultural accuracy across all
+     conditions.
    - The selected model remains centralized in
      `lib/data/datasources/remote/open_meteo_remote_data_source.dart`:
      ```dart
      static const String historicalModel = 'era5';
      ```
-2. **Definitive Rejection of `era5_land`:**
-   - Both empirical testing and provider documentation confirm that Open-Meteo's
-     `era5_land` configuration omits $ET_0$ and precipitation (`null` arrays).
-     It cannot support AgroShift's irrigation requirement calculations.
+2. **Exclusion of `era5_land` for Operational Requirements:**
+   - In the recorded tests for Egyptian coordinates, `era5_land` returned null
+     values for $ET_0$ and precipitation.
+   - Because AgroShift requires numeric values for all four daily variables
+     ($T_{\max}$, $T_{\min}$, $ET_0$, and precipitation) to compute crop
+     irrigation demands, `era5_land` did not satisfy the operational input
+     requirements in the evaluated cases.
 3. **Traceability and Provenance Accuracy:**
    - Provenance records `datasetName: 'ERA5 Reanalysis Archive'` and grid
      coordinates `(31.0°N, 31.0°E)`, matching the actual returned reanalysis
