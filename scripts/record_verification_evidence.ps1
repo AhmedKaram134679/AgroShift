@@ -153,10 +153,19 @@ try {
     $stderr = ""
     $code = $null
     $launchError = $null
+    $outputError = $null
+    $waitError = $null
+    $evidenceWriteError = $null
 
+    $p = $null
     try {
         $pinfo = New-Object System.Diagnostics.ProcessStartInfo
-        $pinfo.FileName = "powershell.exe"
+        $executable = if ($env:AGROSHIFT_TEST_FAIL_STAGE -and $env:AGROSHIFT_TEST_FAIL_STAGE -eq $StageName) {
+            "non_existent_process_executable_binary_12345.exe"
+        } else {
+            "powershell.exe"
+        }
+        $pinfo.FileName = $executable
         $pinfo.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$tempStageScript`""
         $pinfo.WorkingDirectory = $resolvedRepoRoot
         $pinfo.RedirectStandardOutput = $true
@@ -168,26 +177,65 @@ try {
         if ($null -eq $p) {
             throw "System.Diagnostics.Process.Start returned null."
         }
-        $stdout = $p.StandardOutput.ReadToEnd()
-        $stderr = $p.StandardError.ReadToEnd()
-        $p.WaitForExit()
-        $code = $p.ExitCode
     } catch {
         $launchError = $_.Exception.ToString()
-        $stderr = if ([string]::IsNullOrWhiteSpace($stderr)) {
-            "PROCESS_LAUNCH_FAILURE: $launchError"
-        } else {
-            "$stderr`nPROCESS_LAUNCH_FAILURE: $launchError"
-        }
+        $stderr = "PROCESS_LAUNCH_FAILURE: $launchError"
         # Documented failure code -1 indicates execution launch failure rather than child process exit
         $code = -1
     }
 
+    if ($null -ne $p -and $null -eq $launchError) {
+        # Read output streams asynchronously to avoid pipe buffer deadlocks
+        $stdoutTask = $p.StandardOutput.ReadToEndAsync()
+        $stderrTask = $p.StandardError.ReadToEndAsync()
+
+        try {
+            $p.WaitForExit()
+            $code = $p.ExitCode
+        } catch {
+            $waitError = $_.Exception.ToString()
+            if ($null -eq $code) {
+                $code = 1
+            }
+        }
+
+        try {
+            [System.Threading.Tasks.Task]::WaitAll(@($stdoutTask, $stderrTask))
+            $stdout = $stdoutTask.Result
+            $stderr = $stderrTask.Result
+        } catch {
+            $outputError = $_.Exception.ToString()
+            $stderr = if ([string]::IsNullOrWhiteSpace($stderr)) {
+                "OUTPUT_COLLECTION_FAILURE: $outputError"
+            } else {
+                "$stderr`nOUTPUT_COLLECTION_FAILURE: $outputError"
+            }
+            if ($null -eq $code -or $code -eq 0) {
+                $code = 1
+            }
+        }
+
+        if ($null -ne $waitError) {
+            $stderr = if ([string]::IsNullOrWhiteSpace($stderr)) {
+                "PROCESS_WAIT_FAILURE: $waitError"
+            } else {
+                "$stderr`nPROCESS_WAIT_FAILURE: $waitError"
+            }
+        }
+    }
+
     $stageEndUtc = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 
-    [System.IO.File]::WriteAllText($stdoutFile, $stdout, [System.Text.Encoding]::UTF8)
-    [System.IO.File]::WriteAllText($stderrFile, $stderr, [System.Text.Encoding]::UTF8)
-    [System.IO.File]::WriteAllText($exitCodeFile, "$code", [System.Text.Encoding]::UTF8)
+    try {
+        [System.IO.File]::WriteAllText($stdoutFile, $stdout, [System.Text.Encoding]::UTF8)
+        [System.IO.File]::WriteAllText($stderrFile, $stderr, [System.Text.Encoding]::UTF8)
+        [System.IO.File]::WriteAllText($exitCodeFile, "$code", [System.Text.Encoding]::UTF8)
+    } catch {
+        $evidenceWriteError = $_.Exception.ToString()
+        if ($null -eq $code -or $code -eq 0) {
+            $code = 1
+        }
+    }
 
     Write-Host "Stage $StageName completed with exit code: $code"
     return @{
@@ -201,6 +249,9 @@ try {
         StderrPath = $stderrFile
         ExitCodePath = $exitCodeFile
         LaunchError = $launchError
+        OutputError = $outputError
+        WaitError = $waitError
+        EvidenceWriteError = $evidenceWriteError
     }
 }
 
@@ -273,13 +324,19 @@ $summaryObj = [PSCustomObject]@{
 
 $summaryJson = $summaryObj | ConvertTo-Json -Depth 6
 $summaryPath = Join-Path $evidenceDir "verification_summary.json"
-[System.IO.File]::WriteAllText($summaryPath, $summaryJson, [System.Text.Encoding]::UTF8)
+$summaryPersistenceError = $null
+try {
+    [System.IO.File]::WriteAllText($summaryPath, $summaryJson, [System.Text.Encoding]::UTF8)
+} catch {
+    $summaryPersistenceError = $_.Exception.ToString()
+    Write-Host "CRITICAL ERROR: Failed to persist verification summary to disk: $summaryPersistenceError" -ForegroundColor Red
+}
 
 Write-Host "All verification stages and logs recorded in: $evidenceDir"
 Write-Host $summaryJson
 
-if ($failedStages.Count -gt 0 -or $null -ne $fingerprintError) {
-    Write-Host "`nERROR: Verification failed (Failed stages: $($failedStages.Count), FingerprintError: $fingerprintError). Exit code 1." -ForegroundColor Red
+if ($failedStages.Count -gt 0 -or $null -ne $fingerprintError -or $null -ne $summaryPersistenceError) {
+    Write-Host "`nERROR: Verification failed (Failed stages: $($failedStages.Count), FingerprintError: $fingerprintError, SummaryPersistenceError: $summaryPersistenceError). Exit code 1." -ForegroundColor Red
     exit 1
 }
 

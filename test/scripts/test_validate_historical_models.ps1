@@ -628,26 +628,30 @@ try {
     }
     Assert-Result -TestName "Evidence runner preserved native exit code 7 and prevented later pass from hiding failure" -Condition ($summary31Exists -and $native7Preserved -and $laterPassRecorded) -Message "SummaryExists: $summary31Exists, Native7Preserved: $native7Preserved, LaterPassRecorded: $laterPassRecorded"
 
-    # Test 32: Process-launch failure handling (e.g. invalid executable path or missing process target)
-    Write-Host "Testing evidence runner: Simulating process-launch failure in Run-Stage..."
+    # Test 32: Process-launch failure handling with subsequent stage recovery
+    Write-Host "Testing evidence runner: Simulating process-launch failure in Run-Stage with subsequent stage recovery..."
     $runnerEvidenceDir32 = Join-Path $runnerTestDir "evidence32"
     New-Item -ItemType Directory -Path $runnerEvidenceDir32 -Force | Out-Null
 
-    # Generate runner where Run-Stage targets a non-existent binary to simulate process launch failure
+    # Generate runner where Run-Stage uses AGROSHIFT_TEST_FAIL_STAGE to fail only the first stage
     $fakeRunner32 = Join-Path $runnerTestDir "fake_runner_launch_fail.ps1"
-    $launchFailRunnerContent = $runnerContent -replace '\$pinfo\.FileName = "powershell\.exe"', '$pinfo.FileName = "non_existent_process_executable_binary_12345.exe"'
     $mockStages32 = @"
 `$summary = [System.Collections.Generic.List[hashtable]]::new()
 `$summary.Add((Run-Stage -StageName "Launch Fail Stage" -Command "Write-Host Stage1" -OutPrefix "launch_fail"))
-`$summary.Add((Run-Stage -StageName "Later Stage" -Command "Write-Host StageLater" -OutPrefix "later_stage"))
+`$summary.Add((Run-Stage -StageName "Later Passing Stage" -Command "Write-Host StageLater" -OutPrefix "later_stage"))
 "@
-    $modified32 = $launchFailRunnerContent.Substring(0, $launchFailRunnerContent.IndexOf("# --- BEGIN VERIFICATION STAGES ---")) + $mockStages32 + $launchFailRunnerContent.Substring($launchFailRunnerContent.IndexOf("# --- END VERIFICATION STAGES ---") + "# --- END VERIFICATION STAGES ---".Length)
+    $modified32 = $runnerContent.Substring(0, $runnerContent.IndexOf("# --- BEGIN VERIFICATION STAGES ---")) + $mockStages32 + $runnerContent.Substring($runnerContent.IndexOf("# --- END VERIFICATION STAGES ---") + "# --- END VERIFICATION STAGES ---".Length)
     Set-Content -Path $fakeRunner32 -Value $modified32 -Encoding UTF8
 
     $wrapper32 = Join-Path $testOutputDir "run_test32.ps1"
     @"
-    & '$fakeRunner32' -RepoRoot '$PSScriptRoot/../..' -OutputDir '$runnerEvidenceDir32'
-    exit `$LASTEXITCODE
+    `$env:AGROSHIFT_TEST_FAIL_STAGE = 'Launch Fail Stage'
+    try {
+        & '$fakeRunner32' -RepoRoot '$PSScriptRoot/../..' -OutputDir '$runnerEvidenceDir32'
+        exit `$LASTEXITCODE
+    } finally {
+        Remove-Item env:AGROSHIFT_TEST_FAIL_STAGE -ErrorAction SilentlyContinue
+    }
 "@ | Set-Content -Path $wrapper32 -Encoding UTF8
 
     $p32 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper32`"" -Wait -NoNewWindow -PassThru
@@ -657,14 +661,20 @@ try {
     $sumPath32 = Join-Path $runnerEvidenceDir32 "verification_summary.json"
     $summary32Exists = Test-Path $sumPath32
     $launchFailRecorded = $false
+    $laterStageSucceeded = $false
     if ($summary32Exists) {
         $rawJson32 = Get-Content -Path $sumPath32 -Raw | ConvertFrom-Json
         $failStage32 = $rawJson32.Stages | Where-Object { $_.Stage -eq "Launch Fail Stage" }
+        $passStage32 = $rawJson32.Stages | Where-Object { $_.Stage -eq "Later Passing Stage" }
         if ($rawJson32.OverallStatus -eq "FAIL" -and $null -ne $failStage32 -and [int]$failStage32.ExitCode -eq -1 -and -not [string]::IsNullOrWhiteSpace($failStage32.LaunchError)) {
             $launchFailRecorded = $true
         }
+        if ($null -ne $passStage32 -and [int]$passStage32.ExitCode -eq 0 -and $null -eq $passStage32.LaunchError) {
+            $laterStageSucceeded = $true
+        }
     }
     Assert-Result -TestName "Evidence runner recorded launch failure as exit code -1 and preserved launch error details" -Condition ($summary32Exists -and $launchFailRecorded) -Message "SummaryExists: $summary32Exists, LaunchFailRecorded: $launchFailRecorded"
+    Assert-Result -TestName "Subsequent stage was launched and completed successfully with exit code 0" -Condition ($summary32Exists -and $laterStageSucceeded) -Message "SummaryExists: $summary32Exists, LaterStageSucceeded: $laterStageSucceeded"
 
     # =================================================================
     # Tests 33-38: Content-Based Source Tree Fingerprint Unit Tests
@@ -734,6 +744,82 @@ try {
     $invalidDir = Join-Path $testOutputDir "non_existent_folder_abc123"
     $fpFailed = Get-SourceTreeFingerprint -Root $invalidDir
     Assert-Result -TestName "Fingerprinting failure is reported honestly as unknown with error detail" -Condition ($fpFailed.Fingerprint -eq "unknown" -and -not [string]::IsNullOrWhiteSpace($fpFailed.Error)) -Message "FP: $($fpFailed.Fingerprint), Error: $($fpFailed.Error)"
+
+    # =================================================================
+    # Tests 39-43: Inventory Modification Tests (Add, Delete, Rename)
+    # =================================================================
+    # Test 39: Adding a tracked file changes the composite fingerprint
+    $newTrackedFile = Join-Path $synthRepoDir "lib/new_module.dart"
+    Set-Content -Path $newTrackedFile -Value "// new tracked module" -Encoding UTF8
+    git -C $synthRepoDir add lib/new_module.dart | Out-Null
+    $fpTrackedAdd = Get-SourceTreeFingerprint -Root $synthRepoDir
+    Assert-Result -TestName "Adding a tracked file changes the composite fingerprint" -Condition ($fpTrackedAdd.Fingerprint -ne $fpBase.Fingerprint -and $fpTrackedAdd.FileCount -eq 3) -Message "BaseCount: $($fpBase.FileCount), NewCount: $($fpTrackedAdd.FileCount)"
+    git -C $synthRepoDir rm -f lib/new_module.dart | Out-Null
+
+    # Test 40: Adding an eligible non-ignored untracked file changes the fingerprint
+    $newUntrackedFile = Join-Path $synthRepoDir "lib/untracked_feature.dart"
+    Set-Content -Path $newUntrackedFile -Value "// untracked feature code" -Encoding UTF8
+    $fpUntrackedAdd = Get-SourceTreeFingerprint -Root $synthRepoDir
+    Assert-Result -TestName "Adding an eligible untracked file changes the composite fingerprint" -Condition ($fpUntrackedAdd.Fingerprint -ne $fpBase.Fingerprint -and $fpUntrackedAdd.FileCount -eq 3) -Message "BaseCount: $($fpBase.FileCount), NewCount: $($fpUntrackedAdd.FileCount)"
+
+    # Test 41: Deleting an eligible untracked file restores the base inventory
+    Remove-Item -Path $newUntrackedFile -Force
+    $fpUntrackedDel = Get-SourceTreeFingerprint -Root $synthRepoDir
+    Assert-Result -TestName "Deleting an eligible untracked file restores the base inventory fingerprint" -Condition ($fpUntrackedDel.Fingerprint -eq $fpBase.Fingerprint -and $fpUntrackedDel.FileCount -eq 2) -Message "Got: $($fpUntrackedDel.Fingerprint), Expected: $($fpBase.Fingerprint)"
+
+    # Test 42: Deleting a tracked file from disk triggers honest failure reporting (missing file)
+    Remove-Item -Path $trackedTestFile -Force
+    $fpTrackedDel = Get-SourceTreeFingerprint -Root $synthRepoDir
+    Assert-Result -TestName "Deleting a tracked file without git staging reports unknown with missing file error" -Condition ($fpTrackedDel.Fingerprint -eq "unknown" -and $fpTrackedDel.Error -like "*missing or inaccessible*") -Message "FP: $($fpTrackedDel.Fingerprint), Error: $($fpTrackedDel.Error)"
+    git -C $synthRepoDir checkout -- lib/file1.dart | Out-Null
+
+    # Test 43: Renaming a file changes the composite fingerprint
+    git -C $synthRepoDir mv lib/file1.dart lib/file1_renamed.dart | Out-Null
+    $fpRenamed = Get-SourceTreeFingerprint -Root $synthRepoDir
+    Assert-Result -TestName "Renaming a file changes the composite fingerprint and preserves count" -Condition ($fpRenamed.Fingerprint -ne $fpBase.Fingerprint -and $fpRenamed.FileCount -eq 2) -Message "BaseFP: $($fpBase.Fingerprint), RenamedFP: $($fpRenamed.Fingerprint)"
+    git -C $synthRepoDir mv lib/file1_renamed.dart lib/file1.dart | Out-Null
+
+    # =================================================================
+    # Test 44: Run-Stage Error Classification Separation
+    # =================================================================
+    # Assert that Run-Stage distinguishes launch failure (code -1, LaunchError set) from normal exit
+    # and that normal command does not set LaunchError, OutputError, or WaitError
+    Write-Host "Testing Run-Stage error classification separation..."
+    $runnerEvidenceDir44 = Join-Path $runnerTestDir "evidence44"
+    New-Item -ItemType Directory -Path $runnerEvidenceDir44 -Force | Out-Null
+
+    $fakeRunner44 = Join-Path $runnerTestDir "fake_runner_error_class.ps1"
+    $mockStages44 = @"
+`$summary = [System.Collections.Generic.List[hashtable]]::new()
+`$summary.Add((Run-Stage -StageName "Normal Stage" -Command "Write-Host 'normal output'" -OutPrefix "normal_stage"))
+`$summary.Add((Run-Stage -StageName "Nonzero Normal Stage" -Command "cmd.exe /c exit 5" -OutPrefix "nonzero_stage"))
+"@
+    $modified44 = $runnerContent.Substring(0, $runnerContent.IndexOf("# --- BEGIN VERIFICATION STAGES ---")) + $mockStages44 + $runnerContent.Substring($runnerContent.IndexOf("# --- END VERIFICATION STAGES ---") + "# --- END VERIFICATION STAGES ---".Length)
+    Set-Content -Path $fakeRunner44 -Value $modified44 -Encoding UTF8
+
+    $wrapper44 = Join-Path $testOutputDir "run_test44.ps1"
+    @"
+    & '$fakeRunner44' -RepoRoot '$PSScriptRoot/../..' -OutputDir '$runnerEvidenceDir44'
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper44 -Encoding UTF8
+
+    $p44 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper44`"" -Wait -NoNewWindow -PassThru
+    $sumPath44 = Join-Path $runnerEvidenceDir44 "verification_summary.json"
+    $summary44Exists = Test-Path $sumPath44
+    $normalClassifiedCorrectly = $false
+    $nonzeroClassifiedCorrectly = $false
+    if ($summary44Exists) {
+        $rawJson44 = Get-Content -Path $sumPath44 -Raw | ConvertFrom-Json
+        $normalStage = $rawJson44.Stages | Where-Object { $_.Stage -eq "Normal Stage" }
+        $nonzeroStage = $rawJson44.Stages | Where-Object { $_.Stage -eq "Nonzero Normal Stage" }
+        if ($null -ne $normalStage -and [int]$normalStage.ExitCode -eq 0 -and $null -eq $normalStage.LaunchError -and $null -eq $normalStage.OutputError -and $null -eq $normalStage.WaitError) {
+            $normalClassifiedCorrectly = $true
+        }
+        if ($null -ne $nonzeroStage -and [int]$nonzeroStage.ExitCode -eq 5 -and $null -eq $nonzeroStage.LaunchError -and $null -eq $nonzeroStage.OutputError -and $null -eq $nonzeroStage.WaitError) {
+            $nonzeroClassifiedCorrectly = $true
+        }
+    }
+    Assert-Result -TestName "Run-Stage does not misclassify normal execution or nonzero exit as a launch failure" -Condition ($summary44Exists -and $normalClassifiedCorrectly -and $nonzeroClassifiedCorrectly) -Message "NormalOK: $normalClassifiedCorrectly, NonzeroOK: $nonzeroClassifiedCorrectly"
 
 } finally {
     if (Test-Path $testOutputDir) {
