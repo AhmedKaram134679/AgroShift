@@ -217,7 +217,7 @@ if ($MyInvocation.InvocationName -ne '.') {
         $expectedDatesList.Add($cur.ToString("yyyy-MM-dd"))
     }
 
-    $configs = if ($null -ne $ConfigsOverride) {
+    $rawConfigs = if ($null -ne $ConfigsOverride) {
         $ConfigsOverride
     } else {
         @(
@@ -226,6 +226,56 @@ if ($MyInvocation.InvocationName -ne '.') {
             @{ Name = "era5_land"; ModelParam = "&models=era5_land"; ExpectPass = $false },
             @{ Name = "default"; ModelParam = ""; ExpectPass = $true }
         )
+    }
+
+    # Normalize configs into a 1-D array of configuration objects
+    $configs = @()
+    if ($null -ne $rawConfigs) {
+        if ($rawConfigs -is [System.Collections.IDictionary]) {
+            $configs = @($rawConfigs)
+        } else {
+            foreach ($item in $rawConfigs) {
+                $configs += $item
+            }
+        }
+    }
+
+    # Strict configuration shape and uniqueness validation
+    if ($null -eq $configs -or $configs.Count -eq 0) {
+        throw "Configuration list cannot be null or empty."
+    }
+
+    $seenConfigNames = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    for ($cfgIdx = 0; $cfgIdx -lt $configs.Count; $cfgIdx++) {
+        $cfgItem = $configs[$cfgIdx]
+        if ($null -eq $cfgItem) {
+            throw "Configuration at index $cfgIdx is null."
+        }
+
+        # Check required fields
+        $cfgName = if ($cfgItem -is [System.Collections.IDictionary]) { $cfgItem["Name"] } else { $cfgItem.Name }
+        if ([string]::IsNullOrWhiteSpace($cfgName)) {
+            throw "Configuration at index $cfgIdx has missing or empty 'Name'."
+        }
+
+        if (-not $seenConfigNames.Add($cfgName)) {
+            throw "Duplicate configuration name '$cfgName' detected at index $cfgIdx."
+        }
+
+        $cfgModelParam = if ($cfgItem -is [System.Collections.IDictionary]) { $cfgItem["ModelParam"] } else { $cfgItem.ModelParam }
+        if ($null -eq $cfgModelParam -or -not ($cfgModelParam -is [string])) {
+            throw "Configuration '$cfgName' at index $cfgIdx must have a string 'ModelParam' (can be empty string)."
+        }
+
+        $hasExpectPass = if ($cfgItem -is [System.Collections.IDictionary]) { $cfgItem.Contains("ExpectPass") } else { $null -ne $cfgItem.PSObject.Properties["ExpectPass"] }
+        if (-not $hasExpectPass) {
+            throw "Configuration '$cfgName' at index $cfgIdx is missing required property 'ExpectPass'."
+        }
+
+        $cfgExpectPass = if ($cfgItem -is [System.Collections.IDictionary]) { $cfgItem["ExpectPass"] } else { $cfgItem.ExpectPass }
+        if ($null -eq $cfgExpectPass -or -not ($cfgExpectPass -is [bool])) {
+            throw "Configuration '$cfgName' at index $cfgIdx must have a boolean 'ExpectPass' value."
+        }
     }
 
     Write-Host "================================================================="

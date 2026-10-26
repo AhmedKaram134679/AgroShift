@@ -402,6 +402,75 @@ void main() {
       expect(find.textContaining('م³ / فدان'), findsNothing);
     },
   );
+
+  testWidgets(
+    'Dashboard displays successful ETc calculation and volumetric demand when ET0 series is complete',
+    (WidgetTester tester) async {
+      final prov = DataSourceProvenance(
+        providerName: 'Open-Meteo Weather API',
+        datasetName: 'Mock Forecast',
+        requestedLatitude: 31.1000,
+        requestedLongitude: 30.9500,
+        gridLatitude: 31.0,
+        gridLongitude: 31.0,
+        acquisitionTimestamp: DateTime.now().toUtc(),
+        expectedPeriodDays: 7,
+      );
+
+      // 7 complete days with 5.0 mm/day ET0
+      final records = List.generate(7, (i) {
+        return DailyAgroRecord(
+          date: DateTime(2024, 6, 1 + i),
+          maxTemperatureC: 32.0,
+          minTemperatureC: 20.0,
+          precipitationMm: 0.0,
+          referenceEt0Mm: 5.0,
+          provenance: prov,
+        );
+      });
+
+      final customRepo = _StaticWeatherRepository(records);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [weatherRepositoryProvider.overrideWithValue(customRepo)],
+          child: MaterialApp(
+            theme: AgroTheme.lightTheme,
+            locale: const Locale('ar', 'EG'),
+            supportedLocales: const [Locale('ar', 'EG'), Locale('en', 'US')],
+            localizationsDelegates: const [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            home: const Directionality(
+              textDirection: TextDirection.rtl,
+              child: MainNavigationShell(),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Verify complete ET0 period label is displayed
+      expect(
+        find.text('البخر نتح المرجعي (ET₀) — فترة 7 أيام'),
+        findsOneWidget,
+      );
+      // Total ET0 is 35.0 mm
+      expect(
+        find.text('مجموع البخر نتح المرجعي (ET₀): 35.0 مم'),
+        findsOneWidget,
+      );
+      // Verify ETc title and volumetric card render
+      expect(
+        find.textContaining('الاستهلاك المائي التبخري للمحصول (ETc)'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('م³ / فدان'), findsOneWidget);
+    },
+  );
 }
 
 class _StaticFieldNotifier extends SelectedFieldNotifier {

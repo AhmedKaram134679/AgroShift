@@ -1024,6 +1024,61 @@ try {
     }
     Assert-Result -TestName "Evidence write failure fails stage honestly and records EvidenceWriteError" -Condition ($p48.ExitCode -eq 1 -and $summary48Exists -and $evidenceWriteFailClassified) -Message "Exit: $($p48.ExitCode), EvidenceWriteFailOK: $evidenceWriteFailClassified"
 
+    # Test 50: Configuration validation - missing or whitespace Name -> throws / non-zero exit
+    Write-Host "Testing child execution: Malformed configuration (missing Name)..."
+    $wrapper50 = Join-Path $testOutputDir "run_test50.ps1"
+    @"
+    `$cfg = @(@{ Name = ''; ModelParam = ''; ExpectPass = `$true })
+    & '$scriptPath' -OutputDir '$testOutputDir' -ConfigsOverride `$cfg
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper50 -Encoding UTF8
+
+    $p50 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper50`"" -Wait -NoNewWindow -PassThru
+    $exit50 = $p50.ExitCode
+    Assert-Result -TestName "Configuration with missing Name causes non-zero exit code" -Condition ($exit50 -ne 0) -Message "Got exit code $exit50"
+
+    # Test 51: Configuration validation - invalid ModelParam type -> throws / non-zero exit
+    Write-Host "Testing child execution: Malformed configuration (non-string ModelParam)..."
+    $wrapper51 = Join-Path $testOutputDir "run_test51.ps1"
+    @"
+    `$cfg = @(@{ Name = 'test_invalid_param'; ModelParam = 12345; ExpectPass = `$true })
+    & '$scriptPath' -OutputDir '$testOutputDir' -ConfigsOverride `$cfg
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper51 -Encoding UTF8
+
+    $p51 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper51`"" -Wait -NoNewWindow -PassThru
+    $exit51 = $p51.ExitCode
+    Assert-Result -TestName "Configuration with non-string ModelParam causes non-zero exit code" -Condition ($exit51 -ne 0) -Message "Got exit code $exit51"
+
+    # Test 52: Configuration validation - missing or non-boolean ExpectPass -> throws / non-zero exit
+    Write-Host "Testing child execution: Malformed configuration (non-boolean ExpectPass)..."
+    $wrapper52 = Join-Path $testOutputDir "run_test52.ps1"
+    @"
+    `$cfg = @(@{ Name = 'test_no_bool'; ModelParam = ''; ExpectPass = 'yes' })
+    & '$scriptPath' -OutputDir '$testOutputDir' -ConfigsOverride `$cfg
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper52 -Encoding UTF8
+
+    $p52 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper52`"" -Wait -NoNewWindow -PassThru
+    $exit52 = $p52.ExitCode
+    Assert-Result -TestName "Configuration with non-boolean ExpectPass causes non-zero exit code" -Condition ($exit52 -ne 0) -Message "Got exit code $exit52"
+
+    # Test 53: Configuration validation - duplicate configuration names -> throws / non-zero exit
+    Write-Host "Testing child execution: Duplicate configuration names..."
+    $wrapper53 = Join-Path $testOutputDir "run_test53.ps1"
+    @"
+    `$cfg = @(
+        @{ Name = 'duplicate_model'; ModelParam = '&models=era5'; ExpectPass = `$true },
+        @{ Name = 'duplicate_model'; ModelParam = '&models=era5_seamless'; ExpectPass = `$true }
+    )
+    & '$scriptPath' -OutputDir '$testOutputDir' -ConfigsOverride `$cfg
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper53 -Encoding UTF8
+
+    $p53 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper53`"" -Wait -NoNewWindow -PassThru
+    $exit53 = $p53.ExitCode
+    Assert-Result -TestName "Duplicate configuration names cause non-zero exit code" -Condition ($exit53 -ne 0) -Message "Got exit code $exit53"
+
 } finally {
     if (Test-Path $testOutputDir) {
         Remove-Item -Path $testOutputDir -Recurse -Force -ErrorAction SilentlyContinue
@@ -1053,7 +1108,7 @@ if ($canReachLiveApi) {
     $liveTempDir = Join-Path ([System.IO.Path]::GetTempPath()) "agro_shift_live_sweep_$([Guid]::NewGuid().ToString('N'))"
     New-Item -ItemType Directory -Path $liveTempDir -Force | Out-Null
     try {
-        $pLive = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`" -OutputDir `"$liveTempDir`"" -Wait -NoNewWindow -PassThru
+        $pLive = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`" -OutputDir `"$liveTempDir`" -FailOnAnyModelError" -Wait -NoNewWindow -PassThru
         $exitLive = $pLive.ExitCode
         $liveTestExecuted = $true
         $liveTestPassed = ($exitLive -eq 0)

@@ -241,6 +241,180 @@ void main() {
       // Contrast: if observations were compacted to a 9-day list, Kc calculation would use /9 instead of /10
       // which would assign different Kc values to remaining days. Our test proves original day positions are strictly preserved.
     });
+
+    test('Comprehensive ETc missingness and variable-Kc growth-stage alignment verification', () {
+      // Use maize (kcIni = 0.30, kcMid = 1.20, kcEnd = 0.60) whose Kc varies strictly across stages
+      final maize = EgyptianCropsCatalog.maize;
+      const totalDays = 20;
+
+      // 1. Complete ET0 series calculates expected ETc and volumetric demand
+      final completeEt0 = List.generate(totalDays, (i) => 5.0 + (i % 3) * 0.5);
+      final completeRes = EtcCalculator.calculateCycleWaterRequirementValidated(
+        crop: maize,
+        totalRequestedDays: totalDays,
+        dailyEt0Series: completeEt0,
+      );
+      expect(completeRes.isSuccess, isTrue);
+      final expectedCompleteEtc = [
+        for (var i = 0; i < totalDays; i++)
+          completeEt0[i] * maize.getKcForStageFraction((i + 1) / totalDays),
+      ].reduce((a, b) => a + b);
+      expect(
+        completeRes.dataOrNull!.totalEtcMm,
+        closeTo(expectedCompleteEtc, 0.0001),
+      );
+      expect(
+        completeRes.dataOrNull!.totalVolumeM3PerFeddan,
+        closeTo(expectedCompleteEtc * 4.2, 0.001),
+      );
+
+      // 2. A missing ET0 observation (null) is counted as incomplete day (1 / 20 = 5% <= 10% threshold -> PASS)
+      final withNull = List<double?>.from(completeEt0);
+      withNull[4] = null; // Day index 4 (5th day) missing
+      final nullRes = EtcCalculator.calculateCycleWaterRequirementValidated(
+        crop: maize,
+        totalRequestedDays: totalDays,
+        dailyEt0Series: withNull,
+      );
+      expect(nullRes.isSuccess, isTrue);
+
+      // 3. A non-finite ET0 observation (NaN / Inf) is counted as incomplete day
+      final withNan = List<double?>.from(completeEt0);
+      withNan[4] = double.nan;
+      final nanRes = EtcCalculator.calculateCycleWaterRequirementValidated(
+        crop: maize,
+        totalRequestedDays: totalDays,
+        dailyEt0Series: withNan,
+      );
+      expect(nanRes.isSuccess, isTrue);
+      expect(
+        nanRes.dataOrNull!.totalEtcMm,
+        closeTo(nullRes.dataOrNull!.totalEtcMm, 0.0001),
+      );
+
+      final withInf = List<double?>.from(completeEt0);
+      withInf[4] = double.infinity;
+      final infRes = EtcCalculator.calculateCycleWaterRequirementValidated(
+        crop: maize,
+        totalRequestedDays: totalDays,
+        dailyEt0Series: withInf,
+      );
+      expect(infRes.isSuccess, isTrue);
+      expect(
+        infRes.dataOrNull!.totalEtcMm,
+        closeTo(nullRes.dataOrNull!.totalEtcMm, 0.0001),
+      );
+
+      // 4 & 5. Missing days in the middle do not shift subsequent Kc assignments
+      // If index 4 was removed from list, subsequent days would shift left by 1
+      // Check that day 10 still receives Kc for fraction (10+1)/20, not (9+1)/20
+      final day4Contribution =
+          completeEt0[4] * maize.getKcForStageFraction((4 + 1) / totalDays);
+      expect(
+        nullRes.dataOrNull!.totalEtcMm,
+        closeTo(expectedCompleteEtc - day4Contribution, 0.0001),
+      );
+
+      // 6 & 7. Growth-stage fraction uses (dayIndex + 1) / totalRequestedDays (denominator is 20, not 19 valid days)
+      // If denominator were 19, total would differ significantly
+      final wrongCompactedSeries = List<double>.from(completeEt0)..removeAt(4);
+      final wrongCompactedSum = [
+        for (var i = 0; i < wrongCompactedSeries.length; i++)
+          wrongCompactedSeries[i] * maize.getKcForStageFraction((i + 1) / 19),
+      ].reduce((a, b) => a + b);
+      expect(
+        (nullRes.dataOrNull!.totalEtcMm - wrongCompactedSum).abs(),
+        greaterThan(0.01),
+      );
+
+      // 8. Observations beyond totalRequestedDays are ignored
+      final longSeries = [...completeEt0, 100.0, 200.0, null];
+      final longRes = EtcCalculator.calculateCycleWaterRequirementValidated(
+        crop: maize,
+        totalRequestedDays: totalDays,
+        dailyEt0Series: longSeries,
+      );
+      expect(longRes.isSuccess, isTrue);
+      expect(
+        longRes.dataOrNull!.totalEtcMm,
+        closeTo(completeRes.dataOrNull!.totalEtcMm, 0.0001),
+      );
+
+      // 9. Series shorter than requested period correctly counts absent trailing days as incomplete
+      // 18 days provided for 20 days requested -> 2 missing days = 10% -> PASS (<= 10%)
+      final short18 = completeEt0.sublist(0, 18);
+      final short18Res = EtcCalculator.calculateCycleWaterRequirementValidated(
+        crop: maize,
+        totalRequestedDays: totalDays,
+        dailyEt0Series: short18,
+      );
+      expect(short18Res.isSuccess, isTrue);
+
+      // 17 days provided for 20 days requested -> 3 missing days = 15% > 10% -> FAIL
+      final short17 = completeEt0.sublist(0, 17);
+      final short17Res = EtcCalculator.calculateCycleWaterRequirementValidated(
+        crop: maize,
+        totalRequestedDays: totalDays,
+        dailyEt0Series: short17,
+      );
+      expect(short17Res.isFailure, isTrue);
+      expect(short17Res.failureOrNull?.missingCount, equals(3));
+      expect(short17Res.failureOrNull?.missingRatio, closeTo(3 / 20, 0.001));
+
+      // 10 & 11. Missingness ratio policy: strict '>' 10%
+      // 2 out of 20 = 10.0% exactly -> PASS
+      final exact10PercentMissing = List<double?>.from(completeEt0);
+      exact10PercentMissing[0] = null;
+      exact10PercentMissing[1] = null;
+      final exact10Res = EtcCalculator.calculateCycleWaterRequirementValidated(
+        crop: maize,
+        totalRequestedDays: 20,
+        dailyEt0Series: exact10PercentMissing,
+      );
+      expect(
+        exact10Res.isSuccess,
+        isTrue,
+        reason: 'Exactly 10% missingness must pass strict > policy',
+      );
+
+      // 3 out of 20 = 15.0% > 10% -> FAIL
+      exact10PercentMissing[2] = null;
+      final over10Res = EtcCalculator.calculateCycleWaterRequirementValidated(
+        crop: maize,
+        totalRequestedDays: 20,
+        dailyEt0Series: exact10PercentMissing,
+      );
+      expect(
+        over10Res.isFailure,
+        isTrue,
+        reason: 'Over 10% missingness must fail',
+      );
+
+      // 12. Non-positive requested period returns failure
+      final nonPositiveRes =
+          EtcCalculator.calculateCycleWaterRequirementValidated(
+            crop: maize,
+            totalRequestedDays: 0,
+            dailyEt0Series: completeEt0,
+          );
+      expect(nonPositiveRes.isFailure, isTrue);
+
+      final negRes = EtcCalculator.calculateCycleWaterRequirementValidated(
+        crop: maize,
+        totalRequestedDays: -5,
+        dailyEt0Series: completeEt0,
+      );
+      expect(negRes.isFailure, isTrue);
+
+      // 13. Current ETc equation and volume conversion remain unchanged (1 mm = 4.2 m3/feddan)
+      final etcSingle = EtcCalculator.calculateDailyEtc(
+        referenceEt0Mm: 10.0,
+        cropKc: 1.2,
+      );
+      expect(etcSingle, equals(12.0));
+      final volSingle = EtcCalculator.convertMmToCubicMetersPerFeddan(12.0);
+      expect(volSingle, closeTo(12.0 * 4.2, 0.001));
+    });
   });
 
   group('HeatStressEvaluator Tests', () {

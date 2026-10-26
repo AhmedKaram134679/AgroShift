@@ -3000,6 +3000,17 @@ void main() {
           );
         ''');
 
+        // Insert a legacy farm field into v1 table
+        rawSqliteDb.execute('''
+          INSERT INTO farm_fields_table (
+            id, name_ar, governorate_ar, latitude, longitude, area_in_feddan,
+            soil_type, active_crop_id, is_default, created_at, updated_at
+          ) VALUES (
+            'legacy_field_1', 'حقل التراث المصري', 'كفر الشيخ', 31.10, 30.95, 5.0,
+            'clay', 'wheat', 1, $legacyNow, $legacyNow
+          );
+        ''');
+
         // Set pragma user_version = 1
         rawSqliteDb.execute('PRAGMA user_version = 1;');
 
@@ -3009,7 +3020,16 @@ void main() {
         // Verify that onUpgrade ran and schemaVersion is now 2
         expect(upgradedDb.schemaVersion, equals(2));
 
-        // Step 3: Verify the legacy record is preserved with its exact original values
+        // Step 3: Verify the legacy records (farm field and weather) are preserved with exact original values
+        final legacyField = await (upgradedDb.select(
+          upgradedDb.farmFieldsTable,
+        )..where((t) => t.id.equals('legacy_field_1'))).getSingle();
+        expect(legacyField.nameAr, equals('حقل التراث المصري'));
+        expect(legacyField.areaInFeddan, equals(5.0));
+        expect(legacyField.soilType, equals('clay'));
+        expect(legacyField.activeCropId, equals('wheat'));
+        expect(legacyField.isDefault, isTrue);
+
         final legacyRow = await (upgradedDb.select(
           upgradedDb.cachedDailyRecordsTable,
         )..where((t) => t.cacheKey.equals('hist_test_v1'))).getSingle();
@@ -3145,6 +3165,24 @@ void main() {
         );
 
         await upgradedDb.close();
+
+        // Step 8: Reopen database and verify migration idempotency (no data duplication or corruption)
+        final reopenedDb = AppDatabase(NativeDatabase.opened(rawSqliteDb));
+        expect(reopenedDb.schemaVersion, equals(2));
+
+        final fieldsAfterReopen = await reopenedDb
+            .select(reopenedDb.farmFieldsTable)
+            .get();
+        expect(fieldsAfterReopen.length, equals(1));
+        expect(fieldsAfterReopen.first.id, equals('legacy_field_1'));
+
+        final weatherAfterReopen = await reopenedDb
+            .select(reopenedDb.cachedDailyRecordsTable)
+            .get();
+        expect(weatherAfterReopen.length, equals(3));
+
+        await reopenedDb.close();
+        rawSqliteDb.close();
       });
     });
   });
