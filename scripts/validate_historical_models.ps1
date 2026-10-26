@@ -6,11 +6,13 @@
 # 4. default (no models parameter)
 
 param(
-    [string]$OutputDir = "$PSScriptRoot/../docs/fixtures/historical_api",
+    [string]$OutputDir = $null,
+    [switch]$SaveCommittedFixtures = $false,
     [switch]$FailOnAnyModelError = $false,
     [string]$BaseUrl = "https://archive-api.open-meteo.com/v1/archive",
     [array]$ConfigsOverride = $null,
-    [hashtable]$MockResponseFiles = $null
+    [hashtable]$MockResponseFiles = $null,
+    [switch]$SimulateTransportError = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -44,18 +46,22 @@ function Test-HistoricalApiResponse {
 
     $daily = $Response.daily
     $dailyUnits = $Response.daily_units
+    $hasStructuralError = $false
 
     # 1. Date array verification
     $dates = $daily.time
     if ($null -eq $dates) {
         $errors.Add("Missing 'daily.time' date array")
+        $hasStructuralError = $true
     } else {
         if ($dates.Count -ne $ExpectedDates.Count) {
             $errors.Add("Date array length ($($dates.Count)) does not match expected length ($($ExpectedDates.Count))")
+            $hasStructuralError = $true
         }
         for ($i = 0; $i -lt [Math]::Min($dates.Count, $ExpectedDates.Count); $i++) {
             if ($dates[$i] -ne $ExpectedDates[$i]) {
                 $errors.Add("Date at index $i mismatch: got '$($dates[$i])', expected '$($ExpectedDates[$i])'")
+                $hasStructuralError = $true
             }
         }
     }
@@ -63,12 +69,14 @@ function Test-HistoricalApiResponse {
     # 2. Units verification
     if ($null -eq $dailyUnits) {
         $errors.Add("Missing 'daily_units' object in response")
+        $hasStructuralError = $true
     } else {
         foreach ($key in $ExpectedUnits.Keys) {
             $expectedUnit = $ExpectedUnits[$key]
             $actualUnit = $dailyUnits.$key
             if ($actualUnit -ne $expectedUnit) {
                 $errors.Add("Unit mismatch for '$key': got '$actualUnit', expected '$expectedUnit'")
+                $hasStructuralError = $true
             }
         }
     }
@@ -89,6 +97,7 @@ function Test-HistoricalApiResponse {
 
         if ($arr.Count -ne $ExpectedDates.Count) {
             $errors.Add("Array '$varName' count ($($arr.Count)) does not match expected count ($($ExpectedDates.Count))")
+            $hasStructuralError = $true
         }
 
         $varNullCount = 0
@@ -101,8 +110,10 @@ function Test-HistoricalApiResponse {
                 $dVal = 0.0
                 if (-not [double]::TryParse("$val", [System.Globalization.NumberStyles]::Float, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$dVal)) {
                     $errors.Add("Value at '$varName' index $i ('$val') is not a valid number")
+                    $hasStructuralError = $true
                 } elseif ([double]::IsNaN($dVal) -or [double]::IsInfinity($dVal)) {
                     $errors.Add("Value at '$varName' index $i is NaN or Infinity")
+                    $hasStructuralError = $true
                 }
             }
         }
@@ -115,7 +126,9 @@ function Test-HistoricalApiResponse {
 
     $outcome = "PASS"
     if ($errors.Count -gt 0) {
-        if ($hasMissingOrNullData) {
+        if ($hasStructuralError) {
+            $outcome = "ERROR"
+        } elseif ($hasMissingOrNullData) {
             $outcome = "INCOMPATIBLE"
         } else {
             $outcome = "ERROR"
@@ -132,6 +145,17 @@ function Test-HistoricalApiResponse {
 
 # Export function for external test consumption if sourced
 if ($MyInvocation.InvocationName -ne '.') {
+    $committedFixturesDir = "$PSScriptRoot/../docs/fixtures/historical_api"
+    if ([string]::IsNullOrWhiteSpace($OutputDir)) {
+        if ($SaveCommittedFixtures.IsPresent -or $SaveCommittedFixtures -eq $true) {
+            $OutputDir = $committedFixturesDir
+            Write-Host "Notice: -SaveCommittedFixtures is enabled. Output will be saved to committed fixtures: $OutputDir" -ForegroundColor Yellow
+        } else {
+            $OutputDir = Join-Path ([System.IO.Path]::GetTempPath()) "agro_shift_historical_validation_$([Guid]::NewGuid().ToString('N'))"
+            Write-Host "Notice: OutputDir was not specified. Defaulting to safe temporary directory: $OutputDir" -ForegroundColor Cyan
+        }
+    }
+
     if (-not (Test-Path $OutputDir)) {
         New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
     }
@@ -191,7 +215,10 @@ if ($MyInvocation.InvocationName -ne '.') {
             $response = $null
             $statusCode = $null
 
-            if ($null -ne $MockResponseFiles -and $MockResponseFiles.ContainsKey($cfg.Name)) {
+            if ($SimulateTransportError.IsPresent -or $SimulateTransportError -eq $true) {
+                $statusReported = "Request Failed (Injected Transport Error)"
+                throw [System.Net.WebException]::new("Injected transport failure: Unable to connect to remote server (deterministic test seam)")
+            } elseif ($null -ne $MockResponseFiles -and $MockResponseFiles.ContainsKey($cfg.Name)) {
                 $mockFile = $MockResponseFiles[$cfg.Name]
                 if (Test-Path $mockFile) {
                     $rawContent = Get-Content -Path $mockFile -Raw -Encoding UTF8

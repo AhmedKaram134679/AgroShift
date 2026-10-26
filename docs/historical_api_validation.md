@@ -47,9 +47,12 @@ and observed project responses:
      - `models=era5_land` does **not** list precipitation (`precipitation_sum`)
        as an available variable in the relevant compatibility table.
      - Default configuration (no `models` parameter specified) is documented by
-       the provider as a Best Match dataset combining multiple models
-       seamlessly (such as ECMWF IFS, ERA5, and national weather services),
-       rather than a single fixed standalone dataset.
+       the provider for the Historical Weather API as a Best Match dataset
+       combining multiple models seamlessly—specifically ECMWF IFS HRES (for
+       recent periods), ERA5, and ERA5-Land—rather than a single fixed standalone
+       dataset. Note that the Historical Weather API (archive reanalysis data)
+       should not be conflated with the Historical Forecast API (archived numerical
+       weather prediction model runs).
 
 2. **Empirical Project Observations:**
    - **Kafr El-Sheikh, Nile Delta (5 requested days):**
@@ -398,8 +401,12 @@ Raw JSON responses for each configuration are saved in
 
 ## 5. Local Reproduction Instructions
 
-To reproduce these observations directly from PowerShell on Windows:
+To execute model validation directly from PowerShell on Windows:
 
 ```powershell
+# Default safe execution (responses written to isolated temporary directory; committed fixtures protected):
 powershell -ExecutionPolicy Bypass -File scripts/validate_historical_models.ps1
+
+# To explicitly update committed fixtures with fresh responses (when authorized):
+powershell -ExecutionPolicy Bypass -File scripts/validate_historical_models.ps1 -SaveCommittedFixtures
 ```

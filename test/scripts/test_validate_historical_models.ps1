@@ -129,6 +129,13 @@ $zeroObj.daily.precipitation_sum = @(0.0, 0.0, 0.0, 0.0, 0.0)
 $res13 = Test-HistoricalApiResponse -Response $zeroObj -ExpectedDates $expectedDates
 Assert-Result -TestName "Legitimate 0.0 precipitation values accepted -> PASS" -Condition ($res13.Outcome -eq "PASS" -and $res13.IsValid -eq $true)
 
+# Test 13b: Structural validation failure combined with missing values classified as ERROR
+$structPlusMissingObj = New-ValidFixture
+$structPlusMissingObj.daily.temperature_2m_max[0] = $null # missing value
+$structPlusMissingObj.daily_units.temperature_2m_max = "°F" # structural error: unit mismatch
+$res13b = Test-HistoricalApiResponse -Response $structPlusMissingObj -ExpectedDates $expectedDates
+Assert-Result -TestName "Structural validation failure with missing values classified as ERROR" -Condition ($res13b.Outcome -eq "ERROR" -and $res13b.IsValid -eq $false)
+
 Write-Host "`n================================================================="
 Write-Host "Running Deterministic Child-Process Exit-Code Tests..." -ForegroundColor Cyan
 Write-Host "================================================================="
@@ -138,21 +145,11 @@ $testOutputDir = Join-Path ([System.IO.Path]::GetTempPath()) "agro_shift_ps_test
 New-Item -ItemType Directory -Path $testOutputDir -Force | Out-Null
 
 try {
-    # Dynamically allocate an ephemeral loopback port and close it immediately.
-    # This guarantees that connecting to this port triggers a deterministic connection refused / transport failure
-    # without making any fixed-port assumptions (such as 54321).
-    $dynamicPort = 0
-    $tcpListener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
-    try {
-        $tcpListener.Start()
-        $dynamicPort = ($tcpListener.LocalEndpoint).Port
-    } finally {
-        $tcpListener.Stop()
-    }
-    $unreachableBaseUrl = "http://127.0.0.1:$dynamicPort/transport_failure_test"
-    Write-Host "Allocated closed ephemeral loopback test URL: $unreachableBaseUrl"
+    # Tests 14-16: Deterministic HTTP transport/connection failure (ERROR)
+    # Using explicit -SimulateTransportError test seam, guaranteeing 100% deterministic transport failure
+    # without network port binding races or OS socket availability dependencies.
 
-    # Test 14: Deterministic HTTP transport/connection failure (ERROR) with -FailOnAnyModelError omitted
+    # Test 14: Deterministic HTTP transport failure (ERROR) with -FailOnAnyModelError omitted
     # Model is configured with ExpectPass = $false (so an error does not violate an expectation of passing),
     # and -FailOnAnyModelError is NOT passed.
     # Expected outcome: ERROR recorded, but exit code is 0 because no passing expectation failed and -FailOnAnyModelError is off.
@@ -160,7 +157,7 @@ try {
     $wrapper14 = Join-Path $testOutputDir "run_test14.ps1"
     @"
     `$cfg = @(@{ Name = 'test_err'; ModelParam = ''; ExpectPass = `$false })
-    & '$scriptPath' -OutputDir '$testOutputDir' -BaseUrl '$unreachableBaseUrl' -ConfigsOverride `$cfg
+    & '$scriptPath' -OutputDir '$testOutputDir' -ConfigsOverride `$cfg -SimulateTransportError
     exit `$LASTEXITCODE
 "@ | Set-Content -Path $wrapper14 -Encoding UTF8
 
@@ -168,13 +165,13 @@ try {
     $exit14 = $p14.ExitCode
     Assert-Result -TestName "Transport ERROR without -FailOnAnyModelError (and ExpectPass=`$false) -> Exit code 0" -Condition ($exit14 -eq 0) -Message "Got exit code $exit14 (expected 0)"
 
-    # Test 15: Deterministic HTTP transport/connection failure (ERROR) with -FailOnAnyModelError enabled
+    # Test 15: Deterministic HTTP transport failure (ERROR) with -FailOnAnyModelError enabled
     # Expected outcome: ERROR recorded, -FailOnAnyModelError is active -> exit code 1.
     Write-Host "Testing child execution: HTTP transport failure with -FailOnAnyModelError enabled..."
     $wrapper15 = Join-Path $testOutputDir "run_test15.ps1"
     @"
     `$cfg = @(@{ Name = 'test_err'; ModelParam = ''; ExpectPass = `$false })
-    & '$scriptPath' -OutputDir '$testOutputDir' -BaseUrl '$unreachableBaseUrl' -ConfigsOverride `$cfg -FailOnAnyModelError
+    & '$scriptPath' -OutputDir '$testOutputDir' -ConfigsOverride `$cfg -FailOnAnyModelError -SimulateTransportError
     exit `$LASTEXITCODE
 "@ | Set-Content -Path $wrapper15 -Encoding UTF8
 
@@ -183,12 +180,12 @@ try {
     Assert-Result -TestName "Transport ERROR with -FailOnAnyModelError enabled -> Exit code 1" -Condition ($exit15 -eq 1) -Message "Got exit code $exit15 (expected 1)"
 
     # Test 16: Deterministic Expectation Failure: Model expected to pass encounters transport ERROR
-    # Model has ExpectPass = $true, but network error occurs -> hasExpectationFailure = $true -> exit code 1
+    # Model has ExpectPass = $true, but transport error occurs -> hasExpectationFailure = $true -> exit code 1
     Write-Host "Testing child execution: ExpectPass=`$true model encounters transport ERROR..."
     $wrapper16 = Join-Path $testOutputDir "run_test16.ps1"
     @"
     `$cfg = @(@{ Name = 'test_expect_pass'; ModelParam = ''; ExpectPass = `$true })
-    & '$scriptPath' -OutputDir '$testOutputDir' -BaseUrl '$unreachableBaseUrl' -ConfigsOverride `$cfg
+    & '$scriptPath' -OutputDir '$testOutputDir' -ConfigsOverride `$cfg -SimulateTransportError
     exit `$LASTEXITCODE
 "@ | Set-Content -Path $wrapper16 -Encoding UTF8
 
@@ -279,6 +276,30 @@ try {
     $p21 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper21`"" -Wait -NoNewWindow -PassThru
     $exit21 = $p21.ExitCode
     Assert-Result -TestName "Unexpected JSON structure diagnosed as ERROR (-FailOnAnyModelError exit 1)" -Condition ($exit21 -eq 1) -Message "Got exit code $exit21 (expected 1)"
+
+    # Test 22: Deterministic test proving normal validation run does not modify committed fixtures
+    Write-Host "Testing child execution: Validating default OutputDir protection for committed fixtures..."
+    $committedFixturesDir = Join-Path $PSScriptRoot "../../docs/fixtures/historical_api"
+    $era5CommittedPath = Join-Path $committedFixturesDir "era5_raw.json"
+    $originalTimestamp = (Get-Item $era5CommittedPath).LastWriteTimeUtc
+    $originalLength = (Get-Item $era5CommittedPath).Length
+
+    $wrapper22 = Join-Path $testOutputDir "run_test22.ps1"
+    @"
+    `$cfg = @(@{ Name = 'test_safe_default'; ModelParam = ''; ExpectPass = `$true })
+    `$mocks = @{ 'test_safe_default' = '$validMockFile' }
+    # Run script with default parameters (no -OutputDir and no -SaveCommittedFixtures)
+    & '$scriptPath' -ConfigsOverride `$cfg -MockResponseFiles `$mocks
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper22 -Encoding UTF8
+
+    $p22 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper22`"" -Wait -NoNewWindow -PassThru
+    $exit22 = $p22.ExitCode
+    $afterTimestamp = (Get-Item $era5CommittedPath).LastWriteTimeUtc
+    $afterLength = (Get-Item $era5CommittedPath).Length
+
+    $fixturesUntouched = ($originalTimestamp -eq $afterTimestamp -and $originalLength -eq $afterLength)
+    Assert-Result -TestName "Default validation run does not modify committed fixtures" -Condition ($exit22 -eq 0 -and $fixturesUntouched) -Message "Exit: $exit22, Untouched: $fixturesUntouched"
 
 } finally {
     if (Test-Path $testOutputDir) {
