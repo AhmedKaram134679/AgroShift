@@ -1,0 +1,128 @@
+﻿{
+    "RunStartUtc":  "2026-10-26T13:05:40Z",
+    "RunEndUtc":  "2026-10-26T13:07:17Z",
+    "DurationSeconds":  96.67,
+    "Provenance":  {
+                       "Branch":  "main",
+                       "StartingHeadCommit":  "89b3873c95b8db215e96cbaba7d01504339463a0",
+                       "StartingHeadShort":  "89b3873",
+                       "EndingHeadCommit":  "89b3873c95b8db215e96cbaba7d01504339463a0",
+                       "EndingHeadShort":  "89b3873",
+                       "IsStartingWorkingTreeClean":  false,
+                       "StartingWorkingTreeEntries":  [
+                                                          " M scripts/record_verification_evidence.ps1",
+                                                          " M test/scripts/test_validate_historical_models.ps1"
+                                                      ],
+                       "IsEndingWorkingTreeClean":  false,
+                       "EndingWorkingTreeEntries":  [
+                                                        " M scripts/record_verification_evidence.ps1",
+                                                        " M test/scripts/test_validate_historical_models.ps1",
+                                                        "?? artifacts/validation_runs/20261026_130540/"
+                                                    ],
+                       "MonitoredSourceScope":  [
+                                                    "lib",
+                                                    "test",
+                                                    "scripts",
+                                                    "docs",
+                                                    "pubspec.yaml",
+                                                    "pubspec.lock"
+                                                ],
+                       "InitialSourceFileCount":  70,
+                       "FinalSourceFileCount":  70,
+                       "InitialSourceTreeFingerprint":  "08c05fda42f58231e963dcf0444c237e36ee0e9bae4e5b6742b50cd72403592d",
+                       "FinalSourceTreeFingerprint":  "08c05fda42f58231e963dcf0444c237e36ee0e9bae4e5b6742b50cd72403592d",
+                       "FingerprintError":  null,
+                       "SourceTreeMutatedDuringRun":  false,
+                       "ValidationScope":  "Modified Working Tree over (89b3873c95b8db215e96cbaba7d01504339463a0)"
+                   },
+    "OverallStatus":  "PASS",
+    "EvidenceDirectory":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_130540",
+    "Stages":  [
+                   {
+                       "Stage":  "Dart Format",
+                       "WaitError":  null,
+                       "StartedAtUtc":  "2026-10-26T13:05:41Z",
+                       "OutputError":  null,
+                       "StdoutPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_130540\\dart_format.stdout.txt",
+                       "ExitCodePath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_130540\\dart_format.exitcode.txt",
+                       "ExitCode":  0,
+                       "Status":  "PASS",
+                       "Command":  "dart format --output=none --set-exit-if-changed lib/ test/",
+                       "PreparationError":  null,
+                       "EvidenceWriteError":  null,
+                       "CompletedAtUtc":  "2026-10-26T13:05:43Z",
+                       "StderrPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_130540\\dart_format.stderr.txt",
+                       "LaunchError":  null
+                   },
+                   {
+                       "Stage":  "Flutter Analyze",
+                       "WaitError":  null,
+                       "StartedAtUtc":  "2026-10-26T13:05:43Z",
+                       "OutputError":  null,
+                       "StdoutPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_130540\\flutter_analyze.stdout.txt",
+                       "ExitCodePath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_130540\\flutter_analyze.exitcode.txt",
+                       "ExitCode":  0,
+                       "Status":  "PASS",
+                       "Command":  "flutter analyze",
+                       "PreparationError":  null,
+                       "EvidenceWriteError":  null,
+                       "CompletedAtUtc":  "2026-10-26T13:05:51Z",
+                       "StderrPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_130540\\flutter_analyze.stderr.txt",
+                       "LaunchError":  null
+                   },
+                   {
+                       "Stage":  "Flutter Tests",
+                       "WaitError":  null,
+                       "StartedAtUtc":  "2026-10-26T13:05:51Z",
+                       "OutputError":  null,
+                       "StdoutPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_130540\\flutter_test.stdout.txt",
+                       "ExitCodePath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_130540\\flutter_test.exitcode.txt",
+                       "ExitCode":  0,
+                       "Status":  "PASS",
+                       "Command":  "flutter test",
+                       "PreparationError":  null,
+                       "EvidenceWriteError":  null,
+                       "CompletedAtUtc":  "2026-10-26T13:06:01Z",
+                       "StderrPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_130540\\flutter_test.stderr.txt",
+                       "LaunchError":  null
+                   },
+                   {
+                       "Stage":  "PowerShell Tests",
+                       "WaitError":  null,
+                       "StartedAtUtc":  "2026-10-26T13:06:01Z",
+                       "OutputError":  null,
+                       "StdoutPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_130540\\powershell_tests.stdout.txt",
+                       "ExitCodePath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_130540\\powershell_tests.exitcode.txt",
+                       "ExitCode":  0,
+                       "Status":  "PASS",
+                       "Command":  "powershell.exe -NoProfile -ExecutionPolicy Bypass -File test/scripts/test_validate_historical_models.ps1",
+                       "PreparationError":  null,
+                       "EvidenceWriteError":  null,
+                       "CompletedAtUtc":  "2026-10-26T13:06:52Z",
+                       "StderrPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_130540\\powershell_tests.stderr.txt",
+                       "LaunchError":  null
+                   },
+                   {
+                       "Stage":  "Release Build",
+                       "WaitError":  null,
+                       "StartedAtUtc":  "2026-10-26T13:06:52Z",
+                       "OutputError":  null,
+                       "StdoutPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_130540\\release_build.stdout.txt",
+                       "ExitCodePath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_130540\\release_build.exitcode.txt",
+                       "ExitCode":  0,
+                       "Status":  "PASS",
+                       "Command":  "flutter build apk --release",
+                       "PreparationError":  null,
+                       "EvidenceWriteError":  null,
+                       "CompletedAtUtc":  "2026-10-26T13:07:17Z",
+                       "StderrPath":  "D:\\Programming projects\\agro_shift\\artifacts\\validation_runs\\20261026_130540\\release_build.stderr.txt",
+                       "LaunchError":  null
+                   }
+               ],
+    "DeferredItems":  [
+                          {
+                              "Name":  "Physical Android Database Migration",
+                              "Status":  "DEFERRED - NO PHYSICAL ANDROID DEVICE CONNECTED"
+                          }
+                      ]
+}

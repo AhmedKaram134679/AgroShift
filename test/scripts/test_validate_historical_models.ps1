@@ -905,6 +905,49 @@ try {
     }
     Assert-Result -TestName "Output collection failure is classified with OutputError rather than LaunchError" -Condition ($p46.ExitCode -eq 1 -and $summary46Exists -and $outputFailClassified) -Message "Exit: $($p46.ExitCode), OutputFailOK: $outputFailClassified"
 
+    # Test 49: Output-Reader Initialization Failure (simulating ReadToEndAsync initialization exception)
+    Write-Host "Testing Run-Stage: Output-reader initialization failure handling..."
+    $runnerEvidenceDir49 = Join-Path $runnerTestDir "evidence49"
+    New-Item -ItemType Directory -Path $runnerEvidenceDir49 -Force | Out-Null
+
+    $fakeRunner49 = Join-Path $runnerTestDir "fake_runner_reader_init_fail.ps1"
+    $mockStages49 = @"
+`$summary = [System.Collections.Generic.List[hashtable]]::new()
+`$summary.Add((Run-Stage -StageName "Reader Init Fail Stage" -Command "Write-Host StageReaderInit" -OutPrefix "reader_init_fail"))
+`$summary.Add((Run-Stage -StageName "Later Passing Stage" -Command "Write-Host StageLater" -OutPrefix "later_stage"))
+"@
+    $modified49 = $runnerContent.Substring(0, $runnerContent.IndexOf("# --- BEGIN VERIFICATION STAGES ---")) + $mockStages49 + $runnerContent.Substring($runnerContent.IndexOf("# --- END VERIFICATION STAGES ---") + "# --- END VERIFICATION STAGES ---".Length)
+    Set-Content -Path $fakeRunner49 -Value $modified49 -Encoding UTF8
+
+    $wrapper49 = Join-Path $testOutputDir "run_test49.ps1"
+    @"
+    `$env:AGROSHIFT_TEST_FAIL_READER_INIT = 'Reader Init Fail Stage'
+    try {
+        & '$fakeRunner49' -RepoRoot '$PSScriptRoot/../..' -OutputDir '$runnerEvidenceDir49'
+        exit `$LASTEXITCODE
+    } finally {
+        Remove-Item env:AGROSHIFT_TEST_FAIL_READER_INIT -ErrorAction SilentlyContinue
+    }
+"@ | Set-Content -Path $wrapper49 -Encoding UTF8
+
+    $p49 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper49`"" -Wait -NoNewWindow -PassThru
+    $sumPath49 = Join-Path $runnerEvidenceDir49 "verification_summary.json"
+    $summary49Exists = Test-Path $sumPath49
+    $readerInitFailClassified = $false
+    $laterStageRan49 = $false
+    if ($summary49Exists) {
+        $rawJson49 = Get-Content -Path $sumPath49 -Raw | ConvertFrom-Json
+        $failStage49 = $rawJson49.Stages | Where-Object { $_.Stage -eq "Reader Init Fail Stage" }
+        $passStage49 = $rawJson49.Stages | Where-Object { $_.Stage -eq "Later Passing Stage" }
+        if ($rawJson49.OverallStatus -eq "FAIL" -and $null -ne $failStage49 -and [int]$failStage49.ExitCode -eq 1 -and -not [string]::IsNullOrWhiteSpace($failStage49.OutputError) -and $null -eq $failStage49.LaunchError) {
+            $readerInitFailClassified = $true
+        }
+        if ($null -ne $passStage49 -and [int]$passStage49.ExitCode -eq 0) {
+            $laterStageRan49 = $true
+        }
+    }
+    Assert-Result -TestName "Output-reader initialization failure is classified with OutputError, preserves LaunchError null, allows subsequent stage, and exits runner with code 1" -Condition ($p49.ExitCode -eq 1 -and $summary49Exists -and $readerInitFailClassified -and $laterStageRan49) -Message "Exit: $($p49.ExitCode), ReaderInitOK: $readerInitFailClassified, LaterRan: $laterStageRan49"
+
     # Test 47: Process Wait Failure
     Write-Host "Testing Run-Stage: Process wait failure handling..."
     $runnerEvidenceDir47 = Join-Path $runnerTestDir "evidence47"

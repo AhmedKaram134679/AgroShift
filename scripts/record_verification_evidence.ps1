@@ -198,48 +198,64 @@ try {
     }
 
     if ($null -ne $p -and $null -eq $launchError -and $null -eq $preparationError) {
+        $stdoutTask = $null
+        $stderrTask = $null
         try {
+            # Check for simulated reader initialization failure seam
+            if ($env:AGROSHIFT_TEST_FAIL_READER_INIT -and $env:AGROSHIFT_TEST_FAIL_READER_INIT -eq $StageName) {
+                throw "SIMULATED_READER_INITIALIZATION_FAILURE"
+            }
             # Read output streams asynchronously to avoid pipe buffer deadlocks
             $stdoutTask = $p.StandardOutput.ReadToEndAsync()
             $stderrTask = $p.StandardError.ReadToEndAsync()
-
-            try {
-                if ($env:AGROSHIFT_TEST_FAIL_WAIT -and $env:AGROSHIFT_TEST_FAIL_WAIT -eq $StageName) {
-                    throw "SIMULATED_PROCESS_WAIT_FAILURE"
-                }
-                $p.WaitForExit()
-                $code = $p.ExitCode
-            } catch {
-                $waitError = $_.Exception.ToString()
-                if ($null -eq $code) {
-                    $code = 1
-                }
+        } catch {
+            $outputError = $_.Exception.ToString()
+            $stderr = "OUTPUT_READER_INIT_FAILURE: $outputError"
+            if ($null -eq $code -or $code -eq 0) {
+                $code = 1
             }
+        }
 
-            try {
-                if ($env:AGROSHIFT_TEST_FAIL_OUTPUT -and $env:AGROSHIFT_TEST_FAIL_OUTPUT -eq $StageName) {
-                    throw "SIMULATED_OUTPUT_COLLECTION_FAILURE"
+        try {
+            if ($null -eq $outputError) {
+                try {
+                    if ($env:AGROSHIFT_TEST_FAIL_WAIT -and $env:AGROSHIFT_TEST_FAIL_WAIT -eq $StageName) {
+                        throw "SIMULATED_PROCESS_WAIT_FAILURE"
+                    }
+                    $p.WaitForExit()
+                    $code = $p.ExitCode
+                } catch {
+                    $waitError = $_.Exception.ToString()
+                    if ($null -eq $code) {
+                        $code = 1
+                    }
                 }
-                [System.Threading.Tasks.Task]::WaitAll(@($stdoutTask, $stderrTask))
-                $stdout = $stdoutTask.Result
-                $stderr = $stderrTask.Result
-            } catch {
-                $outputError = $_.Exception.ToString()
-                $stderr = if ([string]::IsNullOrWhiteSpace($stderr)) {
-                    "OUTPUT_COLLECTION_FAILURE: $outputError"
-                } else {
-                    "$stderr`nOUTPUT_COLLECTION_FAILURE: $outputError"
-                }
-                if ($null -eq $code -or $code -eq 0) {
-                    $code = 1
-                }
-            }
 
-            if ($null -ne $waitError) {
-                $stderr = if ([string]::IsNullOrWhiteSpace($stderr)) {
-                    "PROCESS_WAIT_FAILURE: $waitError"
-                } else {
-                    "$stderr`nPROCESS_WAIT_FAILURE: $waitError"
+                try {
+                    if ($env:AGROSHIFT_TEST_FAIL_OUTPUT -and $env:AGROSHIFT_TEST_FAIL_OUTPUT -eq $StageName) {
+                        throw "SIMULATED_OUTPUT_COLLECTION_FAILURE"
+                    }
+                    [System.Threading.Tasks.Task]::WaitAll(@($stdoutTask, $stderrTask))
+                    $stdout = $stdoutTask.Result
+                    $stderr = $stderrTask.Result
+                } catch {
+                    $outputError = $_.Exception.ToString()
+                    $stderr = if ([string]::IsNullOrWhiteSpace($stderr)) {
+                        "OUTPUT_COLLECTION_FAILURE: $outputError"
+                    } else {
+                        "$stderr`nOUTPUT_COLLECTION_FAILURE: $outputError"
+                    }
+                    if ($null -eq $code -or $code -eq 0) {
+                        $code = 1
+                    }
+                }
+
+                if ($null -ne $waitError) {
+                    $stderr = if ([string]::IsNullOrWhiteSpace($stderr)) {
+                        "PROCESS_WAIT_FAILURE: $waitError"
+                    } else {
+                        "$stderr`nPROCESS_WAIT_FAILURE: $waitError"
+                    }
                 }
             }
         } finally {
