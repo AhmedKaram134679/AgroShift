@@ -586,6 +586,48 @@ try {
     $exit30 = $p30.ExitCode
     Assert-Result -TestName "Evidence runner exits with code 0 when all verification stages pass" -Condition ($exit30 -eq 0) -Message "Exit: $exit30 (expected 0)"
 
+    # Test 31: Regression test for native process failure exit code (e.g. cmd.exe /c exit 7)
+    Write-Host "Testing evidence runner: Simulating failing native command with exit code 7..."
+    $runnerEvidenceDir31 = Join-Path $runnerTestDir "evidence31"
+    New-Item -ItemType Directory -Path $runnerEvidenceDir31 -Force | Out-Null
+
+    $mockStages31 = @"
+`$summary = [System.Collections.Generic.List[hashtable]]::new()
+`$summary.Add((Run-Stage -StageName "Mock Pass 1" -Command "Write-Host Stage1" -OutPrefix "mock_pass_1"))
+`$summary.Add((Run-Stage -StageName "Native Fail 7" -Command "cmd.exe /c exit 7" -OutPrefix "native_fail_7"))
+`$summary.Add((Run-Stage -StageName "Mock Later Pass" -Command "Write-Host StageLater" -OutPrefix "mock_later_pass"))
+"@
+    $modified31 = $runnerContent.Substring(0, $startIndex) + $mockStages31 + $runnerContent.Substring($endIndex)
+    $fakeRunner31 = Join-Path $runnerTestDir "fake_runner_native7.ps1"
+    Set-Content -Path $fakeRunner31 -Value $modified31 -Encoding UTF8
+
+    $wrapper31 = Join-Path $testOutputDir "run_test31.ps1"
+    @"
+    & '$fakeRunner31' -RepoRoot '$PSScriptRoot/../..' -OutputDir '$runnerEvidenceDir31'
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper31 -Encoding UTF8
+
+    $p31 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper31`"" -Wait -NoNewWindow -PassThru
+    $exit31 = $p31.ExitCode
+    Assert-Result -TestName "Evidence runner exits with code 1 when a native command fails with code 7" -Condition ($exit31 -eq 1) -Message "Exit: $exit31 (expected 1)"
+
+    $sumPath31 = Join-Path $runnerEvidenceDir31 "verification_summary.json"
+    $summary31Exists = Test-Path $sumPath31
+    $native7Preserved = $false
+    $laterPassRecorded = $false
+    if ($summary31Exists) {
+        $rawJson31 = Get-Content -Path $sumPath31 -Raw | ConvertFrom-Json
+        $failStage31 = $rawJson31.Stages | Where-Object { $_.Stage -eq "Native Fail 7" }
+        $laterStage31 = $rawJson31.Stages | Where-Object { $_.Stage -eq "Mock Later Pass" }
+        if ($rawJson31.OverallStatus -eq "FAIL" -and $null -ne $failStage31 -and [int]$failStage31.ExitCode -eq 7) {
+            $native7Preserved = $true
+        }
+        if ($null -ne $laterStage31 -and [int]$laterStage31.ExitCode -eq 0) {
+            $laterPassRecorded = $true
+        }
+    }
+    Assert-Result -TestName "Evidence runner preserved native exit code 7 and prevented later pass from hiding failure" -Condition ($summary31Exists -and $native7Preserved -and $laterPassRecorded) -Message "SummaryExists: $summary31Exists, Native7Preserved: $native7Preserved, LaterPassRecorded: $laterPassRecorded"
+
 } finally {
     if (Test-Path $testOutputDir) {
         Remove-Item -Path $testOutputDir -Recurse -Force -ErrorAction SilentlyContinue

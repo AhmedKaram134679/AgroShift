@@ -37,6 +37,24 @@ try {
     # Non-fatal if executed in a synthetic non-git directory for tests
 }
 
+function Get-SourceTreeFingerprint {
+    param([string]$Root)
+    try {
+        $sourcePaths = @("lib", "test", "scripts", "docs", "pubspec.yaml", "pubspec.lock")
+        $trackedDiff = (git -C $Root diff HEAD -- @sourcePaths) -join "`n"
+        $untracked = (git -C $Root ls-files --others --exclude-standard -- @sourcePaths) -join "`n"
+        $combined = "DIFF:`n$trackedDiff`nUNTRACKED:`n$untracked"
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($combined)
+        $hashBytes = $sha.ComputeHash($bytes)
+        return -join ($hashBytes | ForEach-Object { $_.ToString("x2") })
+    } catch {
+        return "unknown"
+    }
+}
+
+$initialSourceFingerprint = Get-SourceTreeFingerprint -Root $resolvedRepoRoot
+
 if ($RequireCleanRevision -and -not $isInitiallyClean) {
     Write-Error "Working tree is dirty and -RequireCleanRevision was specified. Refusing to run."
     exit 1
@@ -55,7 +73,20 @@ function Run-Stage {
     $exitCodeFile = Join-Path $evidenceDir "$OutPrefix.exitcode.txt"
 
     $tempStageScript = Join-Path $evidenceDir "$OutPrefix.cmd.ps1"
-    [System.IO.File]::WriteAllText($tempStageScript, $Command, [System.Text.Encoding]::UTF8)
+    $scriptBody = @"
+try {
+    `$ErrorActionPreference = 'Stop'
+    $Command
+    if (`$LASTEXITCODE -ne `$null -and `$LASTEXITCODE -ne 0) {
+        exit `$LASTEXITCODE
+    }
+    exit 0
+} catch {
+    [Console]::Error.WriteLine(`$_.Exception.ToString())
+    exit 1
+}
+"@
+    [System.IO.File]::WriteAllText($tempStageScript, $scriptBody, [System.Text.Encoding]::UTF8)
 
     $pinfo = New-Object System.Diagnostics.ProcessStartInfo
     $pinfo.FileName = "powershell.exe"
@@ -119,6 +150,9 @@ try {
     # Non-fatal in synthetic test environments
 }
 
+$finalSourceFingerprint = Get-SourceTreeFingerprint -Root $resolvedRepoRoot
+$sourceMutated = ($initialCommit -ne $finalCommit) -or ($initialSourceFingerprint -ne "unknown" -and $initialSourceFingerprint -ne $finalSourceFingerprint)
+
 $failedStages = @($summary | Where-Object { $_.ExitCode -ne 0 })
 $overallStatus = if ($failedStages.Count -eq 0) { "PASS" } else { "FAIL" }
 
@@ -136,7 +170,9 @@ $summaryObj = [PSCustomObject]@{
         StartingWorkingTreeEntries = $initialWorkingTreeStatus
         IsEndingWorkingTreeClean = $isFinallyClean
         EndingWorkingTreeEntries = $finalWorkingTreeStatus
-        SourceTreeMutatedDuringRun = ($initialCommit -ne $finalCommit)
+        InitialSourceTreeFingerprint = $initialSourceFingerprint
+        FinalSourceTreeFingerprint = $finalSourceFingerprint
+        SourceTreeMutatedDuringRun = $sourceMutated
         ValidationScope = if ($isInitiallyClean) { "Clean Committed Revision ($initialCommit)" } else { "Modified Working Tree over ($initialCommit)" }
     }
     OverallStatus = $overallStatus

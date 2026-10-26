@@ -1,0 +1,849 @@
+﻿=================================================================
+Running Historical API Validator Unit Tests...
+=================================================================
+ [PASS] All 4 variables valid and populated -> PASS
+ [PASS] Null Tmax observation -> INCOMPATIBLE
+ [PASS] Null Tmin observation -> INCOMPATIBLE
+ [PASS] Null ET0 observation -> INCOMPATIBLE
+ [PASS] Null Precipitation observation -> INCOMPATIBLE
+ [PASS] Missing variable array entirely -> INCOMPATIBLE
+ [PASS] Null response object -> ERROR
+ [PASS] Missing 'daily' object -> ERROR
+ [PASS] Short array length -> Validation failure
+ [PASS] Date sequence mismatch -> Validation failure
+ [PASS] Invalid numeric string -> Validation failure
+ [PASS] Incorrect unit -> Validation failure
+ [PASS] Legitimate 0.0 precipitation values accepted -> PASS
+ [PASS] Structural validation failure with missing values classified as ERROR
+
+=================================================================
+Running Deterministic Child-Process Exit-Code Tests...
+=================================================================
+Testing child execution: HTTP transport failure with ExpectPass=$false and -FailOnAnyModelError omitted...
+=================================================================
+Open-Meteo Historical API Model Validation
+Target: Lat 31.10, Lon 30.95 (2024-06-01 to 2024-06-05, TZ: Africa/Cairo)
+BaseUrl: https://archive-api.open-meteo.com/v1/archive
+Timestamp (UTC): 2026-10-26T10:47:50Z
+Expected Days: 5 (2024-06-01, 2024-06-02, 2024-06-03, 2024-06-04, 2024-06-05)
+FailOnAnyModelError: False
+=================================================================
+
+-----------------------------------------------------------------
+Configuration: test_err
+URL: https://archive-api.open-meteo.com/v1/archive?latitude=31.10&longitude=30.95&start_date=2024-06-01&end_date=2024-06-05&daily=temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_sum&timezone=Africa%2FCairo
+HTTP Status: Request Failed (Injected Transport Error)
+Assessment: ERROR - Injected transport failure: Unable to connect to remote server (deterministic test seam)
+
+=================================================================
+Final Model Compatibility Summary
+=================================================================
+
+ModelName ExpectedPass ActualOutcome HttpStatus                               
+--------- ------------ ------------- ----------                               
+test_err         False ERROR         Request Failed (Injected Transport Error)
+
+
+
+Overall Validation: SUCCEEDED (Exit Code 0)
+
+ [PASS] Transport ERROR without -FailOnAnyModelError (and ExpectPass=$false) -> Exit code 0
+Testing child execution: HTTP transport failure with -FailOnAnyModelError enabled...
+=================================================================
+Open-Meteo Historical API Model Validation
+Target: Lat 31.10, Lon 30.95 (2024-06-01 to 2024-06-05, TZ: Africa/Cairo)
+BaseUrl: https://archive-api.open-meteo.com/v1/archive
+Timestamp (UTC): 2026-10-26T10:47:51Z
+Expected Days: 5 (2024-06-01, 2024-06-02, 2024-06-03, 2024-06-04, 2024-06-05)
+FailOnAnyModelError: True
+=================================================================
+
+-----------------------------------------------------------------
+Configuration: test_err
+URL: https://archive-api.open-meteo.com/v1/archive?latitude=31.10&longitude=30.95&start_date=2024-06-01&end_date=2024-06-05&daily=temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_sum&timezone=Africa%2FCairo
+HTTP Status: Request Failed (Injected Transport Error)
+Assessment: ERROR - Injected transport failure: Unable to connect to remote server (deterministic test seam)
+
+=================================================================
+Final Model Compatibility Summary
+=================================================================
+
+ModelName ExpectedPass ActualOutcome HttpStatus                               
+--------- ------------ ------------- ----------                               
+test_err         False ERROR         Request Failed (Injected Transport Error)
+
+
+
+Execution Result: FAILED - -FailOnAnyModelError is active and at least one model encountered an ERROR.
+Overall Validation: FAILED (Exit Code 1)
+
+ [PASS] Transport ERROR with -FailOnAnyModelError enabled -> Exit code 1
+Testing child execution: ExpectPass=$true model encounters transport ERROR...
+=================================================================
+Open-Meteo Historical API Model Validation
+Target: Lat 31.10, Lon 30.95 (2024-06-01 to 2024-06-05, TZ: Africa/Cairo)
+BaseUrl: https://archive-api.open-meteo.com/v1/archive
+Timestamp (UTC): 2026-10-26T10:47:52Z
+Expected Days: 5 (2024-06-01, 2024-06-02, 2024-06-03, 2024-06-04, 2024-06-05)
+FailOnAnyModelError: False
+=================================================================
+
+-----------------------------------------------------------------
+Configuration: test_expect_pass
+URL: https://archive-api.open-meteo.com/v1/archive?latitude=31.10&longitude=30.95&start_date=2024-06-01&end_date=2024-06-05&daily=temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_sum&timezone=Africa%2FCairo
+HTTP Status: Request Failed (Injected Transport Error)
+Assessment: ERROR - Injected transport failure: Unable to connect to remote server (deterministic test seam)
+
+=================================================================
+Final Model Compatibility Summary
+=================================================================
+
+ModelName        ExpectedPass ActualOutcome HttpStatus                               
+---------        ------------ ------------- ----------                               
+test_expect_pass         True ERROR         Request Failed (Injected Transport Error)
+
+
+
+Execution Result: FAILED - One or more model expectation checks failed.
+Overall Validation: FAILED (Exit Code 1)
+
+ [PASS] Model expected to PASS encounters transport ERROR -> Exit code 1
+Testing child execution with mock response file providing valid response...
+=================================================================
+Open-Meteo Historical API Model Validation
+Target: Lat 31.10, Lon 30.95 (2024-06-01 to 2024-06-05, TZ: Africa/Cairo)
+BaseUrl: https://archive-api.open-meteo.com/v1/archive
+Timestamp (UTC): 2026-10-26T10:47:53Z
+Expected Days: 5 (2024-06-01, 2024-06-02, 2024-06-03, 2024-06-04, 2024-06-05)
+FailOnAnyModelError: False
+=================================================================
+
+-----------------------------------------------------------------
+Configuration: test_valid
+URL: https://archive-api.open-meteo.com/v1/archive?latitude=31.10&longitude=30.95&start_date=2024-06-01&end_date=2024-06-05&daily=temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_sum&timezone=Africa%2FCairo
+HTTP Status: 200 Mock Response (C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\mock_valid.json) (74 ms)
+Saved Raw Response: C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\test_valid_raw.json
+Returned Coordinates: (31, 31), Elevation: 6 m
+Null Counts: Tmax: 0, Tmin: 0, ET0: 0, Precip: 0
+Assessment: PASS - All 4 variables populated and valid
+
+=================================================================
+Final Model Compatibility Summary
+=================================================================
+
+ModelName  ExpectedPass ActualOutcome HttpStatus                                                                       
+---------  ------------ ------------- ----------                                                                       
+test_valid         True PASS          200 Mock Response (C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_...
+
+
+
+Overall Validation: SUCCEEDED (Exit Code 0)
+
+ [PASS] Model expected to PASS receives valid response -> Exit code 0
+Testing child execution: INCOMPATIBLE response to model expected to PASS...
+=================================================================
+Open-Meteo Historical API Model Validation
+Target: Lat 31.10, Lon 30.95 (2024-06-01 to 2024-06-05, TZ: Africa/Cairo)
+BaseUrl: https://archive-api.open-meteo.com/v1/archive
+Timestamp (UTC): 2026-10-26T10:47:54Z
+Expected Days: 5 (2024-06-01, 2024-06-02, 2024-06-03, 2024-06-04, 2024-06-05)
+FailOnAnyModelError: False
+=================================================================
+
+-----------------------------------------------------------------
+Configuration: test_incomp
+URL: https://archive-api.open-meteo.com/v1/archive?latitude=31.10&longitude=30.95&start_date=2024-06-01&end_date=2024-06-05&daily=temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_sum&timezone=Africa%2FCairo
+HTTP Status: 200 Mock Response (C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\mock_incomp.json) (67 ms)
+Saved Raw Response: C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\test_incomp_raw.json
+Returned Coordinates: (31, 31), Elevation: 6 m
+Null Counts: Tmax: 1, Tmin: 0, ET0: 0, Precip: 0
+Assessment: INCOMPATIBLE - Model response lacks mandatory variables or valid values:
+ - Array 'temperature_2m_max' contains 1 null observations
+
+ERROR: Configuration 'test_incomp' was expected to PASS but was INCOMPATIBLE!
+=================================================================
+Final Model Compatibility Summary
+=================================================================
+
+ModelName   ExpectedPass ActualOutcome HttpStatus                                                                      
+---------   ------------ ------------- ----------                                                                      
+test_incomp         True INCOMPATIBLE  200 Mock Response (C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps...
+
+
+
+Execution Result: FAILED - One or more model expectation checks failed.
+Overall Validation: FAILED (Exit Code 1)
+
+ [PASS] Model expected to PASS returns INCOMPATIBLE -> Exit code 1
+Testing child execution: Expected INCOMPATIBLE model meets expectation...
+=================================================================
+Open-Meteo Historical API Model Validation
+Target: Lat 31.10, Lon 30.95 (2024-06-01 to 2024-06-05, TZ: Africa/Cairo)
+BaseUrl: https://archive-api.open-meteo.com/v1/archive
+Timestamp (UTC): 2026-10-26T10:47:55Z
+Expected Days: 5 (2024-06-01, 2024-06-02, 2024-06-03, 2024-06-04, 2024-06-05)
+FailOnAnyModelError: False
+=================================================================
+
+-----------------------------------------------------------------
+Configuration: test_expect_incomp
+URL: https://archive-api.open-meteo.com/v1/archive?latitude=31.10&longitude=30.95&start_date=2024-06-01&end_date=2024-06-05&daily=temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_sum&timezone=Africa%2FCairo
+HTTP Status: 200 Mock Response (C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\mock_incomp.json) (72 ms)
+Saved Raw Response: C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\test_expect_incomp_raw.json
+Returned Coordinates: (31, 31), Elevation: 6 m
+Null Counts: Tmax: 1, Tmin: 0, ET0: 0, Precip: 0
+Assessment: INCOMPATIBLE - Model response lacks mandatory variables or valid values:
+ - Array 'temperature_2m_max' contains 1 null observations
+
+=================================================================
+Final Model Compatibility Summary
+=================================================================
+
+ModelName          ExpectedPass ActualOutcome HttpStatus                                                               
+---------          ------------ ------------- ----------                                                               
+test_expect_incomp        False INCOMPATIBLE  200 Mock Response (C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_s...
+
+
+
+Overall Validation: SUCCEEDED (Exit Code 0)
+
+ [PASS] Model expected to be INCOMPATIBLE returns INCOMPATIBLE -> Exit code 0
+Testing child execution: Malformed JSON response...
+=================================================================
+Open-Meteo Historical API Model Validation
+Target: Lat 31.10, Lon 30.95 (2024-06-01 to 2024-06-05, TZ: Africa/Cairo)
+BaseUrl: https://archive-api.open-meteo.com/v1/archive
+Timestamp (UTC): 2026-10-26T10:47:56Z
+Expected Days: 5 (2024-06-01, 2024-06-02, 2024-06-03, 2024-06-04, 2024-06-05)
+FailOnAnyModelError: True
+=================================================================
+
+-----------------------------------------------------------------
+Configuration: test_malformed
+URL: https://archive-api.open-meteo.com/v1/archive?latitude=31.10&longitude=30.95&start_date=2024-06-01&end_date=2024-06-05&daily=temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_sum&timezone=Africa%2FCairo
+HTTP Status: Unavailable
+Assessment: ERROR - Invalid JSON primitive: This.
+
+=================================================================
+Final Model Compatibility Summary
+=================================================================
+
+ModelName      ExpectedPass ActualOutcome HttpStatus 
+---------      ------------ ------------- ---------- 
+test_malformed        False ERROR         Unavailable
+
+
+
+Execution Result: FAILED - -FailOnAnyModelError is active and at least one model encountered an ERROR.
+Overall Validation: FAILED (Exit Code 1)
+
+ [PASS] Malformed JSON diagnosed as ERROR (-FailOnAnyModelError exit 1)
+Testing child execution: Valid JSON with unexpected structure (missing daily)...
+=================================================================
+Open-Meteo Historical API Model Validation
+Target: Lat 31.10, Lon 30.95 (2024-06-01 to 2024-06-05, TZ: Africa/Cairo)
+BaseUrl: https://archive-api.open-meteo.com/v1/archive
+Timestamp (UTC): 2026-10-26T10:47:57Z
+Expected Days: 5 (2024-06-01, 2024-06-02, 2024-06-03, 2024-06-04, 2024-06-05)
+FailOnAnyModelError: True
+=================================================================
+
+-----------------------------------------------------------------
+Configuration: test_unexpected
+URL: https://archive-api.open-meteo.com/v1/archive?latitude=31.10&longitude=30.95&start_date=2024-06-01&end_date=2024-06-05&daily=temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_sum&timezone=Africa%2FCairo
+HTTP Status: 200 Mock Response (C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\mock_unexpected_struct.json) (67 ms)
+Saved Raw Response: C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\test_unexpected_raw.json
+Returned Coordinates: (31, 31), Elevation:  m
+Null Counts: Tmax: , Tmin: , ET0: , Precip: 
+Assessment: ERROR - Structural validation errors:
+ - Missing 'daily' object in response
+
+=================================================================
+Final Model Compatibility Summary
+=================================================================
+
+ModelName       ExpectedPass ActualOutcome HttpStatus                                                                  
+---------       ------------ ------------- ----------                                                                  
+test_unexpected        False ERROR         200 Mock Response (C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shif...
+
+
+
+Execution Result: FAILED - -FailOnAnyModelError is active and at least one model encountered an ERROR.
+Overall Validation: FAILED (Exit Code 1)
+
+ [PASS] Unexpected JSON structure diagnosed as ERROR (-FailOnAnyModelError exit 1)
+Testing child execution: Validating full SHA-256 fixture snapshot protection during default run...
+Notice: OutputDir was not specified. Defaulting to safe temporary directory: C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_historical_validation_0eb62e98d05645e481292f2cbbbd81b9
+=================================================================
+Open-Meteo Historical API Model Validation
+Target: Lat 31.10, Lon 30.95 (2024-06-01 to 2024-06-05, TZ: Africa/Cairo)
+BaseUrl: https://archive-api.open-meteo.com/v1/archive
+Timestamp (UTC): 2026-10-26T10:47:58Z
+Expected Days: 5 (2024-06-01, 2024-06-02, 2024-06-03, 2024-06-04, 2024-06-05)
+FailOnAnyModelError: False
+=================================================================
+
+-----------------------------------------------------------------
+Configuration: test_safe_default
+URL: https://archive-api.open-meteo.com/v1/archive?latitude=31.10&longitude=30.95&start_date=2024-06-01&end_date=2024-06-05&daily=temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_sum&timezone=Africa%2FCairo
+HTTP Status: 200 Mock Response (C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\mock_valid.json) (65 ms)
+Saved Raw Response: C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_historical_validation_0eb62e98d05645e481292f2cbbbd81b9\test_safe_default_raw.json
+Returned Coordinates: (31, 31), Elevation: 6 m
+Null Counts: Tmax: 0, Tmin: 0, ET0: 0, Precip: 0
+Assessment: PASS - All 4 variables populated and valid
+
+=================================================================
+Final Model Compatibility Summary
+=================================================================
+
+ModelName         ExpectedPass ActualOutcome HttpStatus                                                                
+---------         ------------ ------------- ----------                                                                
+test_safe_default         True PASS          200 Mock Response (C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_sh...
+
+
+
+Overall Validation: SUCCEEDED (Exit Code 0)
+
+ [PASS] Default validation run does not modify any committed fixtures (all files SHA256 verified)
+Testing child execution: Explicit committed fixture directory without authorization switch...
+ [PASS] Explicit committed fixture path rejected without -SaveCommittedFixtures (Exit 1)
+Testing child execution: Descendant of committed fixture directory without authorization switch...
+ [PASS] Descendant of committed fixtures rejected and directory not created (Exit 1)
+Testing child execution: Relative path resolving to committed fixtures without authorization switch...
+ [PASS] Relative path to committed fixtures rejected without -SaveCommittedFixtures (Exit 1)
+Testing child execution: Sibling directory sharing name prefix...
+=================================================================
+Open-Meteo Historical API Model Validation
+Target: Lat 31.10, Lon 30.95 (2024-06-01 to 2024-06-05, TZ: Africa/Cairo)
+BaseUrl: https://archive-api.open-meteo.com/v1/archive
+Timestamp (UTC): 2026-10-26T10:48:02Z
+Expected Days: 5 (2024-06-01, 2024-06-02, 2024-06-03, 2024-06-04, 2024-06-05)
+FailOnAnyModelError: False
+=================================================================
+
+-----------------------------------------------------------------
+Configuration: test_sibling
+URL: https://archive-api.open-meteo.com/v1/archive?latitude=31.10&longitude=30.95&start_date=2024-06-01&end_date=2024-06-05&daily=temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_sum&timezone=Africa%2FCairo
+HTTP Status: 200 Mock Response (C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\mock_valid.json) (75 ms)
+Saved Raw Response: D:\Programming projects\agro_shift\docs\fixtures\historical_api_backup_test_4b3ed8e60b784b7d988f57b216ced6d3\test_sibling_raw.json
+Returned Coordinates: (31, 31), Elevation: 6 m
+Null Counts: Tmax: 0, Tmin: 0, ET0: 0, Precip: 0
+Assessment: PASS - All 4 variables populated and valid
+
+=================================================================
+Final Model Compatibility Summary
+=================================================================
+
+ModelName    ExpectedPass ActualOutcome HttpStatus                                                                     
+---------    ------------ ------------- ----------                                                                     
+test_sibling         True PASS          200 Mock Response (C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_p...
+
+
+
+Overall Validation: SUCCEEDED (Exit Code 0)
+
+ [PASS] Sibling prefix directory allowed without false rejection (Exit 0)
+Setting up isolated temporary project tree for protected-path authorization tests...
+Testing child execution (Isolated Tree): Writing to protected fixture destination without -SaveCommittedFixtures...
+ [PASS] Isolated project: Protected fixture destination rejected without -SaveCommittedFixtures (Exit 1)
+Testing child execution (Isolated Tree): Writing to protected fixture destination WITH -SaveCommittedFixtures...
+=================================================================
+Open-Meteo Historical API Model Validation
+Target: Lat 31.10, Lon 30.95 (2024-06-01 to 2024-06-05, TZ: Africa/Cairo)
+BaseUrl: https://archive-api.open-meteo.com/v1/archive
+Timestamp (UTC): 2026-10-26T10:48:04Z
+Expected Days: 5 (2024-06-01, 2024-06-02, 2024-06-03, 2024-06-04, 2024-06-05)
+FailOnAnyModelError: False
+=================================================================
+
+-----------------------------------------------------------------
+Configuration: test_iso_auth
+URL: https://archive-api.open-meteo.com/v1/archive?latitude=31.10&longitude=30.95&start_date=2024-06-01&end_date=2024-06-05&daily=temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_sum&timezone=Africa%2FCairo
+HTTP Status: 200 Mock Response (C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\isolated_mock_valid.json) (71 ms)
+Saved Raw Response: C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\isolated_repo_tree\docs\fixtures\historical_api\test_iso_auth_raw.json
+Returned Coordinates: (31, 31), Elevation: 6 m
+Null Counts: Tmax: 0, Tmin: 0, ET0: 0, Precip: 0
+Assessment: PASS - All 4 variables populated and valid
+
+=================================================================
+Final Model Compatibility Summary
+=================================================================
+
+ModelName     ExpectedPass ActualOutcome HttpStatus                                                                    
+---------     ------------ ------------- ----------                                                                    
+test_iso_auth         True PASS          200 Mock Response (C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_...
+
+
+
+Overall Validation: SUCCEEDED (Exit Code 0)
+
+ [PASS] Isolated project: Protected fixture destination accepted WITH -SaveCommittedFixtures (Exit 0)
+Testing child execution: Ordinary temporary directory with -SaveCommittedFixtures...
+=================================================================
+Open-Meteo Historical API Model Validation
+Target: Lat 31.10, Lon 30.95 (2024-06-01 to 2024-06-05, TZ: Africa/Cairo)
+BaseUrl: https://archive-api.open-meteo.com/v1/archive
+Timestamp (UTC): 2026-10-26T10:48:05Z
+Expected Days: 5 (2024-06-01, 2024-06-02, 2024-06-03, 2024-06-04, 2024-06-05)
+FailOnAnyModelError: False
+=================================================================
+
+-----------------------------------------------------------------
+Configuration: test_auth_ord
+URL: https://archive-api.open-meteo.com/v1/archive?latitude=31.10&longitude=30.95&start_date=2024-06-01&end_date=2024-06-05&daily=temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_sum&timezone=Africa%2FCairo
+HTTP Status: 200 Mock Response (C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\mock_valid.json) (69 ms)
+Saved Raw Response: C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\safe_authorized_ordinary\test_auth_ord_raw.json
+Returned Coordinates: (31, 31), Elevation: 6 m
+Null Counts: Tmax: 0, Tmin: 0, ET0: 0, Precip: 0
+Assessment: PASS - All 4 variables populated and valid
+
+=================================================================
+Final Model Compatibility Summary
+=================================================================
+
+ModelName     ExpectedPass ActualOutcome HttpStatus                                                                    
+---------     ------------ ------------- ----------                                                                    
+test_auth_ord         True PASS          200 Mock Response (C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_...
+
+
+
+Overall Validation: SUCCEEDED (Exit Code 0)
+
+ [PASS] Ordinary directory with -SaveCommittedFixtures allowed and writes output (Exit 0)
+Testing evidence runner exit semantics: Simulating stage failure in isolated environment...
+Executing Stage: Mock Pass 1 (Write-Host Stage1)...
+Stage Mock Pass 1 completed with exit code: 0
+Executing Stage: Mock Fail 2 (exit 2)...
+Stage Mock Fail 2 completed with exit code: 2
+Executing Stage: Mock Pass 3 (Write-Host Stage3)...
+Stage Mock Pass 3 completed with exit code: 0
+All verification stages and logs recorded in: C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\runner_test_env\evidence28
+{
+    "RunStartUtc":  "2026-10-26T10:48:06Z",
+    "RunEndUtc":  "2026-10-26T10:48:08Z",
+    "DurationSeconds":  1.22,
+    "Provenance":  {
+                       "Branch":  "main",
+                       "StartingHeadCommit":  "063516b0ea4b9542002acb32232fd4a690ca2dc8",
+                       "StartingHeadShort":  "063516b",
+                       "EndingHeadCommit":  "063516b0ea4b9542002acb32232fd4a690ca2dc8",
+                       "EndingHeadShort":  "063516b",
+                       "IsStartingWorkingTreeClean":  false,
+                       "StartingWorkingTreeEntries":  [
+                                                          "A  artifacts/validation_runs/20261026_104403/dart_format.cmd.ps1",
+                                                          "A  artifacts/validation_runs/20261026_104403/dart_format.exitcode.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/dart_format.stderr.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/dart_format.stdout.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_analyze.cmd.ps1",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_analyze.exitcode.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_analyze.stderr.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_analyze.stdout.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_test.cmd.ps1",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_test.exitcode.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_test.stderr.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_test.stdout.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/powershell_tests.cmd.ps1",
+                                                          "A  artifacts/validation_runs/20261026_104403/powershell_tests.exitcode.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/powershell_tests.stderr.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/powershell_tests.stdout.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/release_build.cmd.ps1",
+                                                          "A  artifacts/validation_runs/20261026_104403/release_build.exitcode.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/release_build.stderr.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/release_build.stdout.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/verification_summary.json",
+                                                          "MM scripts/record_verification_evidence.ps1",
+                                                          "M  test/scripts/test_validate_historical_models.ps1",
+                                                          "?? artifacts/validation_runs/20261026_104728/"
+                                                      ],
+                       "IsEndingWorkingTreeClean":  false,
+                       "EndingWorkingTreeEntries":  [
+                                                        "A  artifacts/validation_runs/20261026_104403/dart_format.cmd.ps1",
+                                                        "A  artifacts/validation_runs/20261026_104403/dart_format.exitcode.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/dart_format.stderr.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/dart_format.stdout.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_analyze.cmd.ps1",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_analyze.exitcode.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_analyze.stderr.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_analyze.stdout.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_test.cmd.ps1",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_test.exitcode.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_test.stderr.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_test.stdout.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/powershell_tests.cmd.ps1",
+                                                        "A  artifacts/validation_runs/20261026_104403/powershell_tests.exitcode.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/powershell_tests.stderr.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/powershell_tests.stdout.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/release_build.cmd.ps1",
+                                                        "A  artifacts/validation_runs/20261026_104403/release_build.exitcode.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/release_build.stderr.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/release_build.stdout.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/verification_summary.json",
+                                                        "MM scripts/record_verification_evidence.ps1",
+                                                        "M  test/scripts/test_validate_historical_models.ps1",
+                                                        "?? artifacts/validation_runs/20261026_104728/"
+                                                    ],
+                       "InitialSourceTreeFingerprint":  "baee69dcf8218ee02ea5859da792208dfa9f95eb310a6902e1a05505b3b0665e",
+                       "FinalSourceTreeFingerprint":  "baee69dcf8218ee02ea5859da792208dfa9f95eb310a6902e1a05505b3b0665e",
+                       "SourceTreeMutatedDuringRun":  false,
+                       "ValidationScope":  "Modified Working Tree over (063516b0ea4b9542002acb32232fd4a690ca2dc8)"
+                   },
+    "OverallStatus":  "FAIL",
+    "EvidenceDirectory":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence28",
+    "Stages":  [
+                   {
+                       "CompletedAtUtc":  "2026-10-26T10:48:07Z",
+                       "Command":  "Write-Host Stage1",
+                       "StartedAtUtc":  "2026-10-26T10:48:07Z",
+                       "ExitCodePath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence28\\mock_1.exitcode.txt",
+                       "StderrPath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence28\\mock_1.stderr.txt",
+                       "ExitCode":  0,
+                       "Status":  "PASS",
+                       "Stage":  "Mock Pass 1",
+                       "StdoutPath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence28\\mock_1.stdout.txt"
+                   },
+                   {
+                       "CompletedAtUtc":  "2026-10-26T10:48:07Z",
+                       "Command":  "exit 2",
+                       "StartedAtUtc":  "2026-10-26T10:48:07Z",
+                       "ExitCodePath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence28\\mock_2.exitcode.txt",
+                       "StderrPath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence28\\mock_2.stderr.txt",
+                       "ExitCode":  2,
+                       "Status":  "FAIL",
+                       "Stage":  "Mock Fail 2",
+                       "StdoutPath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence28\\mock_2.stdout.txt"
+                   },
+                   {
+                       "CompletedAtUtc":  "2026-10-26T10:48:08Z",
+                       "Command":  "Write-Host Stage3",
+                       "StartedAtUtc":  "2026-10-26T10:48:07Z",
+                       "ExitCodePath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence28\\mock_3.exitcode.txt",
+                       "StderrPath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence28\\mock_3.stderr.txt",
+                       "ExitCode":  0,
+                       "Status":  "PASS",
+                       "Stage":  "Mock Pass 3",
+                       "StdoutPath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence28\\mock_3.stdout.txt"
+                   }
+               ],
+    "DeferredItems":  [
+                          {
+                              "Name":  "Physical Android Database Migration",
+                              "Status":  "DEFERRED - NO PHYSICAL ANDROID DEVICE CONNECTED"
+                          }
+                      ]
+}
+
+ERROR: Verification failed in 1 stage(s). Exit code 1.
+ [PASS] Evidence runner exits with code 1 when a verification stage fails
+Testing evidence runner: Verifying logs and summary were written before failure exit...
+ [PASS] Evidence runner preserved failure summary and exit code 2 before exiting
+Testing evidence runner exit semantics: Simulating all stages passing...
+Executing Stage: Mock Pass 1 (Write-Host Stage1)...
+Stage Mock Pass 1 completed with exit code: 0
+Executing Stage: Mock Pass 2 (Write-Host Stage2)...
+Stage Mock Pass 2 completed with exit code: 0
+All verification stages and logs recorded in: C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\runner_test_env\evidence30
+{
+    "RunStartUtc":  "2026-10-26T10:48:08Z",
+    "RunEndUtc":  "2026-10-26T10:48:09Z",
+    "DurationSeconds":  0.98,
+    "Provenance":  {
+                       "Branch":  "main",
+                       "StartingHeadCommit":  "063516b0ea4b9542002acb32232fd4a690ca2dc8",
+                       "StartingHeadShort":  "063516b",
+                       "EndingHeadCommit":  "063516b0ea4b9542002acb32232fd4a690ca2dc8",
+                       "EndingHeadShort":  "063516b",
+                       "IsStartingWorkingTreeClean":  false,
+                       "StartingWorkingTreeEntries":  [
+                                                          "A  artifacts/validation_runs/20261026_104403/dart_format.cmd.ps1",
+                                                          "A  artifacts/validation_runs/20261026_104403/dart_format.exitcode.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/dart_format.stderr.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/dart_format.stdout.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_analyze.cmd.ps1",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_analyze.exitcode.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_analyze.stderr.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_analyze.stdout.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_test.cmd.ps1",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_test.exitcode.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_test.stderr.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_test.stdout.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/powershell_tests.cmd.ps1",
+                                                          "A  artifacts/validation_runs/20261026_104403/powershell_tests.exitcode.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/powershell_tests.stderr.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/powershell_tests.stdout.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/release_build.cmd.ps1",
+                                                          "A  artifacts/validation_runs/20261026_104403/release_build.exitcode.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/release_build.stderr.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/release_build.stdout.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/verification_summary.json",
+                                                          "MM scripts/record_verification_evidence.ps1",
+                                                          "M  test/scripts/test_validate_historical_models.ps1",
+                                                          "?? artifacts/validation_runs/20261026_104728/"
+                                                      ],
+                       "IsEndingWorkingTreeClean":  false,
+                       "EndingWorkingTreeEntries":  [
+                                                        "A  artifacts/validation_runs/20261026_104403/dart_format.cmd.ps1",
+                                                        "A  artifacts/validation_runs/20261026_104403/dart_format.exitcode.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/dart_format.stderr.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/dart_format.stdout.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_analyze.cmd.ps1",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_analyze.exitcode.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_analyze.stderr.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_analyze.stdout.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_test.cmd.ps1",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_test.exitcode.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_test.stderr.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_test.stdout.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/powershell_tests.cmd.ps1",
+                                                        "A  artifacts/validation_runs/20261026_104403/powershell_tests.exitcode.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/powershell_tests.stderr.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/powershell_tests.stdout.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/release_build.cmd.ps1",
+                                                        "A  artifacts/validation_runs/20261026_104403/release_build.exitcode.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/release_build.stderr.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/release_build.stdout.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/verification_summary.json",
+                                                        "MM scripts/record_verification_evidence.ps1",
+                                                        "M  test/scripts/test_validate_historical_models.ps1",
+                                                        "?? artifacts/validation_runs/20261026_104728/"
+                                                    ],
+                       "InitialSourceTreeFingerprint":  "baee69dcf8218ee02ea5859da792208dfa9f95eb310a6902e1a05505b3b0665e",
+                       "FinalSourceTreeFingerprint":  "baee69dcf8218ee02ea5859da792208dfa9f95eb310a6902e1a05505b3b0665e",
+                       "SourceTreeMutatedDuringRun":  false,
+                       "ValidationScope":  "Modified Working Tree over (063516b0ea4b9542002acb32232fd4a690ca2dc8)"
+                   },
+    "OverallStatus":  "PASS",
+    "EvidenceDirectory":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence30",
+    "Stages":  [
+                   {
+                       "CompletedAtUtc":  "2026-10-26T10:48:09Z",
+                       "Command":  "Write-Host Stage1",
+                       "StartedAtUtc":  "2026-10-26T10:48:09Z",
+                       "ExitCodePath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence30\\mock_pass_1.exitcode.txt",
+                       "StderrPath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence30\\mock_pass_1.stderr.txt",
+                       "ExitCode":  0,
+                       "Status":  "PASS",
+                       "Stage":  "Mock Pass 1",
+                       "StdoutPath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence30\\mock_pass_1.stdout.txt"
+                   },
+                   {
+                       "CompletedAtUtc":  "2026-10-26T10:48:09Z",
+                       "Command":  "Write-Host Stage2",
+                       "StartedAtUtc":  "2026-10-26T10:48:09Z",
+                       "ExitCodePath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence30\\mock_pass_2.exitcode.txt",
+                       "StderrPath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence30\\mock_pass_2.stderr.txt",
+                       "ExitCode":  0,
+                       "Status":  "PASS",
+                       "Stage":  "Mock Pass 2",
+                       "StdoutPath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence30\\mock_pass_2.stdout.txt"
+                   }
+               ],
+    "DeferredItems":  [
+                          {
+                              "Name":  "Physical Android Database Migration",
+                              "Status":  "DEFERRED - NO PHYSICAL ANDROID DEVICE CONNECTED"
+                          }
+                      ]
+}
+
+SUCCESS: All verification stages passed. Exit code 0.
+ [PASS] Evidence runner exits with code 0 when all verification stages pass
+Testing evidence runner: Simulating failing native command with exit code 7...
+Executing Stage: Mock Pass 1 (Write-Host Stage1)...
+Stage Mock Pass 1 completed with exit code: 0
+Executing Stage: Native Fail 7 (cmd.exe /c exit 7)...
+Stage Native Fail 7 completed with exit code: 7
+Executing Stage: Mock Later Pass (Write-Host StageLater)...
+Stage Mock Later Pass completed with exit code: 0
+All verification stages and logs recorded in: C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\runner_test_env\evidence31
+{
+    "RunStartUtc":  "2026-10-26T10:48:10Z",
+    "RunEndUtc":  "2026-10-26T10:48:12Z",
+    "DurationSeconds":  1.24,
+    "Provenance":  {
+                       "Branch":  "main",
+                       "StartingHeadCommit":  "063516b0ea4b9542002acb32232fd4a690ca2dc8",
+                       "StartingHeadShort":  "063516b",
+                       "EndingHeadCommit":  "063516b0ea4b9542002acb32232fd4a690ca2dc8",
+                       "EndingHeadShort":  "063516b",
+                       "IsStartingWorkingTreeClean":  false,
+                       "StartingWorkingTreeEntries":  [
+                                                          "A  artifacts/validation_runs/20261026_104403/dart_format.cmd.ps1",
+                                                          "A  artifacts/validation_runs/20261026_104403/dart_format.exitcode.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/dart_format.stderr.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/dart_format.stdout.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_analyze.cmd.ps1",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_analyze.exitcode.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_analyze.stderr.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_analyze.stdout.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_test.cmd.ps1",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_test.exitcode.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_test.stderr.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/flutter_test.stdout.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/powershell_tests.cmd.ps1",
+                                                          "A  artifacts/validation_runs/20261026_104403/powershell_tests.exitcode.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/powershell_tests.stderr.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/powershell_tests.stdout.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/release_build.cmd.ps1",
+                                                          "A  artifacts/validation_runs/20261026_104403/release_build.exitcode.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/release_build.stderr.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/release_build.stdout.txt",
+                                                          "A  artifacts/validation_runs/20261026_104403/verification_summary.json",
+                                                          "MM scripts/record_verification_evidence.ps1",
+                                                          "M  test/scripts/test_validate_historical_models.ps1",
+                                                          "?? artifacts/validation_runs/20261026_104728/"
+                                                      ],
+                       "IsEndingWorkingTreeClean":  false,
+                       "EndingWorkingTreeEntries":  [
+                                                        "A  artifacts/validation_runs/20261026_104403/dart_format.cmd.ps1",
+                                                        "A  artifacts/validation_runs/20261026_104403/dart_format.exitcode.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/dart_format.stderr.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/dart_format.stdout.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_analyze.cmd.ps1",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_analyze.exitcode.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_analyze.stderr.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_analyze.stdout.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_test.cmd.ps1",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_test.exitcode.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_test.stderr.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/flutter_test.stdout.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/powershell_tests.cmd.ps1",
+                                                        "A  artifacts/validation_runs/20261026_104403/powershell_tests.exitcode.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/powershell_tests.stderr.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/powershell_tests.stdout.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/release_build.cmd.ps1",
+                                                        "A  artifacts/validation_runs/20261026_104403/release_build.exitcode.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/release_build.stderr.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/release_build.stdout.txt",
+                                                        "A  artifacts/validation_runs/20261026_104403/verification_summary.json",
+                                                        "MM scripts/record_verification_evidence.ps1",
+                                                        "M  test/scripts/test_validate_historical_models.ps1",
+                                                        "?? artifacts/validation_runs/20261026_104728/"
+                                                    ],
+                       "InitialSourceTreeFingerprint":  "baee69dcf8218ee02ea5859da792208dfa9f95eb310a6902e1a05505b3b0665e",
+                       "FinalSourceTreeFingerprint":  "baee69dcf8218ee02ea5859da792208dfa9f95eb310a6902e1a05505b3b0665e",
+                       "SourceTreeMutatedDuringRun":  false,
+                       "ValidationScope":  "Modified Working Tree over (063516b0ea4b9542002acb32232fd4a690ca2dc8)"
+                   },
+    "OverallStatus":  "FAIL",
+    "EvidenceDirectory":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence31",
+    "Stages":  [
+                   {
+                       "CompletedAtUtc":  "2026-10-26T10:48:11Z",
+                       "Command":  "Write-Host Stage1",
+                       "StartedAtUtc":  "2026-10-26T10:48:11Z",
+                       "ExitCodePath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence31\\mock_pass_1.exitcode.txt",
+                       "StderrPath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence31\\mock_pass_1.stderr.txt",
+                       "ExitCode":  0,
+                       "Status":  "PASS",
+                       "Stage":  "Mock Pass 1",
+                       "StdoutPath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence31\\mock_pass_1.stdout.txt"
+                   },
+                   {
+                       "CompletedAtUtc":  "2026-10-26T10:48:11Z",
+                       "Command":  "cmd.exe /c exit 7",
+                       "StartedAtUtc":  "2026-10-26T10:48:11Z",
+                       "ExitCodePath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence31\\native_fail_7.exitcode.txt",
+                       "StderrPath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence31\\native_fail_7.stderr.txt",
+                       "ExitCode":  7,
+                       "Status":  "FAIL",
+                       "Stage":  "Native Fail 7",
+                       "StdoutPath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence31\\native_fail_7.stdout.txt"
+                   },
+                   {
+                       "CompletedAtUtc":  "2026-10-26T10:48:12Z",
+                       "Command":  "Write-Host StageLater",
+                       "StartedAtUtc":  "2026-10-26T10:48:11Z",
+                       "ExitCodePath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence31\\mock_later_pass.exitcode.txt",
+                       "StderrPath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence31\\mock_later_pass.stderr.txt",
+                       "ExitCode":  0,
+                       "Status":  "PASS",
+                       "Stage":  "Mock Later Pass",
+                       "StdoutPath":  "C:\\Users\\Abo-Joud-MahmouD\\AppData\\Local\\Temp\\agro_shift_ps_test_1c712e2cfa474dadbe8945ec865d62e2\\runner_test_env\\evidence31\\mock_later_pass.stdout.txt"
+                   }
+               ],
+    "DeferredItems":  [
+                          {
+                              "Name":  "Physical Android Database Migration",
+                              "Status":  "DEFERRED - NO PHYSICAL ANDROID DEVICE CONNECTED"
+                          }
+                      ]
+}
+
+ERROR: Verification failed in 1 stage(s). Exit code 1.
+ [PASS] Evidence runner exits with code 1 when a native command fails with code 7
+ [PASS] Evidence runner preserved native exit code 7 and prevented later pass from hiding failure
+
+=================================================================
+Running Optional Live Open-Meteo Integration Test...
+=================================================================
+Executing live Open-Meteo validation sweep (output isolated to temp dir to protect committed fixtures)...
+=================================================================
+Open-Meteo Historical API Model Validation
+Target: Lat 31.10, Lon 30.95 (2024-06-01 to 2024-06-05, TZ: Africa/Cairo)
+BaseUrl: https://archive-api.open-meteo.com/v1/archive
+Timestamp (UTC): 2026-10-26T10:48:15Z
+Expected Days: 5 (2024-06-01, 2024-06-02, 2024-06-03, 2024-06-04, 2024-06-05)
+FailOnAnyModelError: False
+=================================================================
+
+-----------------------------------------------------------------
+Configuration: era5
+URL: https://archive-api.open-meteo.com/v1/archive?latitude=31.10&longitude=30.95&start_date=2024-06-01&end_date=2024-06-05&daily=temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_sum&timezone=Africa%2FCairo&models=era5
+HTTP Status: 200 OK (1692 ms)
+Saved Raw Response: C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_live_sweep_b54d920ff6164698858fe5d9f8a4c9ab\era5_raw.json
+Returned Coordinates: (31.0, 31.0), Elevation: 6.0 m
+Null Counts: Tmax: 0, Tmin: 0, ET0: 0, Precip: 0
+Assessment: PASS - All 4 variables populated and valid
+
+-----------------------------------------------------------------
+Configuration: era5_seamless
+URL: https://archive-api.open-meteo.com/v1/archive?latitude=31.10&longitude=30.95&start_date=2024-06-01&end_date=2024-06-05&daily=temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_sum&timezone=Africa%2FCairo&models=era5_seamless
+HTTP Status: 200 OK (278 ms)
+Saved Raw Response: C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_live_sweep_b54d920ff6164698858fe5d9f8a4c9ab\era5_seamless_raw.json
+Returned Coordinates: (31.099998, 31.0), Elevation: 6.0 m
+Null Counts: Tmax: 0, Tmin: 0, ET0: 0, Precip: 0
+Assessment: PASS - All 4 variables populated and valid
+
+-----------------------------------------------------------------
+Configuration: era5_land
+URL: https://archive-api.open-meteo.com/v1/archive?latitude=31.10&longitude=30.95&start_date=2024-06-01&end_date=2024-06-05&daily=temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_sum&timezone=Africa%2FCairo&models=era5_land
+HTTP Status: 200 OK (268 ms)
+Saved Raw Response: C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_live_sweep_b54d920ff6164698858fe5d9f8a4c9ab\era5_land_raw.json
+Returned Coordinates: (31.099998, 31.0), Elevation: 6.0 m
+Null Counts: Tmax: 0, Tmin: 0, ET0: 5, Precip: 5
+Assessment: INCOMPATIBLE - Model response lacks mandatory variables or valid values:
+ - Array 'et0_fao_evapotranspiration' contains 5 null observations
+ - Array 'precipitation_sum' contains 5 null observations
+
+-----------------------------------------------------------------
+Configuration: default
+URL: https://archive-api.open-meteo.com/v1/archive?latitude=31.10&longitude=30.95&start_date=2024-06-01&end_date=2024-06-05&daily=temperature_2m_max,temperature_2m_min,et0_fao_evapotranspiration,precipitation_sum&timezone=Africa%2FCairo
+HTTP Status: 200 OK (307 ms)
+Saved Raw Response: C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_live_sweep_b54d920ff6164698858fe5d9f8a4c9ab\default_raw.json
+Returned Coordinates: (31.107204, 30.997625), Elevation: 6.0 m
+Null Counts: Tmax: 0, Tmin: 0, ET0: 0, Precip: 0
+Assessment: PASS - All 4 variables populated and valid
+
+=================================================================
+Final Model Compatibility Summary
+=================================================================
+
+ModelName     ExpectedPass ActualOutcome HttpStatus
+---------     ------------ ------------- ----------
+era5                  True PASS          200 OK    
+era5_seamless         True PASS          200 OK    
+era5_land            False INCOMPATIBLE  200 OK    
+default               True PASS          200 OK    
+
+
+
+Overall Validation: SUCCEEDED (Exit Code 0)
+
+ [PASS] Live Open-Meteo sweep execution completed successfully (Exit code 0)
+
+=================================================================
+Execution Summary:
+Deterministic Tests: 35 / 35 passed.
+Optional Live Integration Test: Executed (Result: PASS)
+Total Suite Checks: 36 / 36 passed.
+=================================================================
