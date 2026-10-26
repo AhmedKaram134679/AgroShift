@@ -1283,6 +1283,168 @@ void main() {
           expect(records[1].referenceEt0Mm, equals(5.0));
         });
       });
+
+      group('Scientific ET0 Domain Boundary Validation', () {
+        final coord = const Coordinate(latitude: 31.10, longitude: 30.95);
+        final baseTimes = ['2024-06-01', '2024-06-02'];
+        final baseTmax = [35.0, 36.0];
+        final baseTmin = [20.0, 21.0];
+        final baseP = [0.0, 0.0];
+
+        OpenMeteoDailyResponseDto buildDto(List<dynamic> et0Values) {
+          return OpenMeteoDailyResponseDto(
+            latitude: 31.10,
+            longitude: 30.95,
+            generationTimeMs: 1.0,
+            utcOffsetSeconds: 10800,
+            timezone: 'Africa/Cairo',
+            dailyUnits: {},
+            daily: {
+              'time': baseTimes,
+              'temperature_2m_max': baseTmax,
+              'temperature_2m_min': baseTmin,
+              'et0_fao_evapotranspiration': et0Values,
+              'precipitation_sum': baseP,
+            },
+          );
+        }
+
+        test('null ET0 is accepted as null and does not become fabricated non-null', () {
+          // 1 out of 2 null is 50%, which triggers missingness threshold if evaluated across 2 days,
+          // so we use a 10-day series with 1 null (10% missingness) to isolate boundary validation.
+          final times10 = List.generate(
+            10,
+            (i) => '2024-06-${(i + 1).toString().padLeft(2, '0')}',
+          );
+          final tMax10 = List.filled(10, 35.0);
+          final tMin10 = List.filled(10, 20.0);
+          final p10 = List.filled(10, 0.0);
+          final et0List10 = [null, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0];
+
+          final dto = OpenMeteoDailyResponseDto(
+            latitude: 31.10,
+            longitude: 30.95,
+            generationTimeMs: 1.0,
+            utcOffsetSeconds: 10800,
+            timezone: 'Africa/Cairo',
+            dailyUnits: {},
+            daily: {
+              'time': times10,
+              'temperature_2m_max': tMax10,
+              'temperature_2m_min': tMin10,
+              'et0_fao_evapotranspiration': et0List10,
+              'precipitation_sum': p10,
+            },
+          );
+
+          final res = OpenMeteoAdapter.toDomainRecords(
+            dto: dto,
+            requestedCoordinate: coord,
+            datasetLabel: 'Test',
+          );
+
+          expect(res.isSuccess, isTrue);
+          final recs = res.dataOrNull!;
+          expect(recs[0].referenceEt0Mm, isNull);
+          expect(recs[0].maxTemperatureC, equals(35.0)); // temperature intact
+          expect(recs[1].referenceEt0Mm, equals(5.0));
+        });
+
+        test('0.0 ET0 is accepted as lower bound', () {
+          final res = OpenMeteoAdapter.toDomainRecords(
+            dto: buildDto([0.0, 5.0]),
+            requestedCoordinate: coord,
+            datasetLabel: 'Test',
+          );
+          expect(res.isSuccess, isTrue);
+          expect(res.dataOrNull![0].referenceEt0Mm, equals(0.0));
+        });
+
+        test('7.5 ET0 is accepted as typical nominal reading', () {
+          final res = OpenMeteoAdapter.toDomainRecords(
+            dto: buildDto([7.5, 6.0]),
+            requestedCoordinate: coord,
+            datasetLabel: 'Test',
+          );
+          expect(res.isSuccess, isTrue);
+          expect(res.dataOrNull![0].referenceEt0Mm, equals(7.5));
+        });
+
+        test('25.0 ET0 is accepted as upper inclusive physical bound', () {
+          final res = OpenMeteoAdapter.toDomainRecords(
+            dto: buildDto([25.0, 6.0]),
+            requestedCoordinate: coord,
+            datasetLabel: 'Test',
+          );
+          expect(res.isSuccess, isTrue);
+          expect(res.dataOrNull![0].referenceEt0Mm, equals(25.0));
+        });
+
+        test('-0.01 ET0 is rejected by scientific range validator', () {
+          final res = OpenMeteoAdapter.toDomainRecords(
+            dto: buildDto([-0.01, 6.0]),
+            requestedCoordinate: coord,
+            datasetLabel: 'Test',
+          );
+          expect(res.isFailure, isTrue);
+          expect(res.failureOrNull, isA<PhysicalRangeFailure>());
+          final failure = res.failureOrNull as PhysicalRangeFailure;
+          expect(failure.variableName, equals('et0'));
+          expect(failure.actualValue, equals(-0.01));
+        });
+
+        test('25.01 ET0 is rejected by scientific range validator', () {
+          final res = OpenMeteoAdapter.toDomainRecords(
+            dto: buildDto([25.01, 6.0]),
+            requestedCoordinate: coord,
+            datasetLabel: 'Test',
+          );
+          expect(res.isFailure, isTrue);
+          expect(res.failureOrNull, isA<PhysicalRangeFailure>());
+          final failure = res.failureOrNull as PhysicalRangeFailure;
+          expect(failure.variableName, equals('et0'));
+          expect(failure.actualValue, equals(25.01));
+        });
+
+        test('double.nan ET0 is rejected by scientific range validator', () {
+          final res = OpenMeteoAdapter.toDomainRecords(
+            dto: buildDto([double.nan, 6.0]),
+            requestedCoordinate: coord,
+            datasetLabel: 'Test',
+          );
+          expect(res.isFailure, isTrue);
+          expect(res.failureOrNull, isA<PhysicalRangeFailure>());
+          final failure = res.failureOrNull as PhysicalRangeFailure;
+          expect(failure.variableName, equals('et0'));
+        });
+
+        test(
+          'double.infinity ET0 is rejected by scientific range validator',
+          () {
+            final res = OpenMeteoAdapter.toDomainRecords(
+              dto: buildDto([double.infinity, 6.0]),
+              requestedCoordinate: coord,
+              datasetLabel: 'Test',
+            );
+            expect(res.isFailure, isTrue);
+            expect(res.failureOrNull, isA<PhysicalRangeFailure>());
+            final failure = res.failureOrNull as PhysicalRangeFailure;
+            expect(failure.variableName, equals('et0'));
+          },
+        );
+
+        test('double.negativeInfinity ET0 is rejected by scientific range validator', () {
+          final res = OpenMeteoAdapter.toDomainRecords(
+            dto: buildDto([double.negativeInfinity, 6.0]),
+            requestedCoordinate: coord,
+            datasetLabel: 'Test',
+          );
+          expect(res.isFailure, isTrue);
+          expect(res.failureOrNull, isA<PhysicalRangeFailure>());
+          final failure = res.failureOrNull as PhysicalRangeFailure;
+          expect(failure.variableName, equals('et0'));
+        });
+      });
     });
   });
 }

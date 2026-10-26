@@ -277,29 +277,183 @@ try {
     $exit21 = $p21.ExitCode
     Assert-Result -TestName "Unexpected JSON structure diagnosed as ERROR (-FailOnAnyModelError exit 1)" -Condition ($exit21 -eq 1) -Message "Got exit code $exit21 (expected 1)"
 
-    # Test 22: Deterministic test proving normal validation run does not modify committed fixtures
-    Write-Host "Testing child execution: Validating default OutputDir protection for committed fixtures..."
-    $committedFixturesDir = Join-Path $PSScriptRoot "../../docs/fixtures/historical_api"
-    $era5CommittedPath = Join-Path $committedFixturesDir "era5_raw.json"
-    $originalTimestamp = (Get-Item $era5CommittedPath).LastWriteTimeUtc
-    $originalLength = (Get-Item $era5CommittedPath).Length
+    # Fixture snapshot helper supporting PowerShell 5.1 and Core
+    function Get-FixtureSnapshot {
+        param(
+            [Parameter(Mandatory = $true)]
+            [string]$FixtureRoot
+        )
+
+        $root = [System.IO.Path]::GetFullPath($FixtureRoot)
+
+        if (-not (Test-Path -LiteralPath $root -PathType Container)) {
+            throw "Fixture directory does not exist: $root"
+        }
+
+        $snapshot = @{}
+
+        $files = @(
+            Get-ChildItem -LiteralPath $root -File -Recurse |
+            Where-Object { $_.Extension -ieq ".json" } |
+            Sort-Object FullName
+        )
+
+        $rootWithSep = $root.TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+
+        foreach ($file in $files) {
+            $fullPath = $file.FullName
+            if ($fullPath.StartsWith($rootWithSep, [System.StringComparison]::OrdinalIgnoreCase)) {
+                $relativePath = $fullPath.Substring($rootWithSep.Length).Replace('\', '/')
+            } else {
+                $relativePath = $file.Name
+            }
+
+            $hash = Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256
+
+            $snapshot[$relativePath] = [PSCustomObject]@{
+                RelativePath = $relativePath
+                Length       = $file.Length
+                SHA256       = $hash.Hash
+            }
+        }
+
+        return $snapshot
+    }
+
+    function Test-SnapshotsEqual {
+        param(
+            [hashtable]$SnapA,
+            [hashtable]$SnapB
+        )
+
+        if ($SnapA.Count -ne $SnapB.Count) {
+            return $false
+        }
+
+        foreach ($key in $SnapA.Keys) {
+            if (-not $SnapB.ContainsKey($key)) {
+                return $false
+            }
+            $itemA = $SnapA[$key]
+            $itemB = $SnapB[$key]
+            if ($itemA.Length -ne $itemB.Length -or $itemA.SHA256 -ne $itemB.SHA256) {
+                return $false
+            }
+        }
+        return $true
+    }
+
+    $committedFixturesDir = [System.IO.Path]::GetFullPath(
+        (Join-Path $PSScriptRoot "../../docs/fixtures/historical_api")
+    )
+
+    # Test 22: Complete recursive SHA-256 baseline check for default validation run
+    Write-Host "Testing child execution: Validating full SHA-256 fixture snapshot protection during default run..."
+    $baselineSnapshot = Get-FixtureSnapshot -FixtureRoot $committedFixturesDir
 
     $wrapper22 = Join-Path $testOutputDir "run_test22.ps1"
     @"
     `$cfg = @(@{ Name = 'test_safe_default'; ModelParam = ''; ExpectPass = `$true })
     `$mocks = @{ 'test_safe_default' = '$validMockFile' }
-    # Run script with default parameters (no -OutputDir and no -SaveCommittedFixtures)
     & '$scriptPath' -ConfigsOverride `$cfg -MockResponseFiles `$mocks
     exit `$LASTEXITCODE
 "@ | Set-Content -Path $wrapper22 -Encoding UTF8
 
     $p22 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper22`"" -Wait -NoNewWindow -PassThru
     $exit22 = $p22.ExitCode
-    $afterTimestamp = (Get-Item $era5CommittedPath).LastWriteTimeUtc
-    $afterLength = (Get-Item $era5CommittedPath).Length
+    $afterSnapshot22 = Get-FixtureSnapshot -FixtureRoot $committedFixturesDir
+    $fixturesEqual22 = Test-SnapshotsEqual -SnapA $baselineSnapshot -SnapB $afterSnapshot22
+    Assert-Result -TestName "Default validation run does not modify any committed fixtures (all files SHA256 verified)" -Condition ($exit22 -eq 0 -and $fixturesEqual22) -Message "Exit: $exit22, Equal: $fixturesEqual22"
 
-    $fixturesUntouched = ($originalTimestamp -eq $afterTimestamp -and $originalLength -eq $afterLength)
-    Assert-Result -TestName "Default validation run does not modify committed fixtures" -Condition ($exit22 -eq 0 -and $fixturesUntouched) -Message "Exit: $exit22, Untouched: $fixturesUntouched"
+    # Test 23: Explicit committed fixture directory without -SaveCommittedFixtures -> Rejected (Exit 1)
+    Write-Host "Testing child execution: Explicit committed fixture directory without authorization switch..."
+    $wrapper23 = Join-Path $testOutputDir "run_test23.ps1"
+    @"
+    `$cfg = @(@{ Name = 'test_unauth'; ModelParam = ''; ExpectPass = `$true })
+    `$mocks = @{ 'test_unauth' = '$validMockFile' }
+    & '$scriptPath' -OutputDir '$committedFixturesDir' -ConfigsOverride `$cfg -MockResponseFiles `$mocks
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper23 -Encoding UTF8
+
+    $p23 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper23`"" -Wait -NoNewWindow -PassThru
+    $exit23 = $p23.ExitCode
+    $afterSnapshot23 = Get-FixtureSnapshot -FixtureRoot $committedFixturesDir
+    $fixturesEqual23 = Test-SnapshotsEqual -SnapA $baselineSnapshot -SnapB $afterSnapshot23
+    Assert-Result -TestName "Explicit committed fixture path rejected without -SaveCommittedFixtures (Exit 1)" -Condition ($exit23 -eq 1 -and $fixturesEqual23) -Message "Exit: $exit23, Equal: $fixturesEqual23"
+
+    # Test 24: Descendant of committed fixture directory without -SaveCommittedFixtures -> Rejected (Exit 1)
+    Write-Host "Testing child execution: Descendant of committed fixture directory without authorization switch..."
+    $descendantPath = Join-Path $committedFixturesDir "subfolder_not_yet_created"
+    $wrapper24 = Join-Path $testOutputDir "run_test24.ps1"
+    @"
+    `$cfg = @(@{ Name = 'test_descendant'; ModelParam = ''; ExpectPass = `$true })
+    `$mocks = @{ 'test_descendant' = '$validMockFile' }
+    & '$scriptPath' -OutputDir '$descendantPath' -ConfigsOverride `$cfg -MockResponseFiles `$mocks
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper24 -Encoding UTF8
+
+    $p24 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper24`"" -Wait -NoNewWindow -PassThru
+    $exit24 = $p24.ExitCode
+    $descendantWasNotCreated = -not (Test-Path -LiteralPath $descendantPath)
+    $afterSnapshot24 = Get-FixtureSnapshot -FixtureRoot $committedFixturesDir
+    $fixturesEqual24 = Test-SnapshotsEqual -SnapA $baselineSnapshot -SnapB $afterSnapshot24
+    Assert-Result -TestName "Descendant of committed fixtures rejected and directory not created (Exit 1)" -Condition ($exit24 -eq 1 -and $descendantWasNotCreated -and $fixturesEqual24) -Message "Exit: $exit24, NotCreated: $descendantWasNotCreated"
+
+    # Test 25: Relative path resolving to committed fixture directory without -SaveCommittedFixtures -> Rejected (Exit 1)
+    Write-Host "Testing child execution: Relative path resolving to committed fixtures without authorization switch..."
+    $relativePathToFixtures = "docs/fixtures/historical_api"
+    $wrapper25 = Join-Path $testOutputDir "run_test25.ps1"
+    @"
+    `$cfg = @(@{ Name = 'test_rel'; ModelParam = ''; ExpectPass = `$true })
+    `$mocks = @{ 'test_rel' = '$validMockFile' }
+    & '$scriptPath' -OutputDir '$relativePathToFixtures' -ConfigsOverride `$cfg -MockResponseFiles `$mocks
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper25 -Encoding UTF8
+
+    $p25 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper25`"" -Wait -NoNewWindow -PassThru
+    $exit25 = $p25.ExitCode
+    $afterSnapshot25 = Get-FixtureSnapshot -FixtureRoot $committedFixturesDir
+    $fixturesEqual25 = Test-SnapshotsEqual -SnapA $baselineSnapshot -SnapB $afterSnapshot25
+    Assert-Result -TestName "Relative path to committed fixtures rejected without -SaveCommittedFixtures (Exit 1)" -Condition ($exit25 -eq 1 -and $fixturesEqual25) -Message "Exit: $exit25, Equal: $fixturesEqual25"
+
+    # Test 26: Sibling prefix path (e.g. historical_api_backup) -> NOT rejected merely for sharing a prefix
+    Write-Host "Testing child execution: Sibling directory sharing name prefix..."
+    $siblingDir = Join-Path ([System.IO.Path]::GetDirectoryName($committedFixturesDir)) "historical_api_backup_test_$([Guid]::NewGuid().ToString('N'))"
+    $wrapper26 = Join-Path $testOutputDir "run_test26.ps1"
+    @"
+    `$cfg = @(@{ Name = 'test_sibling'; ModelParam = ''; ExpectPass = `$true })
+    `$mocks = @{ 'test_sibling' = '$validMockFile' }
+    & '$scriptPath' -OutputDir '$siblingDir' -ConfigsOverride `$cfg -MockResponseFiles `$mocks
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper26 -Encoding UTF8
+
+    try {
+        $p26 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper26`"" -Wait -NoNewWindow -PassThru
+        $exit26 = $p26.ExitCode
+        $siblingFileWritten = Test-Path -LiteralPath (Join-Path $siblingDir "test_sibling_raw.json")
+        Assert-Result -TestName "Sibling prefix directory allowed without false rejection (Exit 0)" -Condition ($exit26 -eq 0 -and $siblingFileWritten) -Message "Exit: $exit26, SiblingFile: $siblingFileWritten"
+    } finally {
+        if (Test-Path -LiteralPath $siblingDir) {
+            Remove-Item -LiteralPath $siblingDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    # Test 27: Explicit committed fixture directory WITH -SaveCommittedFixtures -> Allowed by authorization guard
+    Write-Host "Testing child execution: Isolated mock fixture copy with -SaveCommittedFixtures..."
+    # To test authorized writing safely without mutating real committed fixtures, we test against a dedicated temp directory
+    $safeAuthorizedDir = Join-Path $testOutputDir "safe_authorized_fixtures"
+    $wrapper27 = Join-Path $testOutputDir "run_test27.ps1"
+    @"
+    `$cfg = @(@{ Name = 'test_auth'; ModelParam = ''; ExpectPass = `$true })
+    `$mocks = @{ 'test_auth' = '$validMockFile' }
+    & '$scriptPath' -OutputDir '$safeAuthorizedDir' -SaveCommittedFixtures -ConfigsOverride `$cfg -MockResponseFiles `$mocks
+    exit `$LASTEXITCODE
+"@ | Set-Content -Path $wrapper27 -Encoding UTF8
+
+    $p27 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper27`"" -Wait -NoNewWindow -PassThru
+    $exit27 = $p27.ExitCode
+    $authFileWritten = Test-Path -LiteralPath (Join-Path $safeAuthorizedDir "test_auth_raw.json")
+    Assert-Result -TestName "Normal directory with -SaveCommittedFixtures allowed and writes output (Exit 0)" -Condition ($exit27 -eq 0 -and $authFileWritten) -Message "Exit: $exit27, Written: $authFileWritten"
 
 } finally {
     if (Test-Path $testOutputDir) {

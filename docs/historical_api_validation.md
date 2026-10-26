@@ -378,6 +378,13 @@ Raw JSON responses for each configuration are saved in
      demonstrates compatibility with the application's input parser; it does
      not prove physical consistency or agricultural accuracy across all
      conditions.
+   - **Sample Scope vs. Long-Range Historical Continuity:**
+     The current validation confirms that the tested ERA5 configuration returned
+     structurally valid values for the variables examined over the specific sample
+     interval (5 days) and Egyptian coordinates. It does not establish uninterrupted
+     data availability from 1940 onward. Long-range coverage, missing-day behavior,
+     leap-year sequences, and multi-decadal temporal continuity remain unverified.
+     No automatic model switch is justified by the existing sample alone.
    - The selected model remains centralized in
      `lib/data/datasources/remote/open_meteo_remote_data_source.dart`:
      ```dart

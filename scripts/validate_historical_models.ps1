@@ -145,7 +145,10 @@ function Test-HistoricalApiResponse {
 
 # Export function for external test consumption if sourced
 if ($MyInvocation.InvocationName -ne '.') {
-    $committedFixturesDir = "$PSScriptRoot/../docs/fixtures/historical_api"
+    $committedFixturesDir = [System.IO.Path]::GetFullPath(
+        (Join-Path $PSScriptRoot "../docs/fixtures/historical_api")
+    )
+
     if ([string]::IsNullOrWhiteSpace($OutputDir)) {
         if ($SaveCommittedFixtures.IsPresent -or $SaveCommittedFixtures -eq $true) {
             $OutputDir = $committedFixturesDir
@@ -156,7 +159,46 @@ if ($MyInvocation.InvocationName -ne '.') {
         }
     }
 
-    if (-not (Test-Path $OutputDir)) {
+    $outputFullPath = [System.IO.Path]::GetFullPath($OutputDir)
+
+    $protectedRoot = $committedFixturesDir.TrimEnd(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar
+    )
+
+    $normalizedOutput = $outputFullPath.TrimEnd(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar
+    )
+
+    $comparison = [System.StringComparison]::OrdinalIgnoreCase
+
+    $isProtectedDestination =
+        [string]::Equals(
+            $normalizedOutput,
+            $protectedRoot,
+            $comparison
+        ) -or
+        $normalizedOutput.StartsWith(
+            $protectedRoot + [System.IO.Path]::DirectorySeparatorChar,
+            $comparison
+        ) -or
+        $normalizedOutput.StartsWith(
+            $protectedRoot + [System.IO.Path]::AltDirectorySeparatorChar,
+            $comparison
+        )
+
+    if ($isProtectedDestination -and -not ($SaveCommittedFixtures.IsPresent -or $SaveCommittedFixtures -eq $true)) {
+        throw (
+            "Refusing to write into the committed historical API fixtures " +
+            "directory without -SaveCommittedFixtures. Resolved destination: " +
+            $outputFullPath
+        )
+    }
+
+    $OutputDir = $outputFullPath
+
+    if (-not (Test-Path -LiteralPath $OutputDir -PathType Container)) {
         New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
     }
 
