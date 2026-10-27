@@ -1153,8 +1153,6 @@ exit 0
     New-Item -ItemType Directory -Path $timeoutMockTestDir -Force | Out-Null
     Set-Content -Path (Join-Path $timeoutMockTestDir "dummy_test.dart") -Value "// Dummy test file"
 
-    # We invoke record_verification_evidence.ps1 with StageTimeoutSeconds = 2 on an isolated dummy repo where a simulated long command is executed
-    # To test Run-Stage timeout deterministically without running full 5 stages, we create a mini test script running the Run-Stage logic directly
     $wrapper58 = Join-Path $testOutputDir "run_test58.ps1"
     $runnerResolved = (Resolve-Path $runnerScriptPath).Path
     @"
@@ -1164,9 +1162,9 @@ New-Item -ItemType Directory -Path `$evidenceDir -Force | Out-Null
 `$resolvedRepoRoot = '$timeoutMockRepo'
 `$StageTimeoutSeconds = 2
 
-# Extract and execute Run-Stage definition in isolation
+# Extract Stop-ProcessTree and Run-Stage definitions in isolation
 `$runnerContent = Get-Content -LiteralPath '$runnerResolved' -Raw
-`$funcStart = `$runnerContent.IndexOf('function Run-Stage {')
+`$funcStart = `$runnerContent.IndexOf('function Stop-ProcessTree {')
 `$funcEnd = `$runnerContent.IndexOf('# --- BEGIN VERIFICATION STAGES ---')
 `$funcDef = `$runnerContent.Substring(`$funcStart, `$funcEnd - `$funcStart)
 Invoke-Expression `$funcDef
@@ -1188,6 +1186,87 @@ if (`$result.ExitCode -eq 124 -and `$result.Status -eq 'FAIL' -and `$diagContent
     $p58 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper58`"" -Wait -NoNewWindow -PassThru
     $exit58 = $p58.ExitCode
     Assert-Result -TestName "Bounded stage timeout terminates hanging process and records exit code 124 and STAGE_TIMEOUT" -Condition ($exit58 -eq 0) -Message "Got exit code $exit58"
+
+    # Test 59: Termination utility failure handling (seam AGROSHIFT_TEST_FAIL_TERMINATION_UTILITY)
+    Write-Host "Testing termination utility failure handling: Verifies cleanup warning recorded and timeout failure preserved..."
+    $wrapper59 = Join-Path $testOutputDir "run_test59.ps1"
+    $evidence59 = Join-Path $testOutputDir "timeout_evidence_59"
+    @"
+`$ErrorActionPreference = 'Stop'
+`$evidenceDir = '$evidence59'
+New-Item -ItemType Directory -Path `$evidenceDir -Force | Out-Null
+`$resolvedRepoRoot = '$timeoutMockRepo'
+`$StageTimeoutSeconds = 2
+
+`$env:AGROSHIFT_TEST_FAIL_TERMINATION_UTILITY = 'SIMULATED_UTILITY_CRASH'
+try {
+    `$runnerContent = Get-Content -LiteralPath '$runnerResolved' -Raw
+    `$funcStart = `$runnerContent.IndexOf('function Stop-ProcessTree {')
+    `$funcEnd = `$runnerContent.IndexOf('# --- BEGIN VERIFICATION STAGES ---')
+    `$funcDef = `$runnerContent.Substring(`$funcStart, `$funcEnd - `$funcStart)
+    Invoke-Expression `$funcDef
+
+    `$result = Run-Stage -StageName "Utility Fail Stage" -Command "powershell.exe -NoProfile -Command 'Start-Sleep -Seconds 10'" -OutPrefix "util_fail_stage"
+
+    `$diagFile = Join-Path `$evidenceDir "util_fail_stage.stderr.txt"
+    `$diagContent = if (Test-Path `$diagFile) { Get-Content -LiteralPath `$diagFile -Raw } else { "" }
+
+    # Stage must remain FAIL with 124, record STAGE_TIMEOUT, and include PROCESS_CLEANUP_WARNING
+    if (`$result.ExitCode -eq 124 -and `$result.Status -eq 'FAIL' -and `$diagContent -like "*STAGE_TIMEOUT*" -and `$diagContent -like "*PROCESS_CLEANUP_WARNING*") {
+        exit 0
+    } else {
+        Write-Host "Result ExitCode: `$(`$result.ExitCode), Status: `$(`$result.Status), Diag: `$diagContent"
+        exit 1
+    }
+} finally {
+    Remove-Item env:AGROSHIFT_TEST_FAIL_TERMINATION_UTILITY -ErrorAction SilentlyContinue
+}
+"@ | Set-Content -Path $wrapper59 -Encoding UTF8
+
+    $p59 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper59`"" -Wait -NoNewWindow -PassThru
+    $exit59 = $p59.ExitCode
+    Assert-Result -TestName "Termination utility failure records cleanup warning without masking stage timeout failure" -Condition ($exit59 -eq 0) -Message "Got exit code $exit59"
+
+    # Test 60: Fallback termination failure handling (seams AGROSHIFT_TEST_FAIL_TERMINATION_UTILITY and AGROSHIFT_TEST_FAIL_TERMINATION_FALLBACK)
+    Write-Host "Testing fallback termination failure handling: Verifies both warnings recorded and status remains FAIL..."
+    $wrapper60 = Join-Path $testOutputDir "run_test60.ps1"
+    $evidence60 = Join-Path $testOutputDir "timeout_evidence_60"
+    @"
+`$ErrorActionPreference = 'Stop'
+`$evidenceDir = '$evidence60'
+New-Item -ItemType Directory -Path `$evidenceDir -Force | Out-Null
+`$resolvedRepoRoot = '$timeoutMockRepo'
+`$StageTimeoutSeconds = 2
+
+`$env:AGROSHIFT_TEST_FAIL_TERMINATION_UTILITY = 'SIMULATED_UTILITY_CRASH'
+`$env:AGROSHIFT_TEST_FAIL_TERMINATION_FALLBACK = 'SIMULATED_FALLBACK_CRASH'
+try {
+    `$runnerContent = Get-Content -LiteralPath '$runnerResolved' -Raw
+    `$funcStart = `$runnerContent.IndexOf('function Stop-ProcessTree {')
+    `$funcEnd = `$runnerContent.IndexOf('# --- BEGIN VERIFICATION STAGES ---')
+    `$funcDef = `$runnerContent.Substring(`$funcStart, `$funcEnd - `$funcStart)
+    Invoke-Expression `$funcDef
+
+    `$result = Run-Stage -StageName "Fallback Fail Stage" -Command "powershell.exe -NoProfile -Command 'Start-Sleep -Seconds 10'" -OutPrefix "fallback_fail_stage"
+
+    `$diagFile = Join-Path `$evidenceDir "fallback_fail_stage.stderr.txt"
+    `$diagContent = if (Test-Path `$diagFile) { Get-Content -LiteralPath `$diagFile -Raw } else { "" }
+
+    if (`$result.ExitCode -eq 124 -and `$result.Status -eq 'FAIL' -and `$diagContent -like "*STAGE_TIMEOUT*" -and `$diagContent -like "*Simulated fallback Kill() failure*") {
+        exit 0
+    } else {
+        Write-Host "Result ExitCode: `$(`$result.ExitCode), Status: `$(`$result.Status), Diag: `$diagContent"
+        exit 1
+    }
+} finally {
+    Remove-Item env:AGROSHIFT_TEST_FAIL_TERMINATION_UTILITY -ErrorAction SilentlyContinue
+    Remove-Item env:AGROSHIFT_TEST_FAIL_TERMINATION_FALLBACK -ErrorAction SilentlyContinue
+}
+"@ | Set-Content -Path $wrapper60 -Encoding UTF8
+
+    $p60 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper60`"" -Wait -NoNewWindow -PassThru
+    $exit60 = $p60.ExitCode
+    Assert-Result -TestName "Fallback cleanup failure records fallback warning and cannot convert failure to PASS" -Condition ($exit60 -eq 0) -Message "Got exit code $exit60"
 
 } finally {
     if (Test-Path $testOutputDir) {

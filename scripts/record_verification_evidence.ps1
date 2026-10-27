@@ -136,6 +136,82 @@ if (-not (Test-Path -LiteralPath $helpersPath -PathType Leaf)) {
 
 Assert-ValidTestFilenames -Root $resolvedRepoRoot
 
+function Stop-ProcessTree {
+    param(
+        [System.Diagnostics.Process]$TargetProcess,
+        [int]$CleanupTimeoutMs = 5000
+    )
+    $warningMessages = [System.Collections.Generic.List[string]]::new()
+    if ($null -eq $TargetProcess) { return $warningMessages }
+
+    $targetPid = try { $TargetProcess.Id } catch { $null }
+    $alreadyExited = try { $TargetProcess.HasExited } catch { $false }
+    if ($alreadyExited -or $null -eq $targetPid) { return $warningMessages }
+
+    # Seam for deterministic testing of termination failure / timeout
+    if ($env:AGROSHIFT_TEST_FAIL_TERMINATION_UTILITY) {
+        $warningMessages.Add("PROCESS_CLEANUP_WARNING: Simulated termination utility failure ($env:AGROSHIFT_TEST_FAIL_TERMINATION_UTILITY).")
+    } else {
+        # Primary: Execute taskkill.exe /PID $targetPid /T /F with bounded execution
+        try {
+            $psi = New-Object System.Diagnostics.ProcessStartInfo
+            $psi.FileName = "taskkill.exe"
+            $psi.Arguments = "/PID $targetPid /T /F"
+            $psi.UseShellExecute = $false
+            $psi.CreateNoWindow = $true
+            $psi.RedirectStandardOutput = $true
+            $psi.RedirectStandardError = $true
+
+            $killProc = [System.Diagnostics.Process]::Start($psi)
+            if ($null -ne $killProc) {
+                $killExited = $killProc.WaitForExit($CleanupTimeoutMs)
+                if (-not $killExited) {
+                    $warningMessages.Add("PROCESS_CLEANUP_WARNING: taskkill utility exceeded timeout of ${CleanupTimeoutMs}ms.")
+                    try {
+                        $killProc.Kill()
+                        $killProc.WaitForExit(1000) | Out-Null
+                    } catch {
+                        $warningMessages.Add("PROCESS_CLEANUP_WARNING: Failed to terminate timed-out taskkill: $($_.Exception.Message)")
+                    }
+                } elseif ($killProc.ExitCode -ne 0) {
+                    $killErr = try { $killProc.StandardError.ReadToEnd() } catch { "" }
+                    $warningMessages.Add("PROCESS_CLEANUP_WARNING: taskkill returned non-zero exit code $($killProc.ExitCode). $killErr".Trim())
+                }
+            } else {
+                $warningMessages.Add("PROCESS_CLEANUP_WARNING: Could not start taskkill.exe process.")
+            }
+        } catch {
+            $warningMessages.Add("PROCESS_CLEANUP_WARNING: Exception invoking taskkill.exe: $($_.Exception.Message)")
+        }
+    }
+
+    # Bounded wait on target process
+    $targetExited = try { $TargetProcess.WaitForExit(2000) } catch { $false }
+
+    # Fallback: If target process is still running, attempt direct Kill()
+    if (-not $targetExited) {
+        $isStillRunning = try { -not $TargetProcess.HasExited } catch { $false }
+        if ($isStillRunning) {
+            # Seam for deterministic testing of fallback failure
+            if ($env:AGROSHIFT_TEST_FAIL_TERMINATION_FALLBACK) {
+                $warningMessages.Add("PROCESS_CLEANUP_WARNING: Simulated fallback Kill() failure ($env:AGROSHIFT_TEST_FAIL_TERMINATION_FALLBACK).")
+            } else {
+                try {
+                    $TargetProcess.Kill()
+                    $fallbackExited = $TargetProcess.WaitForExit($CleanupTimeoutMs)
+                    if (-not $fallbackExited) {
+                        $warningMessages.Add("PROCESS_CLEANUP_WARNING: Target process $targetPid did not exit within ${CleanupTimeoutMs}ms after fallback Kill().")
+                    }
+                } catch {
+                    $warningMessages.Add("PROCESS_CLEANUP_WARNING: Failed fallback Kill() on process ${targetPid}: $($_.Exception.Message)")
+                }
+            }
+        }
+    }
+
+    return $warningMessages
+}
+
 function Run-Stage {
     param(
         [string]$StageName,
@@ -253,25 +329,11 @@ try {
                         }
                         Write-Host "STAGE_TIMEOUT: Stage '$StageName' exceeded limit of $StageTimeoutSeconds seconds. Initiating process tree termination..." -ForegroundColor Red
 
-                        # Attempt to terminate the process and its descendant process tree on Windows
-                        try {
-                            $killProc = Start-Process -FilePath "taskkill.exe" -ArgumentList "/PID $($p.Id) /T /F" -NoNewWindow -Wait -PassThru -ErrorAction Stop
-                            if ($killProc.ExitCode -ne 0) {
-                                $stderr = "$stderr`nPROCESS_CLEANUP_WARNING: taskkill returned non-zero exit code $($killProc.ExitCode)."
-                            }
-                        } catch {
-                            $stderr = "$stderr`nPROCESS_CLEANUP_WARNING: Failed to execute taskkill: $($_.Exception.Message)"
-                            try {
-                                if (-not $p.HasExited) {
-                                    $p.Kill()
-                                }
-                            } catch {
-                                $stderr = "$stderr`nPROCESS_CLEANUP_WARNING: Failed fallback Kill(): $($_.Exception.Message)"
-                            }
+                        # Terminate the process and its descendant process tree with bounded wait and fallback
+                        $cleanupWarnings = Stop-ProcessTree -TargetProcess $p -CleanupTimeoutMs 5000
+                        foreach ($cw in $cleanupWarnings) {
+                            $stderr = if ([string]::IsNullOrWhiteSpace($stderr)) { $cw } else { "$stderr`n$cw" }
                         }
-
-                        # Bounded wait for process to exit after kill attempt
-                        $p.WaitForExit(5000) | Out-Null
                     } else {
                         $code = $p.ExitCode
                     }
@@ -331,16 +393,9 @@ try {
             # Ensure no child process is left running unintentionally
             try {
                 if ($null -ne $p -and -not $p.HasExited) {
-                    try {
-                        Start-Process -FilePath "taskkill.exe" -ArgumentList "/PID $($p.Id) /T /F" -NoNewWindow -Wait -PassThru -ErrorAction Stop | Out-Null
-                    } catch {
-                        $p.Kill()
-                    }
-                    # Bounded wait for process exit after requesting termination (5000ms)
-                    $exitedInTime = $p.WaitForExit(5000)
-                    if (-not $exitedInTime) {
-                        $cleanupDiag = "PROCESS_CLEANUP_WARNING: Process $(try { $p.Id } catch { 'unknown' }) did not exit within 5000ms after Kill."
-                        $stderr = if ([string]::IsNullOrWhiteSpace($stderr)) { $cleanupDiag } else { "$stderr`n$cleanupDiag" }
+                    $finallyWarnings = Stop-ProcessTree -TargetProcess $p -CleanupTimeoutMs 5000
+                    foreach ($fw in $finallyWarnings) {
+                        $stderr = if ([string]::IsNullOrWhiteSpace($stderr)) { $fw } else { "$stderr`n$fw" }
                     }
                 }
             } catch {
