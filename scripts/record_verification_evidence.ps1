@@ -1,9 +1,15 @@
 param(
     [string]$RepoRoot = $null,
     [string]$OutputDir = $null,
-    [switch]$RequireCleanRevision = $false
+    [switch]$RequireCleanRevision = $false,
+    [int]$StageTimeoutSeconds = 1800
 )
 $ErrorActionPreference = "Stop"
+
+if ($StageTimeoutSeconds -le 0) {
+    Write-Error "StageTimeoutSeconds must be a positive integer. Provided: $StageTimeoutSeconds"
+    exit 1
+}
 
 $runStartUtc = (Get-Date).ToUniversalTime()
 $timestamp = $runStartUtc.ToString("yyyyMMdd_HHmmss")
@@ -121,20 +127,12 @@ if ($RequireCleanRevision -and -not $isInitiallyClean) {
     exit 1
 }
 
-function Assert-ValidTestFilenames {
-    param([string]$Root)
-    $testDir = Join-Path $Root "test"
-    if (-not (Test-Path $testDir)) { return }
-    $offendingFiles = @(Get-ChildItem -Path $testDir -Recurse -File -Filter "*_tests.dart")
-    if ($offendingFiles.Count -gt 0) {
-        $relPaths = $offendingFiles | ForEach-Object {
-            $_.FullName.Substring($Root.Length).TrimStart('\', '/')
-        }
-        $msg = "NON_STANDARD_TEST_FILENAME_ERROR: Test files under test/ must not end with '_tests.dart' (violates automatic test discovery):`n" + ($relPaths -join "`n")
-        Write-Error $msg
-        throw $msg
-    }
+$helpersPath = Join-Path $PSScriptRoot "verification_runner_helpers.ps1"
+if (-not (Test-Path -LiteralPath $helpersPath -PathType Leaf)) {
+    Write-Error "CRITICAL: Verification runner helper file not found at '$helpersPath'."
+    exit 1
 }
+. $helpersPath
 
 Assert-ValidTestFilenames -Root $resolvedRepoRoot
 
@@ -234,13 +232,49 @@ try {
         }
 
         try {
+            $stageTimedOut = $false
+            $timeoutError = $null
             if ($null -eq $outputError) {
                 try {
                     if ($env:AGROSHIFT_TEST_FAIL_WAIT -and $env:AGROSHIFT_TEST_FAIL_WAIT -eq $StageName) {
                         throw "SIMULATED_PROCESS_WAIT_FAILURE"
                     }
-                    $p.WaitForExit()
-                    $code = $p.ExitCode
+                    $timeoutMs = $StageTimeoutSeconds * 1000
+                    $processExited = $p.WaitForExit($timeoutMs)
+                    if (-not $processExited) {
+                        $stageTimedOut = $true
+                        $code = 124
+                        $timeoutMsg = "STAGE_TIMEOUT: Stage exceeded timeout of $StageTimeoutSeconds seconds."
+                        $timeoutError = $timeoutMsg
+                        $stderr = if ([string]::IsNullOrWhiteSpace($stderr)) {
+                            $timeoutMsg
+                        } else {
+                            "$stderr`n$timeoutMsg"
+                        }
+                        Write-Host "STAGE_TIMEOUT: Stage '$StageName' exceeded limit of $StageTimeoutSeconds seconds. Initiating process tree termination..." -ForegroundColor Red
+
+                        # Attempt to terminate the process and its descendant process tree on Windows
+                        try {
+                            $killProc = Start-Process -FilePath "taskkill.exe" -ArgumentList "/PID $($p.Id) /T /F" -NoNewWindow -Wait -PassThru -ErrorAction Stop
+                            if ($killProc.ExitCode -ne 0) {
+                                $stderr = "$stderr`nPROCESS_CLEANUP_WARNING: taskkill returned non-zero exit code $($killProc.ExitCode)."
+                            }
+                        } catch {
+                            $stderr = "$stderr`nPROCESS_CLEANUP_WARNING: Failed to execute taskkill: $($_.Exception.Message)"
+                            try {
+                                if (-not $p.HasExited) {
+                                    $p.Kill()
+                                }
+                            } catch {
+                                $stderr = "$stderr`nPROCESS_CLEANUP_WARNING: Failed fallback Kill(): $($_.Exception.Message)"
+                            }
+                        }
+
+                        # Bounded wait for process to exit after kill attempt
+                        $p.WaitForExit(5000) | Out-Null
+                    } else {
+                        $code = $p.ExitCode
+                    }
                 } catch {
                     $waitError = $_.Exception.ToString()
                     if ($null -eq $code) {
@@ -252,9 +286,27 @@ try {
                     if ($env:AGROSHIFT_TEST_FAIL_OUTPUT -and $env:AGROSHIFT_TEST_FAIL_OUTPUT -eq $StageName) {
                         throw "SIMULATED_OUTPUT_COLLECTION_FAILURE"
                     }
-                    [System.Threading.Tasks.Task]::WaitAll(@($stdoutTask, $stderrTask))
-                    $stdout = $stdoutTask.Result
-                    $stderr = $stderrTask.Result
+                    # Bounded wait on stream completion: 10000ms if exited normally, 3000ms if timed out
+                    $streamWaitMs = if ($stageTimedOut) { 3000 } else { 10000 }
+                    $tasksCompleted = [System.Threading.Tasks.Task]::WaitAll(@($stdoutTask, $stderrTask), $streamWaitMs)
+                    if ($tasksCompleted) {
+                        $stdout = $stdoutTask.Result
+                        $stderr = if ([string]::IsNullOrWhiteSpace($stderr)) {
+                            $stderrTask.Result
+                        } else {
+                            "$stderr`n$($stderrTask.Result)"
+                        }
+                    } else {
+                        $outputError = "OUTPUT_COLLECTION_TIMEOUT: Asynchronous output stream tasks did not complete within ${streamWaitMs}ms."
+                        $stderr = if ([string]::IsNullOrWhiteSpace($stderr)) {
+                            $outputError
+                        } else {
+                            "$stderr`n$outputError"
+                        }
+                        if ($null -eq $code -or $code -eq 0) {
+                            $code = 1
+                        }
+                    }
                 } catch {
                     $outputError = $_.Exception.ToString()
                     $stderr = if ([string]::IsNullOrWhiteSpace($stderr)) {
@@ -279,7 +331,11 @@ try {
             # Ensure no child process is left running unintentionally
             try {
                 if ($null -ne $p -and -not $p.HasExited) {
-                    $p.Kill()
+                    try {
+                        Start-Process -FilePath "taskkill.exe" -ArgumentList "/PID $($p.Id) /T /F" -NoNewWindow -Wait -PassThru -ErrorAction Stop | Out-Null
+                    } catch {
+                        $p.Kill()
+                    }
                     # Bounded wait for process exit after requesting termination (5000ms)
                     $exitedInTime = $p.WaitForExit(5000)
                     if (-not $exitedInTime) {
@@ -326,6 +382,7 @@ try {
         LaunchError = $launchError
         OutputError = $outputError
         WaitError = $waitError
+        TimeoutError = $timeoutError
         EvidenceWriteError = $evidenceWriteError
     }
 }

@@ -525,6 +525,10 @@ try {
     $runnerEvidenceDir28 = Join-Path $runnerTestDir "evidence28"
     New-Item -ItemType Directory -Path $runnerEvidenceDir28 -Force | Out-Null
 
+    # Ensure extracted helper is present in runner_test_env alongside fake runners
+    $helperSource = Join-Path $PSScriptRoot "../../scripts/verification_runner_helpers.ps1"
+    Copy-Item -Path $helperSource -Destination (Join-Path $runnerTestDir "verification_runner_helpers.ps1") -Force
+
     $runnerContent = Get-Content -Path $recorderScript -Raw -Encoding UTF8
     $mockStages28 = @"
 `$summary = [System.Collections.Generic.List[hashtable]]::new()
@@ -1098,18 +1102,92 @@ try {
     $validFilePath = Join-Path $dummyTestDir "sample_valid_test.dart"
     Set-Content -Path $validFilePath -Value "// Dummy valid test file"
 
-    # We source the safeguard check or run record_verification_evidence.ps1 in dry-run/mock context
+    # Dot-source ONLY the verification runner helper, NEVER the entire runner
+    $runnerHelperPath = Join-Path $PSScriptRoot "../../scripts/verification_runner_helpers.ps1"
     $wrapper55 = Join-Path $testOutputDir "run_test55.ps1"
     @"
-    `$ErrorActionPreference = 'Stop'
-    . '$runnerScriptPath'
-    Assert-ValidTestFilenames -Root '$dummyRepoDir'
-    exit 0
+`$ErrorActionPreference = 'Stop'
+. '$runnerHelperPath'
+Assert-ValidTestFilenames -Root '$dummyRepoDir'
+exit 0
 "@ | Set-Content -Path $wrapper55 -Encoding UTF8
 
     $p55 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper55`"" -Wait -NoNewWindow -PassThru
     $exit55 = $p55.ExitCode
     Assert-Result -TestName "Test discovery safeguard passes when only standard *_test.dart exist" -Condition ($exit55 -eq 0) -Message "Got exit code $exit55"
+
+    # Test 56: Verification runner helper file existence check and clean dot-sourcing without side-effects
+    Write-Host "Testing verification runner helper: Exists, exports Assert-ValidTestFilenames, and does not execute stages..."
+    $helperResolvedPath = (Resolve-Path $runnerHelperPath).Path
+    Assert-Result -TestName "verification_runner_helpers.ps1 exists on disk" -Condition (Test-Path -LiteralPath $helperResolvedPath -PathType Leaf) -Message "Helper path: $helperResolvedPath"
+
+    $wrapper56 = Join-Path $testOutputDir "run_test56.ps1"
+    @"
+`$ErrorActionPreference = 'Stop'
+. '$runnerHelperPath'
+if (-not (Get-Command -Name Assert-ValidTestFilenames -ErrorAction SilentlyContinue)) {
+    exit 2
+}
+# Verify no stages were run or evidence created by dot-sourcing helper
+if (Test-Path variable:summary) {
+    exit 3
+}
+exit 0
+"@ | Set-Content -Path $wrapper56 -Encoding UTF8
+
+    $p56 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper56`"" -Wait -NoNewWindow -PassThru
+    $exit56 = $p56.ExitCode
+    Assert-Result -TestName "Helper exports Assert-ValidTestFilenames without executing runner stages" -Condition ($exit56 -eq 0) -Message "Got exit code $exit56"
+
+    # Test 57: Verification runner enforces positive StageTimeoutSeconds parameter
+    Write-Host "Testing verification runner timeout parameter validation..."
+    $p57 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$runnerScriptPath`" -StageTimeoutSeconds 0" -Wait -NoNewWindow -PassThru
+    $exit57 = $p57.ExitCode
+    Assert-Result -TestName "Runner rejects non-positive StageTimeoutSeconds (exit code non-zero)" -Condition ($exit57 -ne 0) -Message "Got exit code $exit57"
+
+    # Test 58: Stage timeout handling, exit code 124, STAGE_TIMEOUT diagnostic, and process termination
+    Write-Host "Testing bounded stage timeout: Child process exceeding timeout is terminated and recorded as FAIL (124)..."
+    $timeoutMockRepo = Join-Path $testOutputDir "timeout_mock_repo"
+    $timeoutMockTestDir = Join-Path $timeoutMockRepo "test"
+    $timeoutMockEvidence = Join-Path $testOutputDir "timeout_evidence"
+    New-Item -ItemType Directory -Path $timeoutMockTestDir -Force | Out-Null
+    Set-Content -Path (Join-Path $timeoutMockTestDir "dummy_test.dart") -Value "// Dummy test file"
+
+    # We invoke record_verification_evidence.ps1 with StageTimeoutSeconds = 2 on an isolated dummy repo where a simulated long command is executed
+    # To test Run-Stage timeout deterministically without running full 5 stages, we create a mini test script running the Run-Stage logic directly
+    $wrapper58 = Join-Path $testOutputDir "run_test58.ps1"
+    $runnerResolved = (Resolve-Path $runnerScriptPath).Path
+    @"
+`$ErrorActionPreference = 'Stop'
+`$evidenceDir = '$timeoutMockEvidence'
+New-Item -ItemType Directory -Path `$evidenceDir -Force | Out-Null
+`$resolvedRepoRoot = '$timeoutMockRepo'
+`$StageTimeoutSeconds = 2
+
+# Extract and execute Run-Stage definition in isolation
+`$runnerContent = Get-Content -LiteralPath '$runnerResolved' -Raw
+`$funcStart = `$runnerContent.IndexOf('function Run-Stage {')
+`$funcEnd = `$runnerContent.IndexOf('# --- BEGIN VERIFICATION STAGES ---')
+`$funcDef = `$runnerContent.Substring(`$funcStart, `$funcEnd - `$funcStart)
+Invoke-Expression `$funcDef
+
+# Run a stage that sleeps for 10 seconds (exceeding StageTimeoutSeconds of 2)
+`$result = Run-Stage -StageName "Hanging Test Stage" -Command "powershell.exe -NoProfile -Command 'Start-Sleep -Seconds 10'" -OutPrefix "timeout_stage"
+
+`$diagFile = Join-Path `$evidenceDir "timeout_stage.stderr.txt"
+`$diagContent = if (Test-Path `$diagFile) { Get-Content -LiteralPath `$diagFile -Raw } else { "" }
+
+if (`$result.ExitCode -eq 124 -and `$result.Status -eq 'FAIL' -and `$diagContent -like "*STAGE_TIMEOUT*") {
+    exit 0
+} else {
+    Write-Host "Result ExitCode: `$(`$result.ExitCode), Status: `$(`$result.Status), Diag: `$diagContent"
+    exit 1
+}
+"@ | Set-Content -Path $wrapper58 -Encoding UTF8
+
+    $p58 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper58`"" -Wait -NoNewWindow -PassThru
+    $exit58 = $p58.ExitCode
+    Assert-Result -TestName "Bounded stage timeout terminates hanging process and records exit code 124 and STAGE_TIMEOUT" -Condition ($exit58 -eq 0) -Message "Got exit code $exit58"
 
 } finally {
     if (Test-Path $testOutputDir) {

@@ -1,0 +1,206 @@
+﻿00:00 +0: loading D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart
+00:00 +0: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Successfully converts valid DTO to DailyAgroRecord list
+00:00 +1: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Fails when missing temperature ratio exceeds 10%
+00:00 +2: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Fails when ET0 is missing beyond 10% even if temperature is complete
+00:00 +3: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Fails when precipitation is missing beyond 10%
+00:00 +4: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Accepts series with missingness within the allowed 10% tolerance
+00:00 +5: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Fails when temperature data contains physical violation (tMax < tMin)
+00:00 +6: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Denominator represents total expected interval days and preserves distinct variable missingness
+00:00 +7: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Raw sequence: Valid consecutive daily sequence succeeds
+00:00 +8: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Raw sequence: Duplicate dates in raw time array fail
+00:00 +9: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Raw sequence: Descending or unordered dates fail
+00:00 +10: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Raw sequence: Gap in raw daily date sequence fails
+00:00 +11: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Raw sequence: Malformed date strings fail
+00:00 +12: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Raw sequence: Date outside requested interval fails
+00:00 +13: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Raw sequence: Mismatched parallel array lengths fail safely without exception
+00:00 +14: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests June 1-30 requested; June 1-20 returned (omits end): rejected
+00:00 +15: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests June 1-30 requested; June 5-30 returned (omits start): rejected
+00:00 +16: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests June 1-30 requested; June 1-29 returned (off by one at end): rejected
+00:00 +17: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests June 1-30 requested; all dates returned correctly: accepted
+00:00 +18: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Empty historical raw response fails validation
+00:00 +19: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Missing mandatory ET0 array is rejected
+00:00 +20: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Missing mandatory temperature_2m_max array is rejected
+00:00 +21: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Missing mandatory temperature_2m_min array is rejected
+00:00 +22: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Missing mandatory precipitation array is rejected
+00:00 +23: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Mismatched ET0 array length is rejected
+00:00 +24: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Mismatched precipitation array length is rejected
+00:00 +25: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Permits legitimate null measurements and preserves distinct 0.0 value
+00:00 +26: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Phase 2.1.x.7: Composite missingness: union of incomplete dates exceeding 10% is rejected by ScientificRangeValidator
+00:00 +27: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Phase 2.1.x.7: Operational screening thresholds format as operational envelope rather than physical impossibility
+00:00 +28: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Issue A Regression Tests: Independent Variable Preservation Test A: Missing temperature with valid ET0 and precipitation preserves date and values
+00:00 +29: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Issue A Regression Tests: Independent Variable Preservation Test B: Missing ET0 with valid temperature preserves temperature and marks ET0 null
+00:00 +30: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Issue A Regression Tests: Independent Variable Preservation Test C: Real zero precipitation (0.0) is preserved as 0.0 and not classified as missing
+00:00 +31: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Issue A Regression Tests: Independent Variable Preservation Test D: Missing precipitation (null) remains null and is not converted to 0.0
+00:00 +32: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Issue A Regression Tests: Independent Variable Preservation Test E: ET0 total across a date sequence with missing temperature computes correctly
+00:00 +33: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Scientific ET0 Domain Boundary Validation null ET0 is accepted as null and does not become fabricated non-null
+00:00 +34: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Scientific ET0 Domain Boundary Validation 0.0 ET0 is accepted as lower bound
+00:00 +35: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Scientific ET0 Domain Boundary Validation 7.5 ET0 is accepted as typical nominal reading
+00:00 +36: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Scientific ET0 Domain Boundary Validation 25.0 ET0 is accepted as upper inclusive physical bound
+00:00 +37: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Scientific ET0 Domain Boundary Validation -0.01 ET0 is rejected by scientific range validator
+00:00 +38: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Scientific ET0 Domain Boundary Validation 25.01 ET0 is rejected by scientific range validator
+00:00 +39: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Scientific ET0 Domain Boundary Validation double.nan ET0 is rejected by scientific range validator
+00:00 +40: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Scientific ET0 Domain Boundary Validation double.infinity ET0 is rejected by scientific range validator
+00:00 +41: D:/Programming projects/agro_shift/test/data/open_meteo_adapter_test.dart: OpenMeteoAdapter & Provenance Tests Phase 2.1.x.5: Period Completeness and Mandatory Arrays Tests Scientific ET0 Domain Boundary Validation double.negativeInfinity ET0 is rejected by scientific range validator
+00:00 +42: D:/Programming projects/agro_shift/test/data/persistence_test.dart: FarmField Persistence Tests 1. A created farm field can be retrieved after re-instantiating repository
+00:00 +43: D:/Programming projects/agro_shift/test/domain/domain_scientific_test.dart: Geographic & Coordinate Validation Accepts valid Nile Delta coordinates (Kafr El-Sheikh)
+00:00 +44: D:/Programming projects/agro_shift/test/domain/domain_scientific_test.dart: Geographic & Coordinate Validation Accepts valid Nile Delta coordinates (Kafr El-Sheikh)
+00:00 +45: D:/Programming projects/agro_shift/test/data/persistence_test.dart: FarmField Persistence Tests 3. Built-in default fields do not overwrite or resurrect deleted user data
+00:00 +46: D:/Programming projects/agro_shift/test/data/persistence_test.dart: FarmField Persistence Tests 3. Built-in default fields do not overwrite or resurrect deleted user data
+00:00 +47: D:/Programming projects/agro_shift/test/data/persistence_test.dart: FarmField Persistence Tests 3. Built-in default fields do not overwrite or resurrect deleted user data
+00:00 +48: D:/Programming projects/agro_shift/test/domain/domain_scientific_test.dart: Geographic & Coordinate Validation Rejects coordinates South of Egypt boundary (< 22.0)
+00:00 +49: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 4. Weather records can be retrieved after re-instantiating the cache repository
+00:00 +50: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 4. Weather records can be retrieved after re-instantiating the cache repository
+00:00 +51: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 4. Weather records can be retrieved after re-instantiating the cache repository
+00:00 +52: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 4. Weather records can be retrieved after re-instantiating the cache repository
+00:00 +53: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 4. Weather records can be retrieved after re-instantiating the cache repository
+00:00 +54: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 4. Weather records can be retrieved after re-instantiating the cache repository
+00:00 +55: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 4. Weather records can be retrieved after re-instantiating the cache repository
+00:00 +56: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 4. Weather records can be retrieved after re-instantiating the cache repository
+00:00 +57: D:/Programming projects/agro_shift/test/domain/domain_scientific_test.dart: GddCalculator Tests Returns 0.0 when temperature is below base temperature
+00:00 +58: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 5. Null and zero weather values remain distinct after persistence and retrieval
+00:00 +59: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 5. Null and zero weather values remain distinct after persistence and retrieval
+00:00 +60: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 5. Null and zero weather values remain distinct after persistence and retrieval
+00:00 +61: D:/Programming projects/agro_shift/test/domain/domain_scientific_test.dart: GddCalculator Tests Handles cold boundary where Tmin is below base and Tmax crosses base
+00:00 +62: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 6. Weather provenance and retrieval timestamps survive persistence
+00:00 +63: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 6. Weather provenance and retrieval timestamps survive persistence
+00:00 +64: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 6. Weather provenance and retrieval timestamps survive persistence
+00:00 +65: D:/Programming projects/agro_shift/test/domain/domain_scientific_test.dart: EtcCalculator & Volumetric Conversion Tests Computes multi-stage cycle water requirement
+00:00 +66: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 7. Different coordinates, date ranges, and data sources do not collide in cache keys
+00:00 +67: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 7. Different coordinates, date ranges, and data sources do not collide in cache keys
+00:00 +68: D:/Programming projects/agro_shift/test/domain/domain_scientific_test.dart: EtcCalculator & Volumetric Conversion Tests Comprehensive ETc missingness and variable-Kc growth-stage alignment verification
+00:00 +69: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 8. Stale cache entries are identified according to the defined policy
+00:00 +70: D:/Programming projects/agro_shift/test/domain/domain_scientific_test.dart: EtcCalculator & Volumetric Conversion Tests ETc preserves original growth-stage day indices when ET0 is missing
+00:00 +71: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 9. Database migration preserves existing records
+00:00 +72: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 9. Database migration preserves existing records
+00:00 +73: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 9. Database migration preserves existing records
+00:00 +74: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 9. Database migration preserves existing records
+00:00 +75: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 9. Database migration preserves existing records
+00:00 +76: D:/Programming projects/agro_shift/test/domain/domain_scientific_test.dart: RotationEvaluator Tests Wheat to Rice has significantly higher water demand than Wheat to Maize
+00:00 +77: D:/Programming projects/agro_shift/test/domain/domain_scientific_test.dart: Issue B: Composite Missingness Validation & Calculation Integration Tests 1. totalRequestedDays == 0 fails closed with InsufficientEvidenceFailure
+00:00 +78: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 10. Offline reads fail gracefully when no suitable cached data exists
+00:00 +79: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 10. Offline reads fail gracefully when no suitable cached data exists
+00:00 +80: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 10. Offline reads fail gracefully when no suitable cached data exists
+00:00 +81: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 10. Offline reads fail gracefully when no suitable cached data exists
+00:00 +82: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 10. Offline reads fail gracefully when no suitable cached data exists
+00:00 +83: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 10. Offline reads fail gracefully when no suitable cached data exists
+00:00 +84: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 10. Offline reads fail gracefully when no suitable cached data exists
+00:00 +85: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 10. Offline reads fail gracefully when no suitable cached data exists
+00:00 +86: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 10. Offline reads fail gracefully when no suitable cached data exists
+00:00 +87: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 10. Offline reads fail gracefully when no suitable cached data exists
+00:00 +88: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 10. Offline reads fail gracefully when no suitable cached data exists
+00:00 +89: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 10. Offline reads fail gracefully when no suitable cached data exists
+00:00 +90: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 10. Offline reads fail gracefully when no suitable cached data exists
+00:00 +91: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 10. Offline reads fail gracefully when no suitable cached data exists
+00:00 +92: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 10. Offline reads fail gracefully when no suitable cached data exists
+00:00 +93: D:/Programming projects/agro_shift/test/domain/domain_scientific_test.dart: Temporal Boundary & Requested Period Invariance Tests (P0/P1) 7. Missing-data tolerance threshold: 10% exactly passes, > 10% fails
+00:00 +94: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 11. Stale offline cache is returned with explicit stale provenance marking when network fails
+00:00 +95: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 11. Stale offline cache is returned with explicit stale provenance marking when network fails
+00:00 +96: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 12. Corrupted records violating physical ranges in SQLite are rejected during cache retrieval
+00:00 +97: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 13. Failed database writes do not crash repository or discard fetched records
+WARNING (drift): It looks like you've created the database class AppDatabase multiple times. When these two databases use the same QueryExecutor, race conditions will occur and might corrupt the database. 
+Try to follow the advice at https://drift.simonbinder.eu/faq/#using-the-database or, if you know what you're doing, set driftRuntimeOptions.dontWarnAboutMultipleDatabases = true
+Here is the stacktrace from when the database was opened a second time:
+#0      GeneratedDatabase._handleInstantiated (package:drift/src/runtime/api/db_base.dart:96:30)
+#1      GeneratedDatabase._whenConstructed (package:drift/src/runtime/api/db_base.dart:73:12)
+#2      new GeneratedDatabase (package:drift/src/runtime/api/db_base.dart:64:5)
+#3      new _$AppDatabase (package:agro_shift/data/datasources/local/database/app_database.g.dart:1918:36)
+#4      new AppDatabase (package:agro_shift/data/datasources/local/database/app_database.dart)
+#5      main.<anonymous closure>.<anonymous closure> (file:///D:/Programming%20projects/agro_shift/test/data/persistence_test.dart:489:24)
+#6      Declarer.test.<anonymous closure>.<anonymous closure> (package:test_api/src/backend/declarer.dart:253:25)
+<asynchronous suspension>
+#7      Declarer.test.<anonymous closure> (package:test_api/src/backend/declarer.dart:250:11)
+<asynchronous suspension>
+#8      Invoker._waitForOutstandingCallbacks.<anonymous closure> (package:test_api/src/backend/invoker.dart:318:9)
+<asynchronous suspension>
+This warning will only appear on debug builds.
+00:00 +98: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 14. Cache keys strictly isolate coordinates, dates, and datasets without lossy rounding
+00:00 +99: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 15. Exact coordinate identity prevents silent collision of sub-millidegree coordinates
+00:00 +100: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 16. Repository rejects physically invalid cached record during network failure and fallback
+00:00 +101: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 17. Calendar date preservation around midnight and timezone transitions
+00:00 +102: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 18. Failed transactional replacement preserves previously valid cached data
+00:00 +103: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 19. Stale marking is idempotent and keeps pure datasetName identity
+00:00 +104: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 20. Forecast midnight rollover: cache seeded before midnight is not served for today
+00:00 +105: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 21. Non-transient 4xx HTTP client error does not fallback to stale cache
+00:00 +106: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 22. HTTP 429 Too Many Requests allows stale fallback with retry-after diagnostics
+00:00 +107: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 23. Forecast cache lookup rejects records with duplicate or unordered dates
+00:00 +108: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 24. Forecast validation rejects records when interval count is insufficient
+00:00 +109: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 25. Forecast sequence beginning one day too late is rejected
+00:00 +110: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 26. Forecast sequence ending one day too early is rejected
+00:00 +111: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 27. Duplicate dates in sequence are rejected
+00:00 +112: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 28. Cairo timezone calculation handles standard time and DST correctly
+00:00 +113: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 29. Valid forecast sequence whose dates are represented in UTC matches Cairo calendar day
+00:00 +114: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 30. Retry-After parser handles integer seconds, HTTP-date, malformed, and missing values
+00:00 +115: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 31. HTTP 429 with HTTP-date header formats diagnostics correctly and falls back to valid cache
+00:00 +116: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 32. HTTP 429 with no usable cached data fails cleanly with accurate diagnostics
+00:00 +117: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 33. Cairo DST start transition (April) exact boundaries in UTC
+00:00 +118: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 34. Cairo DST end transition (October) exact boundaries in UTC
+00:00 +119: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 35. Cairo midnight rollover occurs exactly at 22:00 UTC in winter (UTC+2) and 21:00 UTC in summer (UTC+3)
+00:00 +120: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 36. Device local timezone does not alter Cairo calendar calculation
+00:00 +121: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 37. Forecast validation rejects sequence if first record belongs to previous or next Cairo day
+00:00 +122: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests 38. Forecast validation at Cairo midnight rollover rejects pre-rollover cache
+00:00 +123: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 39. End date equal to today is clamped to latest eligible historical date (5 days delay)
+00:00 +124: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 40. End date in the past that is already eligible remains unchanged
+00:00 +125: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 41. Requested end date later than current date is clamped to latest eligible date
+00:00 +126: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 42. Requested historical range containing no eligible dates returns InsufficientEvidenceFailure
+00:00 +127: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 43. Historical delay calculation behaves correctly across Cairo midnight and DST boundaries
+00:00 +128: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 44. Forecast requests do not apply 5-day historical delay
+00:00 +129: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 45. Persistent cache: valid ordered historical records are accepted and retrieved
+00:00 +130: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 46. Persistent cache: duplicate dates or dates outside requested range are rejected
+00:00 +131: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 47. Persistent cache: records outside expected interval are rejected (returns null)
+00:00 +132: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 48. Persistent cache: valid records with permitted missing-temperature gaps remain acceptable
+00:00 +133: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 49. Persistent cache: inconsistent cachedAt metadata across rows fails integrity check
+00:00 +134: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 50. Fresh L1 forecast cache is reused within 6 hours
+00:00 +135: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 51. Expired L1 forecast entry (> 6 hours) is not treated as fresh
+00:00 +136: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 52. Fresh L1 historical entry is reused within 7 days
+00:00 +137: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 53. Expired L1 historical entry (> 7 days) is not treated as fresh
+00:00 +138: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 54. Stale fallback is marked with isStaleFallback: true on transient errors
+00:00 +139: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 55. Non-transient HTTP client errors (400) do NOT consume stale fallback
+00:01 +140: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 56. Outgoing historical request explicitly contains models=era5
+00:01 +141: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 57. Empty raw historical response is rejected and does not overwrite valid cache
+00:01 +142: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 58. isHistoricalValid rejects empty records
+00:01 +143: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 59. 30-day Option A window produces exactly 30 days ending on latestEligible
+00:01 +144: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 60. era5ArchiveDelayDays and era5LandArchiveDelayDays alias are aligned
+00:01 +145: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 61. Forecast request of 7 days returning 6 days is rejected as truncated response
+00:01 +146: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Phase 2 & Phase 5 Regression Tests: Historical Weather & Cache Integrity 62. Forecast request of 7 days returning 7 days succeeds with expectedPeriodDays=7
+00:01 +147: D:/Programming projects/agro_shift/test/data/persistence_test.dart: Weather Cache Persistence & Integrity Tests Drift Schema Migration Tests: v1 to v2 Upgrades legacy v1 database with NOT NULL columns to v2 without data loss and allows null temperatures
+WARNING (drift): It looks like you've created the database class AppDatabase multiple times. When these two databases use the same QueryExecutor, race conditions will occur and might corrupt the database. 
+Try to follow the advice at https://drift.simonbinder.eu/faq/#using-the-database or, if you know what you're doing, set driftRuntimeOptions.dontWarnAboutMultipleDatabases = true
+Here is the stacktrace from when the database was opened a second time:
+#0      GeneratedDatabase._handleInstantiated (package:drift/src/runtime/api/db_base.dart:96:30)
+#1      GeneratedDatabase._whenConstructed (package:drift/src/runtime/api/db_base.dart:73:12)
+#2      new GeneratedDatabase (package:drift/src/runtime/api/db_base.dart:64:5)
+#3      new _$AppDatabase (package:agro_shift/data/datasources/local/database/app_database.g.dart:1918:36)
+#4      new AppDatabase (package:agro_shift/data/datasources/local/database/app_database.dart)
+#5      main.<anonymous closure>.<anonymous closure>.<anonymous closure> (file:///D:/Programming%20projects/agro_shift/test/data/persistence_test.dart:3020:28)
+#6      Declarer.test.<anonymous closure>.<anonymous closure> (package:test_api/src/backend/declarer.dart:253:25)
+<asynchronous suspension>
+#7      Declarer.test.<anonymous closure> (package:test_api/src/backend/declarer.dart:250:11)
+<asynchronous suspension>
+#8      Invoker._waitForOutstandingCallbacks.<anonymous closure> (package:test_api/src/backend/invoker.dart:318:9)
+<asynchronous suspension>
+This warning will only appear on debug builds.
+WARNING (drift): It looks like you've created the database class AppDatabase multiple times. When these two databases use the same QueryExecutor, race conditions will occur and might corrupt the database. 
+Try to follow the advice at https://drift.simonbinder.eu/faq/#using-the-database or, if you know what you're doing, set driftRuntimeOptions.dontWarnAboutMultipleDatabases = true
+Here is the stacktrace from when the database was opened a second time:
+#0      GeneratedDatabase._handleInstantiated (package:drift/src/runtime/api/db_base.dart:96:30)
+#1      GeneratedDatabase._whenConstructed (package:drift/src/runtime/api/db_base.dart:73:12)
+#2      new GeneratedDatabase (package:drift/src/runtime/api/db_base.dart:64:5)
+#3      new _$AppDatabase (package:agro_shift/data/datasources/local/database/app_database.g.dart:1918:36)
+#4      new AppDatabase (package:agro_shift/data/datasources/local/database/app_database.dart)
+#5      main.<anonymous closure>.<anonymous closure>.<anonymous closure> (file:///D:/Programming%20projects/agro_shift/test/data/persistence_test.dart:3174:28)
+<asynchronous suspension>
+#6      Declarer.test.<anonymous closure>.<anonymous closure> (package:test_api/src/backend/declarer.dart:253:15)
+<asynchronous suspension>
+#7      Declarer.test.<anonymous closure> (package:test_api/src/backend/declarer.dart:250:11)
+<asynchronous suspension>
+#8      Invoker._waitForOutstandingCallbacks.<anonymous closure> (package:test_api/src/backend/invoker.dart:318:9)
+<asynchronous suspension>
+This warning will only appear on debug builds.
+00:01 +148: D:/Programming projects/agro_shift/test/widget_test.dart: AgroShiftApp bootstrap smoke test
+00:02 +149: D:/Programming projects/agro_shift/test/widget_test.dart: ProvenanceCard displays requested and grid coordinates distinctly
+00:03 +150: D:/Programming projects/agro_shift/test/widget_test.dart: Dashboard displays heat stress alert card when missingness exceeds validation threshold
+00:03 +151: D:/Programming projects/agro_shift/test/widget_test.dart: Dashboard displays ETc failure alert card when missingness exceeds validation threshold
+00:03 +152: D:/Programming projects/agro_shift/test/widget_test.dart: Dashboard displays prompt to select crop when activeField has no selected crop
+00:03 +153: D:/Programming projects/agro_shift/test/widget_test.dart: Dashboard displays unavailable data state when zero valid ET0 observations exist
+00:04 +154: D:/Programming projects/agro_shift/test/widget_test.dart: Dashboard displays successful ETc calculation and volumetric demand when ET0 series is complete
+00:04 +155: All tests passed!
