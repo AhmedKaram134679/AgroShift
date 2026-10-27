@@ -1079,6 +1079,38 @@ try {
     $exit53 = $p53.ExitCode
     Assert-Result -TestName "Duplicate configuration names cause non-zero exit code" -Condition ($exit53 -ne 0) -Message "Got exit code $exit53"
 
+    # Test 54: Test-discovery safeguard detects non-standard *_tests.dart filenames
+    Write-Host "Testing test discovery safeguard: Detects non-standard *_tests.dart filenames..."
+    $runnerScriptPath = "$PSScriptRoot/../../scripts/record_verification_evidence.ps1"
+    $dummyRepoDir = Join-Path $testOutputDir "dummy_repo_with_invalid_test_filename"
+    $dummyTestDir = Join-Path $dummyRepoDir "test/sub"
+    New-Item -ItemType Directory -Path $dummyTestDir -Force | Out-Null
+    $offendingFilePath = Join-Path $dummyTestDir "sample_invalid_tests.dart"
+    Set-Content -Path $offendingFilePath -Value "// Dummy test file"
+
+    $p54 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$runnerScriptPath`" -RepoRoot `"$dummyRepoDir`" -OutputDir `"$testOutputDir/evidence54`"" -Wait -NoNewWindow -PassThru
+    $exit54 = $p54.ExitCode
+    Assert-Result -TestName "Test discovery safeguard causes non-zero exit when *_tests.dart exists" -Condition ($exit54 -ne 0) -Message "Got exit code $exit54"
+
+    # Test 55: Test-discovery safeguard succeeds when only standard *_test.dart files exist
+    Write-Host "Testing test discovery safeguard: Passes when only standard *_test.dart filenames exist..."
+    Remove-Item -Path $offendingFilePath -Force
+    $validFilePath = Join-Path $dummyTestDir "sample_valid_test.dart"
+    Set-Content -Path $validFilePath -Value "// Dummy valid test file"
+
+    # We source the safeguard check or run record_verification_evidence.ps1 in dry-run/mock context
+    $wrapper55 = Join-Path $testOutputDir "run_test55.ps1"
+    @"
+    `$ErrorActionPreference = 'Stop'
+    . '$runnerScriptPath'
+    Assert-ValidTestFilenames -Root '$dummyRepoDir'
+    exit 0
+"@ | Set-Content -Path $wrapper55 -Encoding UTF8
+
+    $p55 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper55`"" -Wait -NoNewWindow -PassThru
+    $exit55 = $p55.ExitCode
+    Assert-Result -TestName "Test discovery safeguard passes when only standard *_test.dart exist" -Condition ($exit55 -eq 0) -Message "Got exit code $exit55"
+
 } finally {
     if (Test-Path $testOutputDir) {
         Remove-Item -Path $testOutputDir -Recurse -Force -ErrorAction SilentlyContinue

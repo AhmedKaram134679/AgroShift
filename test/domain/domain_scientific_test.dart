@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:agro_shift/domain/environment/models/coordinate.dart';
 import 'package:agro_shift/domain/validation/scientific_range_validator.dart';
+import 'package:agro_shift/domain/agronomy/models/crop.dart';
 import 'package:agro_shift/domain/agronomy/models/crop_catalog.dart';
 import 'package:agro_shift/domain/agronomy/science/gdd_calculator.dart';
 import 'package:agro_shift/domain/agronomy/science/etc_calculator.dart';
@@ -172,6 +173,110 @@ void main() {
         expect(gdd, closeTo(2.0, 0.001));
       },
     );
+  });
+
+  group('Independent ETc Numerical Oracle Tests', () {
+    // Case 1: Daily ETc arithmetic check
+    // Inputs: ET0 = 5.0 mm/day, Kc = 1.15
+    // Independent calculation: 5.0 * 1.15 = 5.75 mm/day
+    test('Independent oracle: daily ETc equals ET0 multiplied by Kc', () {
+      const et0 = 5.0;
+      const kc = 1.15;
+      const expectedEtc = 5.75;
+
+      final actualEtc = EtcCalculator.calculateDailyEtc(
+        referenceEt0Mm: et0,
+        cropKc: kc,
+      );
+
+      expect(actualEtc, closeTo(expectedEtc, 1e-9));
+    });
+
+    // Case 2: Configured feddan volume conversion
+    // Inputs: Water depth = 100.0 mm, configured conversion constant = 4.2 m³/feddan/mm
+    // Independent calculation: 100.0 * 4.2 = 420.0 m³/feddan
+    test('Independent oracle: configured feddan volume conversion', () {
+      const waterDepthMm = 100.0;
+      const expectedVolumeM3PerFeddan = 420.0;
+
+      final actualVolume = EtcCalculator.convertMmToCubicMetersPerFeddan(
+        waterDepthMm,
+      );
+
+      expect(actualVolume, closeTo(expectedVolumeM3PerFeddan, 1e-9));
+    });
+
+    // Case 3: Multi-day ETc with explicit Kc values and independent hand calculation
+    // Using a fixed 5-day cycle with known ET0 series and fixed crop profile:
+    // Crop: kcIni = 0.40, kcMid = 1.00, kcEnd = 0.60
+    // Stage fractions for N = 5 days: (dayIndex + 1) / 5
+    // Day 1: p = 1/5 = 0.20 (<= 0.20 -> stage 1: Kc = kcIni = 0.40). ET0 = 4.0 mm/day.
+    //        ETc(1) = 4.0 * 0.40 = 1.60 mm.
+    // Day 2: p = 2/5 = 0.40 (0.20 < p <= 0.50 -> stage 2 development linear interpolation:
+    //        weight = (0.40 - 0.20) / 0.30 = 2/3.
+    //        Kc = 0.40 + (2/3) * (1.00 - 0.40) = 0.40 + 0.40 = 0.80). ET0 = 6.0 mm/day.
+    //        ETc(2) = 6.0 * 0.80 = 4.80 mm.
+    // Day 3: p = 3/5 = 0.60 (0.50 < p <= 0.80 -> stage 3 mid-season plateau: Kc = kcMid = 1.00). ET0 = 5.0 mm/day.
+    //        ETc(3) = 5.0 * 1.00 = 5.00 mm.
+    // Day 4: p = 4/5 = 0.80 (0.50 < p <= 0.80 -> stage 3 mid-season plateau: Kc = kcMid = 1.00). ET0 = 5.5 mm/day.
+    //        ETc(4) = 5.5 * 1.00 = 5.50 mm.
+    // Day 5: p = 5/5 = 1.00 (0.80 < p <= 1.00 -> stage 4 late-season linear interpolation:
+    //        weight = (1.00 - 0.80) / 0.20 = 1.0.
+    //        Kc = 1.00 + 1.0 * (0.60 - 1.00) = 0.60). ET0 = 3.0 mm/day.
+    //        ETc(5) = 3.0 * 0.60 = 1.80 mm.
+    // Independent manual sum:
+    // Total ETc = 1.60 + 4.80 + 5.00 + 5.50 + 1.80 = 18.70 mm.
+    // Independent volume = 18.70 mm * 4.2 m³/feddan/mm = 78.54 m³/feddan.
+    test('Independent oracle: multi-day ETc with hand-calculated Kc and cumulative demand', () {
+      const testCrop = Crop(
+        id: 'oracle_test_crop',
+        nameAr: 'محصول اختبار مستقل',
+        nameEn: 'Oracle Test Crop',
+        season: CropSeason.summer,
+        baseTemperatureC: 10.0,
+        criticalHeatTemperatureC: 35.0,
+        kcIni: 0.40,
+        kcMid: 1.00,
+        kcEnd: 0.60,
+        typicalDurationDays: 5,
+        soilNutrientImpact: SoilNutrientImpact.moderate,
+        scientificNotesAr:
+            'ملف محصول اختباري للتحقق الحسابي المستقل من معادلات البخر نتح',
+      );
+
+      final dailyEt0 = <double>[4.0, 6.0, 5.0, 5.5, 3.0];
+      const expectedTotalEtcMm = 18.70;
+      const expectedVolumeM3PerFeddan = 78.54;
+
+      final result = EtcCalculator.calculateCycleWaterRequirement(
+        crop: testCrop,
+        dailyEt0Series: dailyEt0,
+      );
+
+      expect(result.totalEtcMm, closeTo(expectedTotalEtcMm, 1e-9));
+      expect(
+        result.totalVolumeM3PerFeddan,
+        closeTo(expectedVolumeM3PerFeddan, 1e-9),
+      );
+
+      // Also verify through calculateCycleWaterRequirementValidated
+      final validatedResult =
+          EtcCalculator.calculateCycleWaterRequirementValidated(
+            crop: testCrop,
+            totalRequestedDays: 5,
+            dailyEt0Series: dailyEt0,
+          );
+
+      expect(validatedResult.isSuccess, isTrue);
+      expect(
+        validatedResult.dataOrNull!.totalEtcMm,
+        closeTo(expectedTotalEtcMm, 1e-9),
+      );
+      expect(
+        validatedResult.dataOrNull!.totalVolumeM3PerFeddan,
+        closeTo(expectedVolumeM3PerFeddan, 1e-9),
+      );
+    });
   });
 
   group('EtcCalculator & Volumetric Conversion Tests', () {
