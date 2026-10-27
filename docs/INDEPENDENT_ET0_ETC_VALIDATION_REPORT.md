@@ -158,12 +158,12 @@ The four-stage linear interpolation with fixed $[0.20, 0.30, 0.30, 0.20]$ fracti
 
 ### 7.1 Test Execution Metrics
 - **Test Command:** `flutter test`
-- **Total Tests Discovered and Executed:** **158**
-  - `test/domain/domain_scientific_test.dart`: **46 passed** (including 3 new independent ETc oracle tests)
+- **Total Tests Discovered and Executed:** **159**
+  - `test/domain/domain_scientific_test.dart`: **47 passed** (including 3 new independent ETc oracle tests and non-finite boundary audits)
   - `test/data/open_meteo_adapter_test.dart`: **42 passed**
   - `test/data/persistence_test.dart`: **63 passed**
   - `test/widget_test.dart`: **7 passed**
-- **Test Exit Code:** `0` (158 / 158 passed cleanly, 0 failures)
+- **Test Exit Code:** `0` (159 / 159 passed cleanly, 0 failures)
 
 ### 7.2 Toolchain Consistency
 - `dart format --output=none --set-exit-if-changed .` $\to$ **Exit Code 0** (Formatted, 0 changed).
