@@ -59,7 +59,8 @@ $$V = 0.001\text{ m} \times 4,200.833\text{ m}^2 = 4.200833\text{ m}^3$$
 The project deliberately standardizes on the operational Egyptian agricultural engineering constant:
 $$\text{AgroConstants.cubicMetersPerFeddanPerMm} = 4.2$$
 This introduces a minor approximation of:
-$$\frac{4.200833 - 4.2}{4.200833} \approx 0.0198\% \quad (\approx 20\text{ liters per feddan per } 100\text{ mm})$$
+$$\frac{4.200833 - 4.2}{4.200833} \approx 0.0198\% \quad (\approx 83.3\text{ liters difference per feddan per } 100\text{ mm depth})$$
+*(Note: At 100 mm depth, 1 feddan receives $420\text{ m}^3 = 420,000\text{ liters}$ using the operational constant $4.2\text{ m}^3/\text{feddan/mm}$, versus $420,083.3\text{ liters}$ using the exact survey figure $4,200.833\text{ m}^2$, yielding a delta of exactly $83.3\text{ liters per feddan per } 100\text{ mm}$).*
 This approximation is scientifically acceptable for farm-level irrigation scheduling and aligns with standard Ministry of Water Resources and Irrigation (MWRI) practice.
 
 ### 3.4 Crop Coefficient ($K_c$) Model & Interpolation
@@ -166,7 +167,7 @@ The four-stage linear interpolation with fixed $[0.20, 0.30, 0.30, 0.20]$ fracti
 - **Test Exit Code:** `0` (159 / 159 passed cleanly, 0 failures)
 
 ### 7.2 Toolchain Consistency
-- `dart format --output=none --set-exit-if-changed .` $\to$ **Exit Code 0** (Formatted, 0 changed).
+- `dart format --output=none --set-exit-if-changed lib/ test/` $\to$ **Exit Code 0** (Formatted 42 files, 0 changed).
 - `flutter analyze` $\to$ **Exit Code 0** (No issues found).
 
 ---

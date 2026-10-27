@@ -36,11 +36,13 @@ This formal audit report reconciles Git provenance, verification runner evidence
 | :--- | :--- | :--- |
 | **Repository Root** | `D:\Programming projects\agro_shift` | Git filesystem root |
 | **Current Branch** | `main` | `git rev-parse --abbrev-ref HEAD` |
-| **Active Local HEAD SHA** | `ef07cda22024f952d061f5f1c2fa96d2383475b3` | `git rev-parse HEAD` |
+| **Validation-Run Execution HEAD** | `ef07cda22024f952d061f5f1c2fa96d2383475b3` | `verification_summary.json` (StartingHeadCommit) |
+| **Published Evidence Commit** | `60f1adfd18987e1038d90039fce413494efce434` (`60f1adf`) | `git log -1 60f1adf` (contains 21 evidence files) |
+| **Current Branch HEAD** | `60f1adfd18987e1038d90039fce413494efce434` (`60f1adf`) | `git rev-parse HEAD` |
 | **Remote Tracking Branch** | `origin/main` (`https://github.com/AhmedKaram134679/AgroShift.git`) | `git branch -vv` |
-| **Remote Sync Status** | Up to date (`ef07cda` matches `origin/main`) | `git status` |
-| **Pre-Verification Tree State** | Clean (`nothing to commit, working tree clean`) | `git status --porcelain` |
-| **Unstaged / Staged / Untracked** | None prior to verification run | `git status --short` |
+| **Remote Sync Status** | Up to date (`60f1adf` matches `origin/main`) | `git status` |
+| **Pre-Verification Tree State (at run 20261027_095914)** | Clean (`nothing to commit, working tree clean` over `ef07cda`) | `verification_summary.json` (StartingWorkingTreeEntries: []) |
+| **Current Working Tree State** | Clean (working tree clean over `60f1adf`) | `git status` |
 
 ---
 
@@ -84,8 +86,8 @@ Test counts must never be conflated across different runs:
 | **Flutter test result** | 158 passed | 158 passed | 159 passed | 159 passed |
 | **Release build result** | Exit 0 (APK built) | Exit 0 (APK built) | Exit 0 (APK built) | Exit 0 (APK built) |
 | **Evidence directory** | `artifacts/validation_runs/20261026_132450` | `artifacts/validation_runs/20261027_070738` | `artifacts/validation_runs/20261027_075935` | `artifacts/validation_runs/20261027_095914` |
-| **Evidence availability** | Verified (historical disk) | Verified (historical disk) | Verified (historical disk) | Verified (local untracked, ready for commit) |
-| **Limitations** | Uncommitted modifications to `scripts/record_verification_evidence.ps1` | Uncommitted edits and artifact directories | Uncommitted test/script improvements | Local untracked evidence directory awaiting user commit |
+| **Evidence availability** | Verified (Local disk) | Verified (Local disk) | Verified (Local disk) | **Verified (Published in Git commit `60f1adf`, 21 files present)** |
+| **Material Limitations** | Uncommitted modifications during run | Uncommitted test edits during run | Uncommitted runner hardening during run | None for execution baseline; run executed cleanly over `ef07cda` and published in `60f1adf` |
 
 ---
 
