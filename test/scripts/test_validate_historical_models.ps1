@@ -1158,6 +1158,13 @@ exit 0
     $childPidFile = Join-Path $testOutputDir "child58.pid"
     if (Test-Path $childPidFile) { Remove-Item $childPidFile -Force }
 
+    # Create child script that records PID and sleeps
+    $childScript58 = Join-Path $testOutputDir "child_sleep58.ps1"
+    Set-Content -Path $childScript58 -Value @"
+Set-Content -Path '$childPidFile' -Value `$PID
+Start-Sleep -Seconds 15
+"@ -Encoding UTF8
+
     @"
 `$ErrorActionPreference = 'Stop'
 `$evidenceDir = '$timeoutMockEvidence'
@@ -1172,8 +1179,8 @@ New-Item -ItemType Directory -Path `$evidenceDir -Force | Out-Null
 `$funcDef = `$runnerContent.Substring(`$funcStart, `$funcEnd - `$funcStart)
 Invoke-Expression `$funcDef
 
-# Command records child process ID to a PID file before sleeping for 15 seconds
-`$cmd = "powershell.exe -NoProfile -Command 'Set-Content -Path `"$childPidFile`" -Value `$PID; Start-Sleep -Seconds 15'"
+# Command runs the child script which records PID and sleeps
+`$cmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File '$childScript58'"
 `$result = Run-Stage -StageName "Hanging Test Stage" -Command `$cmd -OutPrefix "timeout_stage"
 
 `$diagFile = Join-Path `$evidenceDir "timeout_stage.stderr.txt"

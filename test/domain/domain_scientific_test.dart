@@ -573,6 +573,58 @@ void main() {
         );
       },
     );
+
+    test(
+      'Non-finite and negative input handling in EtcCalculator entry points',
+      () {
+        // 1. calculateDailyEtc negative values clamp to 0.0
+        expect(
+          EtcCalculator.calculateDailyEtc(referenceEt0Mm: -5.0, cropKc: 1.15),
+          equals(0.0),
+        );
+        expect(
+          EtcCalculator.calculateDailyEtc(referenceEt0Mm: 5.0, cropKc: -0.5),
+          equals(0.0),
+        );
+
+        // 2. convertMmToCubicMetersPerFeddan non-positive values return 0.0
+        expect(EtcCalculator.convertMmToCubicMetersPerFeddan(0.0), equals(0.0));
+        expect(
+          EtcCalculator.convertMmToCubicMetersPerFeddan(-10.0),
+          equals(0.0),
+        );
+
+        // 3. calculateCycleWaterRequirementValidated treats non-finite observations (NaN, +/-Infinity)
+        // as incomplete/missing days according to the composite missingness contract.
+        final wheat = EgyptianCropsCatalog.wheat;
+
+        // 10 requested days with 1 NaN observation (10% missing) -> PASS
+        final seriesWithNan = List<double?>.generate(
+          10,
+          (i) => i == 0 ? double.nan : 4.0,
+        );
+        final nanRes = EtcCalculator.calculateCycleWaterRequirementValidated(
+          crop: wheat,
+          totalRequestedDays: 10,
+          dailyEt0Series: seriesWithNan,
+        );
+        expect(nanRes.isSuccess, isTrue);
+
+        // 10 requested days with 1 positive infinity and 1 negative infinity (20% missing) -> FAIL (> 10%)
+        final seriesWithInfinities = List<double?>.generate(10, (i) {
+          if (i == 0) return double.infinity;
+          if (i == 1) return double.negativeInfinity;
+          return 4.0;
+        });
+        final infRes = EtcCalculator.calculateCycleWaterRequirementValidated(
+          crop: wheat,
+          totalRequestedDays: 10,
+          dailyEt0Series: seriesWithInfinities,
+        );
+        expect(infRes.isFailure, isTrue);
+        expect(infRes.failureOrNull?.missingCount, equals(2));
+      },
+    );
   });
 
   group('HeatStressEvaluator Tests', () {

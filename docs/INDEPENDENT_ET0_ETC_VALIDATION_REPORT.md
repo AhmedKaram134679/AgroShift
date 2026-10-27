@@ -1,4 +1,4 @@
-﻿# AgroShift — Independent Scientific Validation Report: ET₀, ETc, Kc, and Volumetric Conversion
+# AgroShift — Independent Scientific Validation Report: ET₀, ETc, Kc, and Volumetric Conversion
 
 **Document Version:** 1.0.0  
 **Audit Date:** 2026-10-27  
@@ -178,12 +178,12 @@ The four-stage linear interpolation with fixed $[0.20, 0.30, 0.30, 0.20]$ fracti
 | **Daily $ET_c$ Arithmetic** ($ET_c = K_c \times ET_0$) | **`PASS`** | Numerically validated by independent hand-calculated oracle against double precision tolerance ($10^{-9}$). |
 | **Feddan Volumetric Factor** ($4.2\text{ m}^3/\text{feddan/mm}$) | **`PASS`** | Verified mathematically against configured agricultural engineering constant ($100.0\text{ mm} \times 4.2 = 420.0\text{ m}^3$). |
 | **Multi-Day $ET_c$ Cycle with Interpolation** | **`PASS`** | Validated against independent hand-calculated 5-day cycle sum ($18.70\text{ mm}$ and $78.54\text{ m}^3/\text{feddan}$). |
-| **Missingness & Day Index Invariance** | **`PASS`** | Preserves $(d+1)/N$ stage fraction; missing observations do not shift subsequent days. |
+| **Missingness & Day Index Invariance** | **`PASS`** | Preserves $(d+1)/N$ stage fraction; missing observations do not shift subsequent days. Non-finite values classified as missing. |
 | **Operational Screening Bounds** ($[0.0, 25.0]\text{ mm/day}$) | **`PASS`** | Enforced rigorously by `ScientificRangeValidator`. |
 | **Crop $K_c$ Values ($K_{c,\text{ini}}, K_{c,\text{mid}}, K_{c,\text{end}}$)** | **`PASS`** | Verified against FAO-56 Table 12 and Egyptian ARC bulletins. |
-| **Crop Stage Durations ($L_{\text{stage}}$)** | **`PARTIALLY VERIFIED`** | Documented approximation using fixed 20/30/30/20% fractions. Crop-specific schedules are documented for future release. |
-| **Upstream $ET_0$ Model Accuracy** | **`PARTIALLY VERIFIED`** | ERA5 archive response format and non-negativity verified; independent raw meteorological recalculation deferred. |
-| **Ground-Truth Field Calibration** | **`DEFERRED`** | No in-situ lysimeter or flux tower measurements are currently linked to the repository. |
+| **Crop Stage Durations ($L_{\text{stage}}$)** | **`DOCUMENTED APPROXIMATION`** | Fixed 20/30/30/20% stage fraction model. Biological crop-specific duration vectors are documented for future release. |
+| **Independent FAO-56 $ET_0$ Numerical Verification** | **`INCOMPLETE`** | Application acquires pre-computed $ET_0$ from Open-Meteo ERA5. Client-side re-computation of Penman-Monteith from primitive raw radiation, humidity, and wind fields is not implemented. |
+| **Ground-Truth Field Calibration** | **`DEFERRED`** | In-situ eddy covariance or lysimeter observations across Egypt's agro-ecological zones are unavailable in this repository. |
 | **Physical Android Database Migration** | **`DEFERRED`** | Preserved as `DEFERRED - NO PHYSICAL ANDROID DEVICE CONNECTED`. |
 
 ---
