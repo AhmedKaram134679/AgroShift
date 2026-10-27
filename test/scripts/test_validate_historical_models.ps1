@@ -1145,7 +1145,7 @@ exit 0
     $exit57 = $p57.ExitCode
     Assert-Result -TestName "Runner rejects non-positive StageTimeoutSeconds (exit code non-zero)" -Condition ($exit57 -ne 0) -Message "Got exit code $exit57"
 
-    # Test 58: Stage timeout handling, exit code 124, STAGE_TIMEOUT diagnostic, and process termination
+    # Test 58: Stage timeout handling, exit code 124, STAGE_TIMEOUT diagnostic, and proven process termination
     Write-Host "Testing bounded stage timeout: Child process exceeding timeout is terminated and recorded as FAIL (124)..."
     $timeoutMockRepo = Join-Path $testOutputDir "timeout_mock_repo"
     $timeoutMockTestDir = Join-Path $timeoutMockRepo "test"
@@ -1155,6 +1155,9 @@ exit 0
 
     $wrapper58 = Join-Path $testOutputDir "run_test58.ps1"
     $runnerResolved = (Resolve-Path $runnerScriptPath).Path
+    $childPidFile = Join-Path $testOutputDir "child58.pid"
+    if (Test-Path $childPidFile) { Remove-Item $childPidFile -Force }
+
     @"
 `$ErrorActionPreference = 'Stop'
 `$evidenceDir = '$timeoutMockEvidence'
@@ -1169,23 +1172,52 @@ New-Item -ItemType Directory -Path `$evidenceDir -Force | Out-Null
 `$funcDef = `$runnerContent.Substring(`$funcStart, `$funcEnd - `$funcStart)
 Invoke-Expression `$funcDef
 
-# Run a stage that sleeps for 10 seconds (exceeding StageTimeoutSeconds of 2)
-`$result = Run-Stage -StageName "Hanging Test Stage" -Command "powershell.exe -NoProfile -Command 'Start-Sleep -Seconds 10'" -OutPrefix "timeout_stage"
+# Command records child process ID to a PID file before sleeping for 15 seconds
+`$cmd = "powershell.exe -NoProfile -Command 'Set-Content -Path `"$childPidFile`" -Value `$PID; Start-Sleep -Seconds 15'"
+`$result = Run-Stage -StageName "Hanging Test Stage" -Command `$cmd -OutPrefix "timeout_stage"
 
 `$diagFile = Join-Path `$evidenceDir "timeout_stage.stderr.txt"
 `$diagContent = if (Test-Path `$diagFile) { Get-Content -LiteralPath `$diagFile -Raw } else { "" }
 
-if (`$result.ExitCode -eq 124 -and `$result.Status -eq 'FAIL' -and `$diagContent -like "*STAGE_TIMEOUT*") {
-    exit 0
-} else {
+if (`$result.ExitCode -ne 124 -or `$result.Status -ne 'FAIL' -or `$diagContent -notlike "*STAGE_TIMEOUT*") {
     Write-Host "Result ExitCode: `$(`$result.ExitCode), Status: `$(`$result.Status), Diag: `$diagContent"
     exit 1
 }
+
+# Verify recorded child PID is actually terminated
+if (-not (Test-Path '$childPidFile')) {
+    Write-Host "Child PID file was not created."
+    exit 2
+}
+`$targetPidStr = (Get-Content -Path '$childPidFile' -Raw).Trim()
+`$targetPid = [int]`$targetPidStr
+Write-Host "Captured Child PID: `$targetPid"
+
+# Bounded poll for process termination (max 5 seconds)
+`$hasExited = `$false
+for (`$i = 0; `$i -lt 10; `$i++) {
+    try {
+        `$proc = Get-Process -Id `$targetPid -ErrorAction Stop
+        Start-Sleep -Milliseconds 500
+    } catch {
+        `$hasExited = `$true
+        break
+    }
+}
+
+if (-not `$hasExited) {
+    Write-Host "Child process `$targetPid is still running after timeout cleanup!"
+    try { Stop-Process -Id `$targetPid -Force -ErrorAction SilentlyContinue } catch {}
+    exit 3
+}
+
+Write-Host "Child process `$targetPid confirmed terminated."
+exit 0
 "@ | Set-Content -Path $wrapper58 -Encoding UTF8
 
     $p58 = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$wrapper58`"" -Wait -NoNewWindow -PassThru
     $exit58 = $p58.ExitCode
-    Assert-Result -TestName "Bounded stage timeout terminates hanging process and records exit code 124 and STAGE_TIMEOUT" -Condition ($exit58 -eq 0) -Message "Got exit code $exit58"
+    Assert-Result -TestName "Bounded stage timeout terminates hanging process, confirms process exit, and records exit code 124" -Condition ($exit58 -eq 0) -Message "Got exit code $exit58"
 
     # Test 59: Termination utility failure handling (seam AGROSHIFT_TEST_FAIL_TERMINATION_UTILITY)
     Write-Host "Testing termination utility failure handling: Verifies cleanup warning recorded and timeout failure preserved..."
