@@ -16,6 +16,63 @@ class DashboardScreen extends ConsumerWidget {
     final activeField = ref.watch(selectedFieldProvider);
     final allFields = ref.watch(fieldListProvider);
     final forecastAsync = ref.watch(fieldForecastProvider);
+
+    if (activeField == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('أجروشيفت — لوحة المتابعة الزراعية')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.nature_people_outlined,
+                  size: 64,
+                  color: Color(0xFF2E7D32),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'لا يوجد حقل زراعي مسجل أو نشط حالياً',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'يرجى الانتقال إلى تبويب الحقول لإضافة حقل زراعي جديد لبدء المتابعة المناخية والاحتياجات المائية.',
+                  style: TextStyle(fontSize: 14, color: Colors.grey),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1B5E20),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                  ),
+                  icon: const Icon(Icons.add_location_alt),
+                  label: const Text('إضافة حقل زراعي'),
+                  onPressed: () {
+                    // Navigate to fields tab via DefaultTabController or show prompt
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'انتقل إلى قسم "الحقول" من الشريط السفلي لإضافة حقل جديد',
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     final activeCrop = activeField.activeCropId != null
         ? EgyptianCropsCatalog.findById(activeField.activeCropId!)
         : null;

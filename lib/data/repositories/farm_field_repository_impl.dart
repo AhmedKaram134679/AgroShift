@@ -73,6 +73,12 @@ class FarmFieldRepositoryImpl implements IFarmFieldRepository {
 
     try {
       final now = DateTime.now();
+      final existing = await (_db.select(
+        _db.farmFieldsTable,
+      )..where((t) => t.id.equals(field.id))).getSingleOrNull();
+
+      final createdAtValue = existing != null ? existing.createdAt : now;
+
       await _db
           .into(_db.farmFieldsTable)
           .insertOnConflictUpdate(
@@ -86,7 +92,7 @@ class FarmFieldRepositoryImpl implements IFarmFieldRepository {
               soilType: Value(field.soilType.name),
               activeCropId: Value(field.activeCropId),
               isDefault: Value(isDefault),
-              createdAt: Value(now),
+              createdAt: Value(createdAtValue),
               updatedAt: Value(now),
             ),
           );

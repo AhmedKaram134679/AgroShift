@@ -61,10 +61,10 @@ class GddCalculator {
 
   /// Computes cumulative GDD across an expected sequence of daily observations,
   /// evaluating composite missingness across required temperature inputs (Tmax and Tmin).
-  /// A date is incomplete if either Tmax or Tmin is missing.
+  /// A date is incomplete if either Tmax or Tmin is missing (null).
+  /// Non-finite or out-of-range temperatures return a PhysicalRangeFailure.
   /// If missing ratio exceeds 10% (or totalRequestedDays <= 0), returns InsufficientEvidenceFailure.
-  static Result<double, InsufficientEvidenceFailure>
-  calculateAccumulatedGddValidated({
+  static Result<double, Failure> calculateAccumulatedGddValidated({
     required int totalRequestedDays,
     required List<({DateTime date, double? tMax, double? tMin})> observations,
     required double tBase,
@@ -84,14 +84,44 @@ class GddCalculator {
       }
 
       final obs = observations[dayIndex];
-      final isTmaxMissing = obs.tMax == null || !obs.tMax!.isFinite;
-      final isTminMissing = obs.tMin == null || !obs.tMin!.isFinite;
+      final rawTmax = obs.tMax;
+      final rawTmin = obs.tMin;
 
-      if (isTmaxMissing || isTminMissing) {
+      // Null is treated as missing observation
+      final isTmaxNull = rawTmax == null;
+      final isTminNull = rawTmin == null;
+
+      if (isTmaxNull || isTminNull) {
+        // Validate whatever is present to reject invalid numbers even on partially missing days
+        if (!isTmaxNull) {
+          final tMaxVal = ScientificRangeValidator.validateSingleTemperature(
+            rawTmax,
+            variableName: 'tMax',
+          );
+          if (tMaxVal.isFailure) return FailureResult(tMaxVal.failureOrNull!);
+        }
+        if (!isTminNull) {
+          final tMinVal = ScientificRangeValidator.validateSingleTemperature(
+            rawTmin,
+            variableName: 'tMin',
+          );
+          if (tMinVal.isFailure) return FailureResult(tMinVal.failureOrNull!);
+        }
+
         unionOfIncompleteDateIndices.add(dayIndex);
-      } else {
-        validObservations.add((tMax: obs.tMax!, tMin: obs.tMin!));
+        continue;
       }
+
+      // Both are non-null: validate pair consistency and physical ranges
+      final pairVal = ScientificRangeValidator.validateTemperature(
+        tMax: rawTmax,
+        tMin: rawTmin,
+      );
+      if (pairVal.isFailure) {
+        return FailureResult(pairVal.failureOrNull!);
+      }
+
+      validObservations.add((tMax: rawTmax, tMin: rawTmin));
     }
 
     final validationResult =

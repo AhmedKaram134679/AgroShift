@@ -64,6 +64,39 @@ class ScientificRangeValidator {
     return const Success(null);
   }
 
+  static Result<void, PhysicalRangeFailure> validateSingleTemperature(
+    double? temp, {
+    String variableName = 'temperature',
+  }) {
+    if (temp == null) return const Success(null);
+    if (!temp.isFinite) {
+      return FailureResult(
+        PhysicalRangeFailure(
+          userMessageAr: 'قيم درجات الحرارة غير عددية أو غير منتهية.',
+          technicalMessage: '$variableName value is NaN or Infinite.',
+          variableName: variableName,
+          actualValue: null,
+        ),
+      );
+    }
+
+    if (temp < AgroConstants.minAcceptableTempC ||
+        temp > AgroConstants.maxAcceptableTempC) {
+      return FailureResult(
+        PhysicalRangeFailure(
+          userMessageAr:
+              'درجة الحرارة ($temp°C) خارج نطاق الفحص التشغيلي المعتمد في مصر [${AgroConstants.minAcceptableTempC}°C إلى ${AgroConstants.maxAcceptableTempC}°C].',
+          technicalMessage:
+              '$variableName ($temp) is outside configured operational screening range [${AgroConstants.minAcceptableTempC}, ${AgroConstants.maxAcceptableTempC}].',
+          variableName: variableName,
+          actualValue: temp,
+        ),
+      );
+    }
+
+    return const Success(null);
+  }
+
   static Result<void, PhysicalRangeFailure> validateEt0(double? et0) {
     if (et0 == null) return const Success(null); // Missing is allowed as null
     if (et0.isNaN || et0.isInfinite) {

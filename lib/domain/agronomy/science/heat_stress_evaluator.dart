@@ -76,6 +76,8 @@ class HeatStressEvaluator {
   }
 
   /// Evaluates heat stress risk across an expected period, enforcing the scientific missingness policy on Tmax.
+  /// Null is treated as a missing observation.
+  /// Non-finite or out-of-range temperatures return a PhysicalRangeFailure.
   /// If missing ratio exceeds 10% (or totalRequestedDays <= 0), returns InsufficientEvidenceFailure.
   static Result<
     ({
@@ -84,7 +86,7 @@ class HeatStressEvaluator {
       HeatRiskLevel riskLevel,
       String agronomicAdviceAr,
     }),
-    InsufficientEvidenceFailure
+    Failure
   >
   evaluateCropHeatStressValidated({
     required Crop crop,
@@ -105,11 +107,20 @@ class HeatStressEvaluator {
       }
 
       final tMax = dailyTmaxSeries[dayIndex];
-      if (tMax == null || !tMax.isFinite) {
+      if (tMax == null) {
         unionOfIncompleteDateIndices.add(dayIndex);
-      } else {
-        validTmaxSeries.add(tMax);
+        continue;
       }
+
+      final tMaxVal = ScientificRangeValidator.validateSingleTemperature(
+        tMax,
+        variableName: 'tMax',
+      );
+      if (tMaxVal.isFailure) {
+        return FailureResult(tMaxVal.failureOrNull!);
+      }
+
+      validTmaxSeries.add(tMax);
     }
 
     final validationResult =

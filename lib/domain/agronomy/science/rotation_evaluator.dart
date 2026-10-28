@@ -50,6 +50,18 @@ class RotationComparisonResult {
 class RotationEvaluator {
   RotationEvaluator._();
 
+  /// Evaluates multi-season crop rotation sequences using approximate agronomic heuristics.
+  ///
+  /// SCIENTIFIC MODEL LIMITATIONS & ASSUMPTIONS:
+  /// 1. Uses a weighted Kc average ((kcIni + 2*kcMid + kcEnd) / 4.0) rather than continuous
+  ///    linear interpolation across actual developmental stages.
+  /// 2. Allocates baseline annual ET0 uniformly by duration ratio (duration / 365.0), whereas
+  ///    real-world ET0 exhibits substantial seasonal variation between winter and summer in Egypt.
+  /// 3. Rice applies an empirical standing water factor (1.30) to approximate deep percolation
+  ///    and standing water evaporation; this empirical factor requires independent field lysimeter
+  ///    validation across varied soil types (clay vs sandy-loam).
+  /// 4. This calculation provides an approximate model estimate for comparative screening,
+  ///    not measured field water consumption or actual delivery irrigation demand with conveyance losses.
   static RotationComparisonResult evaluate({
     required RotationSequence sequence,
     required double baselineAnnualEt0Mm,

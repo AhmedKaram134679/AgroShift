@@ -506,7 +506,7 @@ class _StaticFieldNotifier extends SelectedFieldNotifier {
   _StaticFieldNotifier(this._field);
 
   @override
-  FarmField build() => _field;
+  FarmField? build() => _field;
 }
 
 class _StaticFieldListNotifier extends FieldListNotifier {

@@ -205,119 +205,151 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
           ),
           const SizedBox(height: 8),
 
-          ...fields.map((f) {
-            final isActive = f.id == activeField.id;
-            final crop = f.activeCropId != null
-                ? EgyptianCropsCatalog.findById(f.activeCropId!)
-                : null;
-
-            return Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(
-                  color: isActive
-                      ? const Color(0xFF2E7D32)
-                      : const Color(0xFFE0E0E0),
-                  width: isActive ? 2 : 1,
-                ),
-              ),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: isActive
-                      ? const Color(0xFF1B5E20)
-                      : Colors.grey.shade300,
-                  foregroundColor: isActive ? Colors.white : Colors.black87,
-                  child: const Icon(Icons.agriculture, size: 20),
-                ),
-                title: Text(
-                  f.nameAr,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+          if (fields.isEmpty)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(24.0),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.nature_people_outlined,
+                        size: 48,
+                        color: Colors.grey,
+                      ),
+                      SizedBox(height: 12),
+                      Text(
+                        'لا توجد حقول مسجلة حالياً',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      SizedBox(height: 6),
+                      Text(
+                        'انقر على "إضافة حقل" بالأسفل لإنشاء موقعك الزراعي الأول.',
+                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
                   ),
                 ),
-                subtitle: Text(
-                  '${f.governorateAr} | ${f.coordinate.latitude.toStringAsFixed(2)}°N, ${f.coordinate.longitude.toStringAsFixed(2)}°E | ${f.areaInFeddan} فدان\nالمحصول: ${crop?.nameAr ?? "غير محدد"}',
-                  style: const TextStyle(fontSize: 12),
+              ),
+            )
+          else
+            ...fields.map((f) {
+              final isActive = f.id == activeField?.id;
+              final crop = f.activeCropId != null
+                  ? EgyptianCropsCatalog.findById(f.activeCropId!)
+                  : null;
+
+              return Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(
+                    color: isActive
+                        ? const Color(0xFF2E7D32)
+                        : const Color(0xFFE0E0E0),
+                    width: isActive ? 2 : 1,
+                  ),
                 ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (!isActive)
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFF1F8E9),
-                          foregroundColor: const Color(0xFF1B5E20),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                        ),
-                        onPressed: () {
-                          ref
-                              .read(selectedFieldProvider.notifier)
-                              .selectField(f);
-                        },
-                        child: const Text(
-                          'تفعيل',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                      )
-                    else
-                      const Chip(
-                        label: Text(
-                          'الحقل النشط',
-                          style: TextStyle(fontSize: 11, color: Colors.white),
-                        ),
-                        backgroundColor: Color(0xFF2E7D32),
-                      ),
-                    const SizedBox(width: 4),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.delete_outline,
-                        size: 20,
-                        color: Colors.red,
-                      ),
-                      tooltip: 'حذف الحقل',
-                      onPressed: () async {
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (c) => Directionality(
-                            textDirection: TextDirection.rtl,
-                            child: AlertDialog(
-                              title: const Text('تأكيد حذف الحقل'),
-                              content: Text(
-                                'هل أنت متأكد من حذف ${f.nameAr}؟ لن يتم استرجاعه تلقائياً.',
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(c, false),
-                                  child: const Text('إلغاء'),
-                                ),
-                                ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.red,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                  onPressed: () => Navigator.pop(c, true),
-                                  child: const Text('حذف'),
-                                ),
-                              ],
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: isActive
+                        ? const Color(0xFF1B5E20)
+                        : Colors.grey.shade300,
+                    foregroundColor: isActive ? Colors.white : Colors.black87,
+                    child: const Icon(Icons.agriculture, size: 20),
+                  ),
+                  title: Text(
+                    f.nameAr,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  subtitle: Text(
+                    '${f.governorateAr} | ${f.coordinate.latitude.toStringAsFixed(2)}°N, ${f.coordinate.longitude.toStringAsFixed(2)}°E | ${f.areaInFeddan} فدان\nالمحصول: ${crop?.nameAr ?? "غير محدد"}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (!isActive)
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFF1F8E9),
+                            foregroundColor: const Color(0xFF1B5E20),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
                             ),
                           ),
-                        );
-                        if (confirm == true) {
-                          await ref
-                              .read(fieldListProvider.notifier)
-                              .deleteField(f.id);
-                        }
-                      },
-                    ),
-                  ],
+                          onPressed: () {
+                            ref
+                                .read(selectedFieldProvider.notifier)
+                                .selectField(f);
+                          },
+                          child: const Text(
+                            'تفعيل',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                        )
+                      else
+                        const Chip(
+                          label: Text(
+                            'الحقل النشط',
+                            style: TextStyle(fontSize: 11, color: Colors.white),
+                          ),
+                          backgroundColor: Color(0xFF2E7D32),
+                        ),
+                      const SizedBox(width: 4),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          size: 20,
+                          color: Colors.red,
+                        ),
+                        tooltip: 'حذف الحقل',
+                        onPressed: () async {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (c) => Directionality(
+                              textDirection: TextDirection.rtl,
+                              child: AlertDialog(
+                                title: const Text('تأكيد حذف الحقل'),
+                                content: Text(
+                                  'هل أنت متأكد من حذف ${f.nameAr}؟ لن يتم استرجاعه تلقائياً.',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(c, false),
+                                    child: const Text('إلغاء'),
+                                  ),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.red,
+                                      foregroundColor: Colors.white,
+                                    ),
+                                    onPressed: () => Navigator.pop(c, true),
+                                    child: const Text('حذف'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                          if (confirm == true) {
+                            await ref
+                                .read(fieldListProvider.notifier)
+                                .deleteField(f.id);
+                          }
+                        },
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            );
-          }),
+              );
+            }),
         ],
       ),
     );

@@ -94,7 +94,7 @@ class FieldListNotifier extends Notifier<List<FarmField>> {
     await repo.seedDefaultFieldsIfNecessary(defaultEgyptianFields);
 
     final res = await repo.getAllFields();
-    if (res.isSuccess && res.dataOrNull != null && res.dataOrNull!.isNotEmpty) {
+    if (res.isSuccess && res.dataOrNull != null) {
       state = res.dataOrNull!;
     }
   }
@@ -132,12 +132,12 @@ final fieldListProvider = NotifierProvider<FieldListNotifier, List<FarmField>>(
 );
 
 // 6. Currently Selected Active Field Provider
-class SelectedFieldNotifier extends Notifier<FarmField> {
+class SelectedFieldNotifier extends Notifier<FarmField?> {
   @override
-  FarmField build() {
+  FarmField? build() {
     final fields = ref.watch(fieldListProvider);
     if (fields.isEmpty) {
-      return defaultEgyptianFields.first;
+      return null;
     }
     return fields.first;
   }
@@ -148,7 +148,7 @@ class SelectedFieldNotifier extends Notifier<FarmField> {
 }
 
 final selectedFieldProvider =
-    NotifierProvider<SelectedFieldNotifier, FarmField>(
+    NotifierProvider<SelectedFieldNotifier, FarmField?>(
       SelectedFieldNotifier.new,
     );
 
@@ -158,6 +158,9 @@ final fieldForecastProvider =
       ref,
     ) async {
       final activeField = ref.watch(selectedFieldProvider);
+      if (activeField == null) {
+        return const Success([]);
+      }
       final weatherRepo = ref.watch(weatherRepositoryProvider);
       return await weatherRepo.getForecastDailyRecords(
         coordinate: activeField.coordinate,
@@ -171,6 +174,9 @@ final fieldHistorical30DaysProvider =
       ref,
     ) async {
       final activeField = ref.watch(selectedFieldProvider);
+      if (activeField == null) {
+        return const Success([]);
+      }
       final weatherRepo = ref.watch(weatherRepositoryProvider);
       final latestEligible =
           WeatherRepositoryImpl.getLatestEligibleHistoricalDate();

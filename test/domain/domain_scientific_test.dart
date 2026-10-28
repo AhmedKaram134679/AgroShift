@@ -37,6 +37,41 @@ void main() {
       expect(coord.isWithinEgypt, isFalse);
       expect(coord.validate().isFailure, isTrue);
     });
+
+    test('Rejects non-finite coordinates (NaN and Infinities)', () {
+      // Latitude NaN
+      const nanLat = Coordinate(latitude: double.nan, longitude: 30.0);
+      expect(nanLat.isWithinEgypt, isFalse);
+      expect(nanLat.validate().isFailure, isTrue);
+
+      // Longitude NaN
+      const nanLon = Coordinate(latitude: 30.0, longitude: double.nan);
+      expect(nanLon.isWithinEgypt, isFalse);
+      expect(nanLon.validate().isFailure, isTrue);
+
+      // Positive and negative infinity
+      const posInfLat = Coordinate(latitude: double.infinity, longitude: 30.0);
+      expect(posInfLat.isWithinEgypt, isFalse);
+      expect(posInfLat.validate().isFailure, isTrue);
+
+      const negInfLat = Coordinate(
+        latitude: double.negativeInfinity,
+        longitude: 30.0,
+      );
+      expect(negInfLat.isWithinEgypt, isFalse);
+      expect(negInfLat.validate().isFailure, isTrue);
+
+      const posInfLon = Coordinate(latitude: 30.0, longitude: double.infinity);
+      expect(posInfLon.isWithinEgypt, isFalse);
+      expect(posInfLon.validate().isFailure, isTrue);
+
+      const negInfLon = Coordinate(
+        latitude: 30.0,
+        longitude: double.negativeInfinity,
+      );
+      expect(negInfLon.isWithinEgypt, isFalse);
+      expect(negInfLon.validate().isFailure, isTrue);
+    });
   });
 
   group('ScientificRangeValidator Tests', () {
@@ -174,6 +209,150 @@ void main() {
         expect(gdd, closeTo(2.0, 0.001));
       },
     );
+
+    test('calculateAccumulatedGddValidated tests for input validation', () {
+      final baseDate = DateTime.utc(2026, 6, 1);
+      final validObs =
+          List<({DateTime date, double? tMax, double? tMin})>.generate(
+            10,
+            (i) =>
+                (date: baseDate.add(Duration(days: i)), tMax: 30.0, tMin: 20.0),
+          );
+
+      // 1. Valid Tmax/Tmin inputs produce expected GDD
+      final validRes = GddCalculator.calculateAccumulatedGddValidated(
+        totalRequestedDays: 10,
+        observations: validObs,
+        tBase: 10.0,
+      );
+      expect(validRes.isSuccess, isTrue);
+      expect(
+        validRes.dataOrNull,
+        closeTo(150.0, 0.001),
+      ); // (30+20)/2 - 10 = 15 per day * 10 = 150
+
+      // 2. Finite Tmax outside configured screening range (> 55°C) fails with PhysicalRangeFailure
+      final highTmaxObs = List.of(validObs);
+      highTmaxObs[0] = (date: baseDate, tMax: 56.0, tMin: 20.0);
+      final highTmaxRes = GddCalculator.calculateAccumulatedGddValidated(
+        totalRequestedDays: 10,
+        observations: highTmaxObs,
+        tBase: 10.0,
+      );
+      expect(highTmaxRes.isFailure, isTrue);
+      expect(highTmaxRes.failureOrNull, isA<PhysicalRangeFailure>());
+
+      // 3. Finite Tmin outside configured screening range (< -5°C) fails with PhysicalRangeFailure
+      final lowTminObs = List.of(validObs);
+      lowTminObs[0] = (date: baseDate, tMax: 30.0, tMin: -5.1);
+      final lowTminRes = GddCalculator.calculateAccumulatedGddValidated(
+        totalRequestedDays: 10,
+        observations: lowTminObs,
+        tBase: 10.0,
+      );
+      expect(lowTminRes.isFailure, isTrue);
+      expect(lowTminRes.failureOrNull, isA<PhysicalRangeFailure>());
+
+      // 4. NaN and Infinities in either temperature field fail with PhysicalRangeFailure
+      final nanTmaxObs = List.of(validObs);
+      nanTmaxObs[0] = (date: baseDate, tMax: double.nan, tMin: 20.0);
+      expect(
+        GddCalculator.calculateAccumulatedGddValidated(
+          totalRequestedDays: 10,
+          observations: nanTmaxObs,
+          tBase: 10.0,
+        ).failureOrNull,
+        isA<PhysicalRangeFailure>(),
+      );
+
+      final infTminObs = List.of(validObs);
+      infTminObs[0] = (date: baseDate, tMax: 30.0, tMin: double.infinity);
+      expect(
+        GddCalculator.calculateAccumulatedGddValidated(
+          totalRequestedDays: 10,
+          observations: infTminObs,
+          tBase: 10.0,
+        ).failureOrNull,
+        isA<PhysicalRangeFailure>(),
+      );
+
+      final negInfTmaxObs = List.of(validObs);
+      negInfTmaxObs[0] = (
+        date: baseDate,
+        tMax: double.negativeInfinity,
+        tMin: 20.0,
+      );
+      expect(
+        GddCalculator.calculateAccumulatedGddValidated(
+          totalRequestedDays: 10,
+          observations: negInfTmaxObs,
+          tBase: 10.0,
+        ).failureOrNull,
+        isA<PhysicalRangeFailure>(),
+      );
+
+      // 5. Tmax < Tmin fails with PhysicalRangeFailure
+      final invertedObs = List.of(validObs);
+      invertedObs[0] = (date: baseDate, tMax: 20.0, tMin: 25.0);
+      final invRes = GddCalculator.calculateAccumulatedGddValidated(
+        totalRequestedDays: 10,
+        observations: invertedObs,
+        tBase: 10.0,
+      );
+      expect(invRes.isFailure, isTrue);
+      expect(invRes.failureOrNull, isA<PhysicalRangeFailure>());
+
+      // 6. Missing observations at existing threshold (10% = 1 day out of 10) -> Success
+      final missing1Obs = List.of(validObs);
+      missing1Obs[0] = (date: baseDate, tMax: null, tMin: null);
+      final missing1Res = GddCalculator.calculateAccumulatedGddValidated(
+        totalRequestedDays: 10,
+        observations: missing1Obs,
+        tBase: 10.0,
+      );
+      expect(missing1Res.isSuccess, isTrue);
+      expect(
+        missing1Res.dataOrNull,
+        closeTo(135.0, 0.001),
+      ); // 9 valid days * 15
+
+      // Missing observations beyond threshold (20% = 2 days out of 10) -> InsufficientEvidenceFailure
+      final missing2Obs = List.of(validObs);
+      missing2Obs[0] = (date: baseDate, tMax: null, tMin: null);
+      missing2Obs[1] = (
+        date: baseDate.add(const Duration(days: 1)),
+        tMax: null,
+        tMin: null,
+      );
+      final missing2Res = GddCalculator.calculateAccumulatedGddValidated(
+        totalRequestedDays: 10,
+        observations: missing2Obs,
+        tBase: 10.0,
+      );
+      expect(missing2Res.isFailure, isTrue);
+      expect(missing2Res.failureOrNull, isA<InsufficientEvidenceFailure>());
+
+      // 7. Zero requested days fails closed
+      final zeroDaysRes = GddCalculator.calculateAccumulatedGddValidated(
+        totalRequestedDays: 0,
+        observations: validObs,
+        tBase: 10.0,
+      );
+      expect(zeroDaysRes.isFailure, isTrue);
+      expect(zeroDaysRes.failureOrNull, isA<InsufficientEvidenceFailure>());
+
+      // 8. Input list shorter than requested period fails when missingness > 10%
+      final shortObs = validObs
+          .take(7)
+          .toList(); // 7 obs for 10 requested = 30% missing
+      final shortRes = GddCalculator.calculateAccumulatedGddValidated(
+        totalRequestedDays: 10,
+        observations: shortObs,
+        tBase: 10.0,
+      );
+      expect(shortRes.isFailure, isTrue);
+      expect(shortRes.failureOrNull, isA<InsufficientEvidenceFailure>());
+    });
   });
 
   group('Independent ETc Numerical Oracle Tests', () {
@@ -384,7 +563,7 @@ void main() {
       );
       expect(nullRes.isSuccess, isTrue);
 
-      // 3. A non-finite ET0 observation (NaN / Inf) is counted as incomplete day
+      // 3. A non-finite ET0 observation (NaN / Inf) fails immediately with PhysicalRangeFailure
       final withNan = List<double?>.from(completeEt0);
       withNan[4] = double.nan;
       final nanRes = EtcCalculator.calculateCycleWaterRequirementValidated(
@@ -392,11 +571,8 @@ void main() {
         totalRequestedDays: totalDays,
         dailyEt0Series: withNan,
       );
-      expect(nanRes.isSuccess, isTrue);
-      expect(
-        nanRes.dataOrNull!.totalEtcMm,
-        closeTo(nullRes.dataOrNull!.totalEtcMm, 0.0001),
-      );
+      expect(nanRes.isFailure, isTrue);
+      expect(nanRes.failureOrNull, isA<PhysicalRangeFailure>());
 
       final withInf = List<double?>.from(completeEt0);
       withInf[4] = double.infinity;
@@ -405,11 +581,8 @@ void main() {
         totalRequestedDays: totalDays,
         dailyEt0Series: withInf,
       );
-      expect(infRes.isSuccess, isTrue);
-      expect(
-        infRes.dataOrNull!.totalEtcMm,
-        closeTo(nullRes.dataOrNull!.totalEtcMm, 0.0001),
-      );
+      expect(infRes.isFailure, isTrue);
+      expect(infRes.failureOrNull, isA<PhysicalRangeFailure>());
 
       // 4 & 5. Missing days in the middle do not shift subsequent Kc assignments
       // If index 4 was removed from list, subsequent days would shift left by 1
@@ -598,11 +771,10 @@ void main() {
           equals(0.0),
         );
 
-        // 3. calculateCycleWaterRequirementValidated treats non-finite observations (NaN, +/-Infinity)
-        // as incomplete/missing days according to the composite missingness contract.
+        // 3. calculateCycleWaterRequirementValidated rejects non-finite observations (NaN, +/-Infinity)
+        // with PhysicalRangeFailure rather than counting them as missing observations.
         final wheat = EgyptianCropsCatalog.wheat;
 
-        // 10 requested days with 1 NaN observation (10% missing) -> PASS
         final seriesWithNan = List<double?>.generate(
           10,
           (i) => i == 0 ? double.nan : 4.0,
@@ -612,9 +784,9 @@ void main() {
           totalRequestedDays: 10,
           dailyEt0Series: seriesWithNan,
         );
-        expect(nanRes.isSuccess, isTrue);
+        expect(nanRes.isFailure, isTrue);
+        expect(nanRes.failureOrNull, isA<PhysicalRangeFailure>());
 
-        // 10 requested days with 1 positive infinity and 1 negative infinity (20% missing) -> FAIL (> 10%)
         final seriesWithInfinities = List<double?>.generate(10, (i) {
           if (i == 0) return double.infinity;
           if (i == 1) return double.negativeInfinity;
@@ -626,11 +798,7 @@ void main() {
           dailyEt0Series: seriesWithInfinities,
         );
         expect(infRes.isFailure, isTrue);
-        expect(infRes.failureOrNull, isA<InsufficientEvidenceFailure>());
-        expect(
-          (infRes.failureOrNull as InsufficientEvidenceFailure).missingCount,
-          equals(2),
-        );
+        expect(infRes.failureOrNull, isA<PhysicalRangeFailure>());
 
         // 4. Case A — Lower boundary (ET0 = 0.0): Calculation succeeds, not treated as missing, daily contribution is 0.0
         final seriesBoundaryZero = List<double?>.filled(10, 0.0);
@@ -683,10 +851,10 @@ void main() {
         expect(failAbove.variableName, equals('et0'));
         expect(failAbove.actualValue, equals(25.01));
 
-        // 8. Case E — Preserve missingness semantics: null and non-finite observations remain missing
+        // 8. Case E — Preserve missingness semantics: null observations remain missing
         final seriesPreserveMissing = [
           null,
-          double.nan,
+          null,
           ...List<double?>.filled(8, 5.0),
         ]; // 2 out of 10 missing = 20% > 10%
         final resPreserveMissing =
@@ -703,6 +871,21 @@ void main() {
         final failMissing =
             resPreserveMissing.failureOrNull as InsufficientEvidenceFailure;
         expect(failMissing.missingCount, equals(2));
+
+        // And NaN in series returns PhysicalRangeFailure, not InsufficientEvidenceFailure
+        final seriesWithNanItem = [
+          null,
+          double.nan,
+          ...List<double?>.filled(8, 5.0),
+        ];
+        final resWithNanItem =
+            EtcCalculator.calculateCycleWaterRequirementValidated(
+              crop: wheat,
+              totalRequestedDays: 10,
+              dailyEt0Series: seriesWithNanItem,
+            );
+        expect(resWithNanItem.isFailure, isTrue);
+        expect(resWithNanItem.failureOrNull, isA<PhysicalRangeFailure>());
       },
     );
   });
@@ -738,6 +921,120 @@ void main() {
       );
       expect(eval.totalExceedanceDays, equals(0));
       expect(eval.riskLevel, equals(HeatRiskLevel.low));
+    });
+
+    test('evaluateCropHeatStressValidated validates Tmax range and non-finite inputs', () {
+      final wheat = EgyptianCropsCatalog.wheat; // Tcritical = 31°C
+
+      // 1. Empty input / zero requested days fails closed with InsufficientEvidenceFailure
+      final emptyRes = HeatStressEvaluator.evaluateCropHeatStressValidated(
+        crop: wheat,
+        totalRequestedDays: 0,
+        dailyTmaxSeries: [],
+      );
+      expect(emptyRes.isFailure, isTrue);
+      expect(emptyRes.failureOrNull, isA<InsufficientEvidenceFailure>());
+
+      // 2. Valid values below crop threshold -> low risk
+      final lowRiskTemps = List<double?>.filled(10, 25.0);
+      final lowRes = HeatStressEvaluator.evaluateCropHeatStressValidated(
+        crop: wheat,
+        totalRequestedDays: 10,
+        dailyTmaxSeries: lowRiskTemps,
+      );
+      expect(lowRes.isSuccess, isTrue);
+      expect(lowRes.dataOrNull!.riskLevel, equals(HeatRiskLevel.low));
+      expect(lowRes.dataOrNull!.totalExceedanceDays, equals(0));
+
+      // 3. Valid values above crop threshold -> severe risk
+      final highRiskTemps = List<double?>.filled(10, 35.0);
+      final highRes = HeatStressEvaluator.evaluateCropHeatStressValidated(
+        crop: wheat,
+        totalRequestedDays: 10,
+        dailyTmaxSeries: highRiskTemps,
+      );
+      expect(highRes.isSuccess, isTrue);
+      expect(highRes.dataOrNull!.riskLevel, equals(HeatRiskLevel.severe));
+      expect(highRes.dataOrNull!.totalExceedanceDays, equals(10));
+
+      // 4. Tmax at exact configured operational limits (-5.0 and 55.0) are accepted
+      final boundaryTemps = [-5.0, 55.0, ...List<double?>.filled(8, 25.0)];
+      final boundaryRes = HeatStressEvaluator.evaluateCropHeatStressValidated(
+        crop: wheat,
+        totalRequestedDays: 10,
+        dailyTmaxSeries: boundaryTemps,
+      );
+      expect(boundaryRes.isSuccess, isTrue);
+      expect(boundaryRes.dataOrNull!.peakObservedTempC, equals(55.0));
+
+      // 5. Tmax outside operational limits (< -5.0 or > 55.0) fails with PhysicalRangeFailure
+      final aboveMaxTemps = [55.1, ...List<double?>.filled(9, 25.0)];
+      final aboveMaxRes = HeatStressEvaluator.evaluateCropHeatStressValidated(
+        crop: wheat,
+        totalRequestedDays: 10,
+        dailyTmaxSeries: aboveMaxTemps,
+      );
+      expect(aboveMaxRes.isFailure, isTrue);
+      expect(aboveMaxRes.failureOrNull, isA<PhysicalRangeFailure>());
+
+      final belowMinTemps = [-5.1, ...List<double?>.filled(9, 25.0)];
+      final belowMinRes = HeatStressEvaluator.evaluateCropHeatStressValidated(
+        crop: wheat,
+        totalRequestedDays: 10,
+        dailyTmaxSeries: belowMinTemps,
+      );
+      expect(belowMinRes.isFailure, isTrue);
+      expect(belowMinRes.failureOrNull, isA<PhysicalRangeFailure>());
+
+      // 6. NaN and Infinities fail with PhysicalRangeFailure
+      final nanTemps = [double.nan, ...List<double?>.filled(9, 25.0)];
+      final nanRes = HeatStressEvaluator.evaluateCropHeatStressValidated(
+        crop: wheat,
+        totalRequestedDays: 10,
+        dailyTmaxSeries: nanTemps,
+      );
+      expect(nanRes.isFailure, isTrue);
+      expect(nanRes.failureOrNull, isA<PhysicalRangeFailure>());
+
+      final infTemps = [double.infinity, ...List<double?>.filled(9, 25.0)];
+      final infRes = HeatStressEvaluator.evaluateCropHeatStressValidated(
+        crop: wheat,
+        totalRequestedDays: 10,
+        dailyTmaxSeries: infTemps,
+      );
+      expect(infRes.isFailure, isTrue);
+      expect(infRes.failureOrNull, isA<PhysicalRangeFailure>());
+
+      final negInfTemps = [
+        double.negativeInfinity,
+        ...List<double?>.filled(9, 25.0),
+      ];
+      final negInfRes = HeatStressEvaluator.evaluateCropHeatStressValidated(
+        crop: wheat,
+        totalRequestedDays: 10,
+        dailyTmaxSeries: negInfTemps,
+      );
+      expect(negInfRes.isFailure, isTrue);
+      expect(negInfRes.failureOrNull, isA<PhysicalRangeFailure>());
+
+      // 7. Missing null observations at accepted threshold (10% = 1 day) -> Success
+      final missing1Temps = [null, ...List<double?>.filled(9, 25.0)];
+      final missing1Res = HeatStressEvaluator.evaluateCropHeatStressValidated(
+        crop: wheat,
+        totalRequestedDays: 10,
+        dailyTmaxSeries: missing1Temps,
+      );
+      expect(missing1Res.isSuccess, isTrue);
+
+      // Missing null observations beyond threshold (20% = 2 days) -> InsufficientEvidenceFailure
+      final missing2Temps = [null, null, ...List<double?>.filled(8, 25.0)];
+      final missing2Res = HeatStressEvaluator.evaluateCropHeatStressValidated(
+        crop: wheat,
+        totalRequestedDays: 10,
+        dailyTmaxSeries: missing2Temps,
+      );
+      expect(missing2Res.isFailure, isTrue);
+      expect(missing2Res.failureOrNull, isA<InsufficientEvidenceFailure>());
     });
   });
 
@@ -858,11 +1155,10 @@ void main() {
         );
 
         expect(res.isFailure, isTrue);
-        expect(
-          res.failureOrNull?.missingCount,
-          equals(2),
-        ); // Union count is 2, not 3
-        expect(res.failureOrNull?.technicalMessage, contains('2/10 = 20.0%'));
+        expect(res.failureOrNull, isA<InsufficientEvidenceFailure>());
+        final fail = res.failureOrNull! as InsufficientEvidenceFailure;
+        expect(fail.missingCount, equals(2)); // Union count is 2, not 3
+        expect(fail.technicalMessage, contains('2/10 = 20.0%'));
       });
 
       test('7. Missing unrelated variable does not invalidate single-variable calculation', () {
@@ -1040,8 +1336,7 @@ void main() {
       );
     });
 
-    test('3. ETc: Non-finite values (NaN / Infinity) within requested period are treated as incomplete', () {
-      // 10 requested days, day 1 is NaN, day 3 is Infinity -> 2 incomplete days (20%) -> FAILS
+    test('3. ETc: Non-finite values (NaN / Infinity) within requested period fail immediately with PhysicalRangeFailure', () {
       final nanSeries = [
         5.0,
         double.nan,
@@ -1062,9 +1357,7 @@ void main() {
       );
 
       expect(res.isFailure, isTrue);
-      expect(res.failureOrNull, isA<InsufficientEvidenceFailure>());
-      final failRes = res.failureOrNull as InsufficientEvidenceFailure;
-      expect(failRes.missingCount, equals(2));
+      expect(res.failureOrNull, isA<PhysicalRangeFailure>());
     });
 
     test('4. GDD: Longer series ignores extra observations and extra nulls beyond requested period', () {

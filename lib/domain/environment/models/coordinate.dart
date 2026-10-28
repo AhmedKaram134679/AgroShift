@@ -16,7 +16,9 @@ class Coordinate {
 
   /// Validates whether the coordinate is within Egypt's approximate operational bounding box envelope.
   Result<Coordinate, CoordinateOutOfBoundsFailure> validate() {
-    if (latitude < AgroConstants.egyptMinLatitude ||
+    if (!latitude.isFinite ||
+        !longitude.isFinite ||
+        latitude < AgroConstants.egyptMinLatitude ||
         latitude > AgroConstants.egyptMaxLatitude ||
         longitude < AgroConstants.egyptMinLongitude ||
         longitude > AgroConstants.egyptMaxLongitude) {
@@ -36,6 +38,8 @@ class Coordinate {
   }
 
   bool get isWithinEgypt =>
+      latitude.isFinite &&
+      longitude.isFinite &&
       latitude >= AgroConstants.egyptMinLatitude &&
       latitude <= AgroConstants.egyptMaxLatitude &&
       longitude >= AgroConstants.egyptMinLongitude &&

@@ -138,6 +138,86 @@ void main() {
       expect(reseeded.any((f) => f.id == 'def_1'), isFalse);
       expect(reseeded.first.id, equals('def_2'));
     });
+
+    test('4. Deleting all registered fields results in an empty list and empty database read without resurrecting defaults', () async {
+      const def1 = FarmField(
+        id: 'def_1',
+        nameAr: 'حقل الدلتا',
+        governorateAr: 'كفر الشيخ',
+        coordinate: Coordinate(latitude: 31.10, longitude: 30.90),
+        areaInFeddan: 5.0,
+        soilType: SoilType.clay,
+      );
+
+      await fieldRepo.seedDefaultFieldsIfNecessary([def1]);
+      var all = (await fieldRepo.getAllFields()).dataOrNull!;
+      expect(all.length, equals(1));
+
+      // Delete def1
+      await fieldRepo.deleteField('def_1');
+      all = (await fieldRepo.getAllFields()).dataOrNull!;
+      expect(all.isEmpty, isTrue);
+
+      // Reloading via new repo instance still returns empty list
+      final newRepo = FarmFieldRepositoryImpl(db);
+      await newRepo.seedDefaultFieldsIfNecessary([def1]);
+      final reloaded = (await newRepo.getAllFields()).dataOrNull!;
+      expect(reloaded.isEmpty, isTrue);
+    });
+
+    test('5. Updating an existing field preserves original createdAt and updates updatedAt', () async {
+      const field = FarmField(
+        id: 'field_timestamp_test',
+        nameAr: 'حقل اختبار الطابع الزمني',
+        governorateAr: 'الفيوم',
+        coordinate: Coordinate(latitude: 29.30, longitude: 30.84),
+        areaInFeddan: 10.0,
+        soilType: SoilType.clayLoam,
+      );
+
+      // 1. Initial save
+      final saveRes = await fieldRepo.saveField(field);
+      expect(saveRes.isSuccess, isTrue);
+
+      // Read raw database row to inspect createdAt and updatedAt
+      final initialRow = await (db.select(
+        db.farmFieldsTable,
+      )..where((t) => t.id.equals('field_timestamp_test'))).getSingle();
+
+      final initialCreatedAt = initialRow.createdAt;
+      final initialUpdatedAt = initialRow.updatedAt;
+
+      // Delay 1100ms to cross 1-second boundary for SQLite seconds resolution
+      await Future<void>.delayed(const Duration(milliseconds: 1100));
+
+      // 2. Update the field
+      const updatedField = FarmField(
+        id: 'field_timestamp_test',
+        nameAr: 'حقل اختبار الطابع الزمني المحدث',
+        governorateAr: 'الفيوم',
+        coordinate: Coordinate(latitude: 29.30, longitude: 30.84),
+        areaInFeddan: 12.0,
+        soilType: SoilType.clayLoam,
+      );
+
+      final updateRes = await fieldRepo.saveField(updatedField);
+      expect(updateRes.isSuccess, isTrue);
+
+      // Read updated database row
+      final updatedRow = await (db.select(
+        db.farmFieldsTable,
+      )..where((t) => t.id.equals('field_timestamp_test'))).getSingle();
+
+      // Assert createdAt is identical
+      expect(updatedRow.createdAt, equals(initialCreatedAt));
+
+      // Assert updatedAt is strictly later than initialUpdatedAt
+      expect(updatedRow.updatedAt.isAfter(initialUpdatedAt), isTrue);
+
+      // Assert field attributes updated
+      expect(updatedRow.nameAr, equals('حقل اختبار الطابع الزمني المحدث'));
+      expect(updatedRow.areaInFeddan, equals(12.0));
+    });
   });
 
   group('Weather Cache Persistence & Integrity Tests', () {

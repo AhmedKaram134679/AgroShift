@@ -78,7 +78,7 @@ class EtcCalculator {
       }
 
       final et0 = dailyEt0Series[dayIndex];
-      if (et0 == null || !et0.isFinite) {
+      if (et0 == null) {
         unionOfIncompleteDateIndices.add(dayIndex);
         continue;
       }

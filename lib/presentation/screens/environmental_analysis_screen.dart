@@ -13,6 +13,35 @@ class EnvironmentalAnalysisScreen extends ConsumerWidget {
     final activeField = ref.watch(selectedFieldProvider);
     final historyAsync = ref.watch(fieldHistorical30DaysProvider);
 
+    if (activeField == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('التحليل المناخي')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.analytics_outlined, size: 64, color: Colors.grey),
+                SizedBox(height: 16),
+                Text(
+                  'لا يوجد حقل زراعي نشط للتحليل',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'يرجى تسجيل وتحديد حقل زراعي لاستعراض السجلات المناخية التاريخية.',
+                  style: TextStyle(fontSize: 14, color: Colors.grey),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(title: Text('التحليل المناخي — ${activeField.nameAr}')),
       body: historyAsync.when(

@@ -158,7 +158,7 @@ class _RotationLaboratoryScreenState extends State<RotationLaboratoryScreen> {
                           ),
                         ),
                         const Text(
-                          '* بناءً على معاملات الاستهلاك التبخري لمنطقة الدلتا',
+                          '* تقدير نموذجي تقريبي استرشادي للاستهلاك البخري، ولا يمثل المقنن المائي الفعلي أو يضمن كفاءة الري ونظام التوزيع الحقلي.',
                           style: TextStyle(fontSize: 10.5, color: Colors.grey),
                         ),
                       ],
