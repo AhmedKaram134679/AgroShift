@@ -60,7 +60,7 @@ The project deliberately standardizes on the operational Egyptian agricultural e
 $$\text{AgroConstants.cubicMetersPerFeddanPerMm} = 4.2$$
 This introduces a minor approximation of:
 $$\frac{4.200833 - 4.2}{4.200833} \approx 0.0198\% \quad (\approx 83.3\text{ liters difference per feddan per } 100\text{ mm depth})$$
-*(Note: At 100 mm depth, 1 feddan receives $420\text{ m}^3 = 420,000\text{ liters}$ using the operational constant $4.2\text{ m}^3/\text{feddan/mm}$, versus $420,083.3\text{ liters}$ using the exact survey figure $4,200.833\text{ m}^2$, yielding a delta of exactly $83.3\text{ liters per feddan per } 100\text{ mm}$).*
+Using the stated survey-area figure of 4,200.833 m² per Egyptian feddan, the difference between the exact-area calculation and the project's standardized operational factor of 4.2 m³ per feddan per millimeter is approximately 83.3 liters per feddan for a 100 mm water depth. *(At 100 mm depth, 1 feddan receives $420\text{ m}^3 = 420,000\text{ liters}$ using the operational factor $4.2\text{ m}^3/\text{feddan/mm}$, versus $420,083.3\text{ liters}$ using the stated survey figure $4,200.833\text{ m}^2$, yielding a delta of approximately $83.3\text{ liters per feddan per } 100\text{ mm}$).*
 This approximation is scientifically acceptable for farm-level irrigation scheduling and aligns with standard Ministry of Water Resources and Irrigation (MWRI) practice.
 
 ### 3.4 Crop Coefficient ($K_c$) Model & Interpolation
