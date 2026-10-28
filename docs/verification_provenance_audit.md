@@ -142,16 +142,16 @@ The target commits form a verified direct linear ancestry chain (`25438d0` $\lef
    - Formula: $ET_c = K_c \times ET_0$ evaluated daily.
    - **Status:** **`PASS`**, verified against independent hand-calculated numerical oracles.
 3. **Volumetric Water Requirement:**
-   - Factor: $4.2\text{ m}^3/\text{feddan/mm}$ ($1\text{ Egyptian feddan} = 4,200.833\text{ m}^2$, standardized to $4.2$).
+   - Factor: $4.2\text{ m}^3/\text{feddan/mm}$.
    - Operational conversion: $100\text{ mm} \times 4.2 = 420.0\text{ m}^3/\text{feddan} = 420,000\text{ liters}$.
-   - Exact survey area conversion: $100\text{ mm} \times 4,200.833\text{ m}^2 \times 0.001\text{ m/mm} = 420,083.3\text{ liters}$.
-   - Delta: approximately $83.3\text{ liters per feddan per } 100\text{ mm}$.
-   - **Status:** **`PASS`**, verified mathematically.
+   - Calculation using documented area ($4,200.83\text{ m}^2$): $100\text{ mm} \times 4,200.83\text{ m}^2 \times 0.001\text{ m/mm} = 420,083.0\text{ liters}$.
+   - Difference: approximately $0.083\text{ m}^3$ ($83\text{ liters}$) per feddan per $100\text{ mm}$.
+   - **Status:** The implementation correctly applies the configured operational conversion factor of $4.2\text{ m}^3$ per feddan per millimeter. This factor is a rounded approximation of $4.20083\text{ m}^3$ based on the documented feddan area of $4,200.83\text{ m}^2$. Numerical tests validate the implementation against the configured factor; they do not establish that the rounded factor is physically exact.
 4. **Crop Growth Stage Durations ($L_{\text{stage}}$):**
-   - Implementation: Four-stage piecewise linear interpolation with fixed $[0.20, 0.30, 0.30, 0.20]$ developmental fraction partitioning.
-   - **Status:** **`DOCUMENTED APPROXIMATION`**, adequate for relative rotational comparison, but not an empirical biological schedule.
+   - Implementation: The implementation performs piecewise linear interpolation of $K_c$ values using the configured crop-stage intervals. The stage fractions $[0.20, 0.30, 0.30, 0.20]$ are a fixed operational approximation, not independently calibrated biological durations for every crop or cultivar. Numerical tests validate the implemented interpolation behavior against the configured inputs; they do not establish the biological accuracy of these stage durations.
+   - **Status:** **`DOCUMENTED OPERATIONAL APPROXIMATION`**, adequate for relative rotational comparison, but not an empirical biological schedule.
 5. **Ground-Truth Field Calibration:**
-   - **Status:** **`DEFERRED`** (in-situ eddy-covariance and lysimeter observations across Egypt are not present in this software repository).
+   - **Status:** **`DEFERRED`** (in-situ eddy-covariance and lysimeter observations across Egyptian microclimates are not present in this software repository).
 
 ---
 
@@ -397,13 +397,18 @@ In `test/data/persistence_test.dart`, test number 8 was audited and clarified:
 
 The execution commit (`605723c`) and evidence-publication commit (`f35008e`) represent different repository states. The saved evidence supports the recorded execution result for tested revision `605723c` only. Publishing that evidence in subsequent commit `f35008e` does not, by itself, establish that the publication commit was independently tested.
 
-### 12.2 Exact Flutter Test Breakdown (173 Tests Total)
-The Flutter test suite discovers and executes exactly 173 tests across 4 test suites:
+### 12.2 Exact Flutter Test Breakdown and Counting Reconciliation (173 Tests Total)
+The Flutter test runner executes exactly 173 test cases across the 4 test files in the test suite:
 1. `test/domain/domain_scientific_test.dart`: **55 passed** ($47\text{ baseline} + 8\text{ independent numerical and boundary tests}$)
 2. `test/data/open_meteo_adapter_test.dart`: **42 passed**
-3. `test/data/persistence_test.dart`: **68 test cases / groups (71 test executions) passed**
+3. `test/data/persistence_test.dart`: **68 passed** (68 `test()` declarations, containing 71 internal test verification steps across nested groups)
 4. `test/widget_test.dart`: **8 passed**
-**Total Flutter tests executed:** $55 + 42 + 68 + 8 = \mathbf{173\text{ passed}}$ ($100\%$ pass rate, process exit code `0`).
+
+**Total Discovered and Executed Tests:**
+$$55 + 42 + 68 + 8 = \mathbf{173\text{ passed}}$$
+($100\%$ pass rate, process exit code `0`, as verified in `artifacts/validation_runs/20261028_234442/flutter_test.stdout.txt` and `flutter_test.exitcode.txt`).
+
+*Note on test-counting consistency:* The Flutter test framework tallies individual `test()` declarations. The file `test/data/persistence_test.dart` defines exactly 68 `test()` blocks. Earlier narrative phrasing mentioning "71 test executions" referred to individual assertion steps within test groups. Under the consistent unit-of-measure used by the test runner, the count is exactly 68, reconciling the verified sum of 173 tests.
 
 ### 12.3 Persistence Test Coverage Review & Boundaries
 A thorough review of `test/data/persistence_test.dart` reveals the exact assertions and physical limitations of the existing database persistence suite:
@@ -419,10 +424,18 @@ A thorough review of `test/data/persistence_test.dart` reveals the exact asserti
    - *Test Description:* `'13. Failed database writes do not crash repository or discard fetched records'`.
    - *Implementation:* Configures `WeatherRepositoryImpl` with a closed local database. When remote network weather data arrives, the repository catches the local database cache write failure, logs it, and returns the valid weather data to the caller rather than failing the user request.
    - *Coverage Boundary:* Proves local cache resilience and non-blocking read-through caching. It does *not* cover every failure mode of SQLite or multi-threaded database access.
-4. **Decision on Adding Tests:** In accordance with the decision rules, no additional tests were added to `test/data/persistence_test.dart` because the existing tests already deterministically verify safe failure handling across the application boundary, and no untested application defect was demonstrated.
+4. **Physical Storage and Concurrency Limitations:**
+   The existing persistence tests do not, by themselves, establish correct handling of all of the following:
+   - Physical disk exhaustion.
+   - Operating-system-level I/O failures.
+   - Process termination during an active SQLite write transaction.
+   - Every SQLite file-locking, busy-handler, or multi-process file-conflict scenario.
+   Real-device SQLite migration testing remains explicitly **`DEFERRED — pending execution on a physical Android device`**.
+5. **Decision on Adding Tests & Bounded Defect Findings:**
+   No production defect was demonstrated within the reviewed implementation paths and executed test cases. This finding does not establish the absence of defects outside the tested scope. In accordance with the decision rules, no additional tests were added to `test/data/persistence_test.dart` because the existing tests already deterministically verify safe failure handling across the application boundary, and no untested application defect was demonstrated.
 
 ### 12.4 Delineation of Scientific Evidence Levels
 The test suite strictly establishes evidence within designated verification levels:
 - **Level A — Software Behavior:** Verified. The implementation adheres to data contracts, rejects non-finite values (`NaN`, $\pm\infty$), handles negative inputs, clamps stage fractions to $[0.0, 1.0]$, and preserves day indexing when data is missing ($<10\%$).
-- **Level B — Numerical & Reference-Case Verification:** Verified. Mathematical calculations ($ET_c = K_c \times ET_0$, piecewise linear interpolation of $K_c$ across four growth stages, cumulative sum, and volumetric conversion $4.2\text{ m}^3/\text{feddan/mm}$) match independent hand-calculated numerical oracles within $10^{-9}$ precision.
-- **Level C — Empirical Agronomic Validation:** **Deferred / External.** The test suite does *not* prove field calibration across Egyptian climate zones, lysimeter or eddy-covariance agreement, or universal accuracy of nominal FAO-56 crop coefficients ($K_c$) under Egyptian field management practices. Full client-side FAO-56 Penman-Monteith recomputation remains incomplete, as daily $ET_0$ is consumed from Open-Meteo ERA5.
+- **Level B — Numerical & Reference-Case Verification:** Verified. Mathematical calculations ($ET_c = K_c \times ET_0$, piecewise linear interpolation of $K_c$ across four growth stages, cumulative sum, and volumetric conversion using the configured $4.2\text{ m}^3/\text{feddan/mm}$ operational factor) match independent hand-calculated numerical oracles within $10^{-9}$ precision. This verifies implementation correctness against the configured operational factor; it does not establish that the rounded factor of 4.2 is physically exact compared to the unrounded 4.20083 m³.
+- **Level C — Empirical Agronomic Validation:** **Deferred / External.** The test suite does *not* prove field calibration across Egyptian climate zones, lysimeter or eddy-covariance agreement, or universal accuracy of nominal FAO-56 crop coefficients ($K_c$) under Egyptian field management practices. The stage fractions $[0.20, 0.30, 0.30, 0.20]$ are a fixed operational approximation, not independently calibrated biological durations for every crop or cultivar. Full client-side FAO-56 Penman-Monteith recomputation remains incomplete, as daily $ET_0$ is consumed from Open-Meteo ERA5.
