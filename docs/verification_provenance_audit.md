@@ -19,8 +19,9 @@ This formal audit report reconciles Git provenance, verification runner evidence
    - Commit `25438d0e9ab725dce5788f52e1ef7056c30237ea` (`25438d0`) was the **historical validation execution commit** tested by run `20261028_024200`.
    - Commit `d7768424cac9a03b8f73a0d0417603fdc6bbccad` (`d776842`) was the **evidence-publication commit** that formally committed the 21 evidence files of run `20261028_024200` to the repository.
    - Commit `bd48dd2657f74144e79496baac8ea804f0cc4938` (`bd48dd2`) was the **initial audit-report publication commit** (published at `2026-10-28T00:14:36Z` / `03:14:36+03:00`).
-   - Commit `9af0dc24001ba5551ef6db960b27df967b9c6d2c` (`9af0dc2`) is the **subsequent audit-report revision commit** (published at `2026-10-28T03:57:38Z` / `06:57:38+03:00`) and the **latest `main` commit observed during this audit** (`origin/main`).
-   - Run `20261028_024200` was executed cleanly against historical execution commit `25438d0e9ab725dce5788f52e1ef7056c30237ea` from an isolated clean worktree with `-RequireCleanRevision`, achieving `OverallStatus = PASS`.
+   - Commit `9af0dc24001ba5551ef6db960b27df967b9c6d2c` (`9af0dc2`) was an **intermediate audit-report revision commit** (published at `2026-10-28T03:57:38Z` / `06:57:38+03:00`).
+   - Commit `7e379f5e9a0e9a2818e0e5a19ec587073bc29b3b` (`7e379f5`) is the **subsequent audit-report publication commit** (published at `2026-10-28T04:21:39Z` / `07:21:39+03:00`) and the **latest `main` commit observed during this audit** (`origin/main`).
+   - **Verification Qualification:** Documentation-only commits (`bd48dd2`, `9af0dc2`, `7e379f5`) do not automatically inherit verification status from earlier runs; run `20261028_024200` was executed cleanly specifically against historical execution commit `25438d0e9ab725dce5788f52e1ef7056c30237ea` from an isolated clean worktree with `-RequireCleanRevision`, achieving `OverallStatus = PASS`.
 2. **Provenance Separation Established:** Verification summaries accurately record distinct fields for starting Git HEAD, ending Git HEAD, initial working-tree cleanliness, final working-tree cleanliness, initial and final source-tree fingerprints, and source mutation during the run.
 3. **Fingerprint vs. Cleanliness Fallacy Resolved:** A stable composite source-tree fingerprint ($SHA\text{-}256$) establishes solely that monitored files in the specified source scope (`lib/`, `test/`, `scripts/`, `docs/`, `pubspec.yaml`, `pubspec.lock`) did not mutate between initial and final measurements during the run (`SourceTreeMutatedDuringRun = false`). It does **not** prove that the starting working tree was clean, nor does it establish that untracked or unmonitored files were absent.
 4. **Historical Runs Reconciled:**
@@ -43,16 +44,19 @@ This formal audit report reconciles Git provenance, verification runner evidence
 
 ### Core Provenance Snapshots: Historical Execution vs. Publication State
 
+The five target commits form a verified direct linear ancestry chain (`25438d0` $\leftarrow$ `d776842` $\leftarrow$ `bd48dd2` $\leftarrow$ `9af0dc2` $\leftarrow$ `7e379f5`):
+
 | Concept | Verified Commit / Value | Required Meaning & Evidence Basis |
 | :--- | :--- | :--- |
 | **Historical Execution Commit** | `25438d0e9ab725dce5788f52e1ef7056c30237ea` (`25438d0`) | Tested commit recorded in `artifacts/validation_runs/20261028_024200/verification_summary.json` |
-| **Evidence-Publication Commit** | `d7768424cac9a03b8f73a0d0417603fdc6bbccad` (`d776842`) | Commit adding the 21 evidence files of run `20261028_024200` to the repository (`git log -1 d776842`) |
-| **Initial Audit-Report Publication Commit** | `bd48dd2657f74144e79496baac8ea804f0cc4938` (`bd48dd2`) | Commit where initial audit report was published (`git log -1 bd48dd2`; 2026-10-28T03:14:36+03:00) |
-| **Subsequent Report-Revision Commit** | `9af0dc24001ba5551ef6db960b27df967b9c6d2c` (`9af0dc2`) | Commit modifying audit report (`git log -1 9af0dc2`; 2026-10-28T06:57:38+03:00) |
-| **Latest `main` State Observed** | `9af0dc24001ba5551ef6db960b27df967b9c6d2c` (`9af0dc2`) | Latest `main` commit observed during this audit (`git rev-parse origin/main` at 2026-10-28T07:16:52+03:00) |
+| **Evidence-Publication Commit** | `d7768424cac9a03b8f73a0d0417603fdc6bbccad` (`d776842`) | Commit adding the 21 evidence files of run `20261028_024200` to the repository (`git log -1 d776842`; 2026-10-28T03:00:46+03:00) |
+| **Initial Audit-Report Publication Commit** | `bd48dd2657f74144e79496baac8ea804f0cc4938` (`bd48dd2`) | Commit publishing initial audit report (`git log -1 bd48dd2`; 2026-10-28T03:14:36+03:00) |
+| **Intermediate Report-Revision Commit** | `9af0dc24001ba5551ef6db960b27df967b9c6d2c` (`9af0dc2`) | Intermediate commit revising audit report (`git log -1 9af0dc2`; 2026-10-28T06:57:38+03:00) |
+| **Subsequent Audit-Report Publication Commit** | `7e379f5e9a0e9a2818e0e5a19ec587073bc29b3b` (`7e379f5`) | Commit publishing updated audit report (`git log -1 7e379f5`; 2026-10-28T07:21:39+03:00) |
+| **Latest `main` State Observed** | `7e379f5e9a0e9a2818e0e5a19ec587073bc29b3b` (`7e379f5`) | Latest `main` commit observed during this audit (`git rev-parse origin/main` at 2026-10-28T07:25:23+03:00) |
 | **Historical Working-Tree Condition** | Clean committed revision (`true`) | Established by runner verification summary (`IsStartingWorkingTreeClean = true`, `StartingWorkingTreeEntries = []`) |
 | **During-Run Source Stability** | Initial and final fingerprints match (`SourceTreeMutatedDuringRun = false`) | Monitored scope (`lib`, `test`, `scripts`, `docs`, `pubspec.yaml`, `pubspec.lock`; 74 files) matched composite SHA-256 `07bafeea42...` |
-| **Current State at Report Publication** | Clean on branch `main` at `9af0dc2` | Repository state at the time of subsequent audit report revision, distinct from historical execution commit `25438d0` |
+| **Current State at Report Publication** | Clean on branch `main` at `7e379f5` | Repository state at the time of audit report publication, distinct from historical execution commit `25438d0` |
 
 ### Detailed Repository Metadata
 
@@ -65,9 +69,10 @@ This formal audit report reconciles Git provenance, verification runner evidence
 | **Historical Execution Commit Tested by Run `20261028_024200`** | `25438d0e9ab725dce5788f52e1ef7056c30237ea` (`25438d0`) | `artifacts/validation_runs/20261028_024200/verification_summary.json` |
 | **Evidence Publication Commit for Run `20261028_024200`** | `d7768424cac9a03b8f73a0d0417603fdc6bbccad` (`d776842`) | `git log -1 d776842` (published 21 evidence files) |
 | **Initial Audit-Report Publication Commit** | `bd48dd2657f74144e79496baac8ea804f0cc4938` (`bd48dd2`) | `git log -1 bd48dd2` (published at 2026-10-28T03:14:36+03:00) |
-| **Subsequent Report-Revision Commit** | `9af0dc24001ba5551ef6db960b27df967b9c6d2c` (`9af0dc2`) | `git log -1 9af0dc2` (published at 2026-10-28T06:57:38+03:00) |
-| **Latest `main` Commit Observed During Audit** | `9af0dc24001ba5551ef6db960b27df967b9c6d2c` (`9af0dc2`) | `git rev-parse origin/main` (at 2026-10-28T07:16:52+03:00) |
-| **Current Local Branch HEAD** | `9af0dc24001ba5551ef6db960b27df967b9c6d2c` (`9af0dc2`) | `git rev-parse HEAD` |
+| **Intermediate Report-Revision Commit** | `9af0dc24001ba5551ef6db960b27df967b9c6d2c` (`9af0dc2`) | `git log -1 9af0dc2` (published at 2026-10-28T06:57:38+03:00) |
+| **Subsequent Report-Publication Commit** | `7e379f5e9a0e9a2818e0e5a19ec587073bc29b3b` (`7e379f5`) | `git log -1 7e379f5` (published at 2026-10-28T07:21:39+03:00) |
+| **Latest `main` Commit Observed During Audit** | `7e379f5e9a0e9a2818e0e5a19ec587073bc29b3b` (`7e379f5`) | `git rev-parse origin/main` (at 2026-10-28T07:25:23+03:00) |
+| **Current Local Branch HEAD** | `7e379f5e9a0e9a2818e0e5a19ec587073bc29b3b` (`7e379f5`) | `git rev-parse HEAD` |
 | **Evidence Publication Status for Run `20261028_024200`** | `PUBLISHED ON origin/main` | Verified 21 files present on `origin/main` in `d776842` |
 
 ---
@@ -146,14 +151,15 @@ This formal audit report reconciles Git provenance, verification runner evidence
 
 ## 7. Final Published Provenance Snapshot Reconciliation (Run `20261028_024200`)
 
-Executed directly from an isolated clean checkout of historical execution commit `25438d0e9ab725dce5788f52e1ef7056c30237ea` (`25438d0`), with evidence published on `origin/main` in commit `d7768424cac9a03b8f73a0d0417603fdc6bbccad` (`d776842`), initial audit documentation published in commit `bd48dd2657f74144e79496baac8ea804f0cc4938` (`bd48dd2`), and subsequent audit revision published in commit `9af0dc24001ba5551ef6db960b27df967b9c6d2c` (`9af0dc2`):
+Executed directly from an isolated clean checkout of historical execution commit `25438d0e9ab725dce5788f52e1ef7056c30237ea` (`25438d0`), with evidence published on `origin/main` in commit `d7768424cac9a03b8f73a0d0417603fdc6bbccad` (`d776842`), initial audit documentation published in commit `bd48dd2657f74144e79496baac8ea804f0cc4938` (`bd48dd2`), intermediate audit revision in commit `9af0dc24001ba5551ef6db960b27df967b9c6d2c` (`9af0dc2`), and subsequent audit publication in commit `7e379f5e9a0e9a2818e0e5a19ec587073bc29b3b` (`7e379f5`):
 
 - **Audit Timestamp (UTC):** `2026-10-28T02:47:09Z`
-- **Observed Branch / Latest `main` Commit:** `main` at `9af0dc24001ba5551ef6db960b27df967b9c6d2c` (`9af0dc2`, up to date with `origin/main` at `2026-10-28T07:16:52+03:00`)
+- **Observed Branch / Latest `main` Commit:** `main` at `7e379f5e9a0e9a2818e0e5a19ec587073bc29b3b` (`7e379f5`, up to date with `origin/main` at `2026-10-28T07:25:23+03:00`)
 - **Historical Execution Commit:** `25438d0e9ab725dce5788f52e1ef7056c30237ea` (`25438d0`)
 - **Evidence Publication Commit:** `d7768424cac9a03b8f73a0d0417603fdc6bbccad` (`d776842`)
 - **Initial Audit-Report Publication Commit:** `bd48dd2657f74144e79496baac8ea804f0cc4938` (`bd48dd2`, published at `2026-10-28T03:14:36+03:00`)
-- **Subsequent Report-Revision Commit:** `9af0dc24001ba5551ef6db960b27df967b9c6d2c` (`9af0dc2`, published at `2026-10-28T06:57:38+03:00`)
+- **Intermediate Report-Revision Commit:** `9af0dc24001ba5551ef6db960b27df967b9c6d2c` (`9af0dc2`, published at `2026-10-28T06:57:38+03:00`)
+- **Subsequent Report-Publication Commit:** `7e379f5e9a0e9a2818e0e5a19ec587073bc29b3b` (`7e379f5`, published at `2026-10-28T07:21:39+03:00`)
 - **New Run ID:** `20261028_024200`
 - **Evidence Directory:** `artifacts/validation_runs/20261028_024200` (21 files published on `origin/main`)
 - **Initial Working Tree:** Clean (`IsStartingWorkingTreeClean = true`, `StartingWorkingTreeEntries: []`)
@@ -179,8 +185,9 @@ Executed directly from an isolated clean checkout of historical execution commit
 
 **FINAL STATUS: `PASS WITH LIMITATIONS`**
 
-- **Verified Facts:** Clean committed-revision execution was executed against both `ef07cda` (run `20261027_095914`, published in `60f1adf`) and `25438d0` (run `20261028_024200`, evidence published in `d776842`), both passing with exit code 0; test counts are verified as 159 Flutter tests and 68 PowerShell checks; provenance separation is fully established with historical execution commit (`25438d0`), evidence publication commit (`d776842`), initial audit report publication commit (`bd48dd2`), and subsequent audit revision commit (`9af0dc2`) distinctly identified on `origin/main`.
+- **Verified Facts:** Clean committed-revision execution was executed against both `ef07cda` (run `20261027_095914`, published in `60f1adf`) and `25438d0` (run `20261028_024200`, evidence published in `d776842`), both passing with exit code 0; test counts are verified as 159 Flutter tests and 68 PowerShell checks; provenance separation is fully established with historical execution commit (`25438d0`), evidence publication commit (`d776842`), initial audit report publication commit (`bd48dd2`), intermediate revision commit (`9af0dc2`), and subsequent audit publication commit (`7e379f5`) distinctly identified on `origin/main`.
 - **Explicit Limitations:**
   - Independent client-side calculation of FAO-56 Penman-Monteith remains **`INCOMPLETE`**.
   - Ground-truth field calibration across Egyptian climate zones remains **`DEFERRED`**.
   - Physical Android SQLite migration on a physical handset remains **`DEFERRED - NO PHYSICAL ANDROID DEVICE CONNECTED`**.
+  - Documentation-only commits (`bd48dd2`, `9af0dc2`, `7e379f5`) do not automatically inherit verification execution status from earlier runs.
