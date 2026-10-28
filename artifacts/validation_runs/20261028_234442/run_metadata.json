@@ -1,0 +1,27 @@
+{
+  "repository": "AhmedKaram134679/AgroShift",
+  "branch": "main",
+  "testedCommit": "605723cc23b6c6bac28ee77447d113ee921109a7",
+  "commitTimestamp": "2026-10-28T22:52:44+03:00",
+  "isStartingWorkingTreeClean": true,
+  "startingWorkingTreeCondition": "Clean committed revision (untracked run evidence directory only)",
+  "command": "flutter test",
+  "utcStartTime": "2026-10-28T20:47:45Z",
+  "utcEndTime": "2026-10-28T20:47:59Z",
+  "exitCode": 0,
+  "testSummary": "173 passed across all suites",
+  "testCountFlutter": 173,
+  "testBreakdown": {
+    "test/domain/domain_scientific_test.dart": 55,
+    "test/data/open_meteo_adapter_test.dart": 42,
+    "test/data/persistence_test.dart": 68,
+    "test/widget_test.dart": 8
+  },
+  "evidenceDirectory": "artifacts/validation_runs/20261028_234442",
+  "testedState": "Clean committed revision (605723cc23b6c6bac28ee77447d113ee921109a7)",
+  "limitations": [
+    "Level A software assertions and Level B numerical reference cases validated; Level C empirical agronomic field calibration across Egyptian microclimates remains deferred.",
+    "Client-side FAO-56 Penman-Monteith raw radiation and wind numerical recomputation remains incomplete (daily ET0 consumed from Open-Meteo ERA5 archive).",
+    "Physical Android SQLite migration on physical handset remains deferred (validated deterministically via Drift in-memory SQLite schema tests)."
+  ]
+}
