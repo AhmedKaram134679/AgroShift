@@ -28,7 +28,8 @@ This formal audit report reconciles Git provenance, verification runner evidence
    - Commit `853521059dc5a16b673fddac9197ca25c68e9c67` (`8535210`) was a feature commit implementing ET0 input validation in `EtcCalculator` and associated regression tests (published at `2026-10-28T07:28:06Z` / `10:28:06+03:00`).
    - Commit `1e6e067ee138dc6ef40c2d57820ceb2d0d34a9f4` (`1e6e067`) was the **clean committed execution revision tested by run `20261028_105807`** (published at `2026-10-28T09:47:26Z` / `12:47:26+03:00`).
    - Commit `00827d58f1d1e8992ff12529b4cba17bc671413c` (`00827d5`) is the **evidence-publication commit** formally publishing the 21 evidence files of clean run `20261028_105807` to `origin/main` (published at `2026-10-28T11:04:55Z` / `14:04:55+03:00`).
-   - **Verification Qualification:** Clean committed-revision execution has been independently verified across four distinct milestones: run `20261027_095914` (over `ef07cda`), run `20261028_024200` (over `25438d0`), run `20261028_084500` (over `2e29eec`), and run `20261028_105807` (over `1e6e067`), all achieving `OverallStatus = PASS`. Subsequent publication commits (`60f1adf`, `d776842`, `bd48dd2`, `9af0dc2`, `7e379f5`, `bb17d0d`, `d9e9e08`, `b0c96ed`, `00827d5`) publish artifacts or documentation improvements and do not alter historical execution revisions.
+   - Commit `45a57c52d8ba650a97769820b225c9b0e320216d` (`45a57c5`) is the **audit-report publication commit** formally reconciling the provenance audit report with clean run `20261028_105807` on `origin/main` (published at `2026-10-28T11:12:52Z` / `14:12:52+03:00`).
+   - **Verification Qualification:** Clean committed-revision execution has been independently verified across four distinct milestones: run `20261027_095914` (over `ef07cda`), run `20261028_024200` (over `25438d0`), run `20261028_084500` (over `2e29eec`), and run `20261028_105807` (over `1e6e067`), all achieving `OverallStatus = PASS`. Subsequent publication commits (`60f1adf`, `d776842`, `bd48dd2`, `9af0dc2`, `7e379f5`, `bb17d0d`, `d9e9e08`, `b0c96ed`, `00827d5`, `45a57c5`) publish artifacts or documentation improvements and do not alter historical execution revisions.
 2. **Provenance Separation Established:** Verification summaries accurately record distinct fields for starting Git HEAD, ending Git HEAD, initial working-tree cleanliness, final working-tree cleanliness, initial and final source-tree fingerprints, and source mutation during the run.
 3. **Fingerprint vs. Cleanliness Fallacy Resolved:** A stable composite source-tree fingerprint ($SHA\text{-}256$) establishes solely that monitored files in the specified source scope (`lib/`, `test/`, `scripts/`, `docs/`, `pubspec.yaml`, `pubspec.lock`) did not mutate between initial and final measurements during the run (`SourceTreeMutatedDuringRun = false`). It does **not** prove that the starting working tree was clean, nor does it establish that untracked or unmonitored files were absent.
 4. **Historical Runs Reconciled:**
@@ -53,7 +54,7 @@ This formal audit report reconciles Git provenance, verification runner evidence
 
 ### Core Provenance Snapshots: Historical Execution vs. Publication State
 
-The target commits form a verified direct linear ancestry chain (`25438d0` $\leftarrow$ `d776842` $\leftarrow$ `bd48dd2` $\leftarrow$ `9af0dc2` $\leftarrow$ `7e379f5` $\leftarrow$ `bb17d0d` $\leftarrow$ `2e29eec` $\leftarrow$ `d9e9e08` $\leftarrow$ `b0c96ed` $\leftarrow$ `8535210` $\leftarrow$ `1e6e067` $\leftarrow$ `00827d5`):
+The target commits form a verified direct linear ancestry chain (`25438d0` $\leftarrow$ `d776842` $\leftarrow$ `bd48dd2` $\leftarrow$ `9af0dc2` $\leftarrow$ `7e379f5` $\leftarrow$ `bb17d0d` $\leftarrow$ `2e29eec` $\leftarrow$ `d9e9e08` $\leftarrow$ `b0c96ed` $\leftarrow$ `8535210` $\leftarrow$ `1e6e067` $\leftarrow$ `00827d5` $\leftarrow$ `45a57c5`):
 
 | Concept | Verified Commit / Value | Required Meaning & Evidence Basis |
 | :--- | :--- | :--- |
@@ -67,7 +68,7 @@ The target commits form a verified direct linear ancestry chain (`25438d0` $\lef
 | **Evidence-Publication Commit (Run `20261028_105807`)** | `00827d58f1d1e8992ff12529b4cba17bc671413c` (`00827d5`) | Published 21 evidence files of run `20261028_105807` to `origin/main` (`git log -1 00827d5`) |
 | **Historical Working-Tree Condition** | Clean committed revision (`true`) | Established by runner verification summary (`IsStartingWorkingTreeClean = true`, `StartingWorkingTreeEntries = []`) |
 | **During-Run Source Stability** | Initial and final fingerprints match (`SourceTreeMutatedDuringRun = false`) | Monitored scope (`lib`, `test`, `scripts`, `docs`, `pubspec.yaml`, `pubspec.lock`; 74 files) matched composite SHA-256 `73943e601c...` |
-| **Current Published State on `origin/main`** | Commit `00827d58f1d1e8992ff12529b4cba17bc671413c` (`00827d5`) | Latest remote `origin/main` HEAD at completion of evidence publication |
+| **Current Published State on `origin/main`** | Commit `45a57c52d8ba650a97769820b225c9b0e320216d` (`45a57c5`) | Latest published audit documentation update commit on `origin/main` |
 
 ### Detailed Repository Metadata
 
@@ -83,7 +84,7 @@ The target commits form a verified direct linear ancestry chain (`25438d0` $\lef
 | **Evidence Publication Commit for Run `20261028_084500`** | `d9e9e086ce7f8efbcf5b874ee73a396885726772` (`d9e9e08`) | `git log -1 d9e9e08` (published 21 evidence files) |
 | **Clean Execution Commit Tested by Run `20261028_105807`** | `1e6e067ee138dc6ef40c2d57820ceb2d0d34a9f4` (`1e6e067`) | `artifacts/validation_runs/20261028_105807/verification_summary.json` |
 | **Evidence Publication Commit for Run `20261028_105807`** | `00827d58f1d1e8992ff12529b4cba17bc671413c` (`00827d5`) | `git log -1 00827d5` (published 21 evidence files) |
-| **Current Published `origin/main` Commit** | `00827d58f1d1e8992ff12529b4cba17bc671413c` (`00827d5`) | `git rev-parse origin/main` |
+| **Current Published `origin/main` Commit** | `45a57c52d8ba650a97769820b225c9b0e320216d` (`45a57c5`) | `git rev-parse origin/main` |
 | **Evidence Publication Status for Run `20261028_105807`** | Published in commit `00827d5` (21 files) | `git ls-tree -r --name-only 00827d5 artifacts/validation_runs/20261028_105807/` |
 
 ---
@@ -268,18 +269,24 @@ Executed directly against clean committed revision `1e6e067ee138dc6ef40c2d57820c
 
 ## 9. Post-Publication Provenance Reconciliation
 
-- **Reconciliation Date (UTC):** `2026-10-28T11:08:00Z` (`2026-10-28T14:08:00+03:00`)
-- **Referenced Post-Publication Commit:** `00827d58f1d1e8992ff12529b4cba17bc671413c` (`00827d5`)
-- **Latest Tested Clean Execution Commit:** `1e6e067ee138dc6ef40c2d57820ceb2d0d34a9f4` (`1e6e067`, run `20261028_105807`)
-- **Current Remote HEAD on `origin/main`:** `00827d58f1d1e8992ff12529b4cba17bc671413c` (`00827d5`)
-- **Working-Tree State at Reconciliation:** Documentation update in progress
-- **Evidence Publication Status:** Fully published on `origin/main` in commit `00827d5` (all 21 evidence files confirmed present under `artifacts/validation_runs/20261028_105807/`)
-- **Reconciliation Basis:** Git commit log, `git show -s --format=fuller`, `git ls-tree`, and filesystem inspection
+- **Reconciliation Date (UTC):** `2026-10-28T11:35:00Z` (`2026-10-28T14:35:00+03:00`)
+- **Tested Execution Commit:** `1e6e067ee138dc6ef40c2d57820ceb2d0d34a9f4` (`1e6e067`), associated with verification run `20261028_105807`.
+- **Evidence-Publication Commit:** `00827d58f1d1e8992ff12529b4cba17bc671413c` (`00827d5`), which published the 21 evidence artifacts for run `20261028_105807`.
+- **Reconciliation Target Commit:** `45a57c52d8ba650a97769820b225c9b0e320216d` (`45a57c5`).
+- **Current Published HEAD on `origin/main`:** `45a57c52d8ba650a97769820b225c9b0e320216d` (`45a57c5`).
+- **Working-Tree State Before Documentation Changes:** Clean (`git status --short --branch` returned `## main...origin/main` with 0 uncommitted entries).
+- **Target Report Modification Status in `45a57c5`:** Commit `45a57c5` modified `docs/verification_provenance_audit.md` (127 lines changed: +79, -48).
+- **Evidence Publication Status:** Fully published on `origin/main` in commit `00827d5` (all 21 evidence files confirmed present under `artifacts/validation_runs/20261028_105807/`).
+- **Reconciliation Basis:** Git commit metadata, ancestry, the target file history, and the actual committed evidence files.
 
 ### Provenance Clarification
 
-The commit associated with a validation run identifies the source revision used for that run. It must not automatically be described as the latest published commit.
+The execution commit identifies the source revision used for a specific verification run. It must not be confused with a later evidence-publication commit or a subsequent documentation/repository commit.
 
-A clean working tree establishes that no tracked or untracked changes were present within the scope actually inspected at that time. It does not, by itself, establish that the repository revision was the latest published revision.
+The evidence-publication commit identifies the revision that published the run's evidence artifacts. Publishing those artifacts does not, by itself, establish that the publication commit was independently tested.
 
-Publication status must be supported by the verified remote repository state and the actual presence of the relevant evidence files. Commit `00827d5` is verified as the current published HEAD on `origin/main`, succeeding `1e6e067`, `8535210`, `b0c96ed`, `d9e9e08`, and `2e29eec`.
+The current repository HEAD identifies the latest verified published revision at the time of inspection. It does not automatically inherit the verification status of an earlier execution commit.
+
+A matching initial and final source-tree fingerprint establishes stability only for the monitored files and scope measured by the verification runner. It does not independently establish working-tree cleanliness, the absence of untracked files outside the monitored scope, or that the tested commit was the latest published revision.
+
+The historical result for run `20261028_105807` remains associated with tested commit `1e6e067`. The evidence-publication relationship remains associated with `00827d5`. Any later report or repository revision must be described according to its verified Git history rather than inferred from its position in the commit timeline.
