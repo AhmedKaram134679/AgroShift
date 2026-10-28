@@ -1,3 +1,4 @@
+import 'package:agro_shift/core/constants/agro_constants.dart';
 import 'package:agro_shift/core/error/failures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:agro_shift/domain/environment/models/coordinate.dart';
@@ -456,6 +457,412 @@ void main() {
         validatedResult.dataOrNull!.totalVolumeM3PerFeddan,
         closeTo(expectedVolumeM3PerFeddan, 1e-9),
       );
+    });
+
+    // Task A: Comprehensive daily ETc edge cases and numeric contracts
+    test('Task A: calculateDailyEtc arithmetic, zeroes, negatives, and non-finite values', () {
+      // 1. Normal valid values
+      expect(
+        EtcCalculator.calculateDailyEtc(referenceEt0Mm: 6.0, cropKc: 1.10),
+        closeTo(6.60, 1e-9),
+      );
+      expect(
+        EtcCalculator.calculateDailyEtc(referenceEt0Mm: 3.5, cropKc: 0.40),
+        closeTo(1.40, 1e-9),
+      );
+
+      // 2. Zero ET0
+      expect(
+        EtcCalculator.calculateDailyEtc(referenceEt0Mm: 0.0, cropKc: 1.15),
+        equals(0.0),
+      );
+
+      // 3. Zero Kc
+      expect(
+        EtcCalculator.calculateDailyEtc(referenceEt0Mm: 5.0, cropKc: 0.0),
+        equals(0.0),
+      );
+
+      // 4. Both zero
+      expect(
+        EtcCalculator.calculateDailyEtc(referenceEt0Mm: 0.0, cropKc: 0.0),
+        equals(0.0),
+      );
+
+      // 5. Negative ET0 clamps to 0.0
+      expect(
+        EtcCalculator.calculateDailyEtc(referenceEt0Mm: -0.01, cropKc: 1.0),
+        equals(0.0),
+      );
+      expect(
+        EtcCalculator.calculateDailyEtc(referenceEt0Mm: -5.0, cropKc: 1.15),
+        equals(0.0),
+      );
+
+      // 6. Negative Kc clamps to 0.0
+      expect(
+        EtcCalculator.calculateDailyEtc(referenceEt0Mm: 5.0, cropKc: -0.1),
+        equals(0.0),
+      );
+      expect(
+        EtcCalculator.calculateDailyEtc(referenceEt0Mm: 5.0, cropKc: -1.0),
+        equals(0.0),
+      );
+
+      // 7. Non-finite values in unvalidated arithmetic
+      // In Dart/IEEE 754: double.nan * positive -> NaN; double.infinity * positive -> Infinity
+      expect(
+        EtcCalculator.calculateDailyEtc(
+          referenceEt0Mm: double.nan,
+          cropKc: 1.0,
+        ).isNaN,
+        isTrue,
+      );
+      expect(
+        EtcCalculator.calculateDailyEtc(
+          referenceEt0Mm: 5.0,
+          cropKc: double.nan,
+        ).isNaN,
+        isTrue,
+      );
+      expect(
+        EtcCalculator.calculateDailyEtc(
+          referenceEt0Mm: double.infinity,
+          cropKc: 1.0,
+        ),
+        equals(double.infinity),
+      );
+      // Negative infinity is strictly < 0.0, so the guard clamps it to 0.0
+      expect(
+        EtcCalculator.calculateDailyEtc(
+          referenceEt0Mm: double.negativeInfinity,
+          cropKc: 1.0,
+        ),
+        equals(0.0),
+      );
+      expect(
+        EtcCalculator.calculateDailyEtc(
+          referenceEt0Mm: 5.0,
+          cropKc: double.negativeInfinity,
+        ),
+        equals(0.0),
+      );
+    });
+
+    // Task B: Independent verification of piecewise Kc interpolation for all 8 required boundary & interior points
+    test('Task B: Crop.getKcForStageFraction piecewise interpolation across all boundaries and intervals', () {
+      // Using benchmark Egyptian wheat: kcIni = 0.40, kcMid = 1.15, kcEnd = 0.35
+      // Documented four-stage partitioning:
+      // Initial: [0.0, 0.20] -> kcIni = 0.40
+      // Development: (0.20, 0.50] -> linear from 0.40 to 1.15
+      // Mid-season: (0.50, 0.80] -> kcMid = 1.15
+      // Late-season: (0.80, 1.00] -> linear from 1.15 to 0.35
+      final wheat = EgyptianCropsCatalog.wheat;
+
+      // 1. Stage fraction 0.0 (exact start) -> kcIni
+      expect(wheat.getKcForStageFraction(0.0), closeTo(0.40, 1e-9));
+
+      // 2. Initial-stage boundary 0.20 -> kcIni
+      expect(wheat.getKcForStageFraction(0.20), closeTo(0.40, 1e-9));
+
+      // 3. Development-stage boundary 0.50 -> kcMid
+      expect(wheat.getKcForStageFraction(0.50), closeTo(1.15, 1e-9));
+
+      // 4. Mid-season boundary 0.80 -> kcMid
+      expect(wheat.getKcForStageFraction(0.80), closeTo(1.15, 1e-9));
+
+      // 5. Final boundary 1.0 (harvest) -> kcEnd
+      expect(wheat.getKcForStageFraction(1.0), closeTo(0.35, 1e-9));
+
+      // 6. Representative points inside each interpolation interval:
+      // Interval 1 interior (Initial: e.g. 0.10) -> exactly 0.40
+      expect(wheat.getKcForStageFraction(0.10), closeTo(0.40, 1e-9));
+
+      // Interval 2 interior (Development: e.g. 0.35, exact midpoint between 0.20 and 0.50):
+      // weight p = (0.35 - 0.20) / 0.30 = 0.15 / 0.30 = 0.50
+      // Expected Kc = 0.40 + 0.50 * (1.15 - 0.40) = 0.40 + 0.375 = 0.775
+      expect(wheat.getKcForStageFraction(0.35), closeTo(0.775, 1e-9));
+
+      // Interval 3 interior (Mid-season: e.g. 0.65, midpoint between 0.50 and 0.80):
+      // Expected Kc = kcMid = 1.15
+      expect(wheat.getKcForStageFraction(0.65), closeTo(1.15, 1e-9));
+
+      // Interval 4 interior (Late-season: e.g. 0.90, exact midpoint between 0.80 and 1.00):
+      // weight p = (0.90 - 0.80) / 0.20 = 0.10 / 0.20 = 0.50
+      // Expected Kc = 1.15 + 0.50 * (0.35 - 1.15) = 1.15 + 0.50 * (-0.80) = 1.15 - 0.40 = 0.75
+      expect(wheat.getKcForStageFraction(0.90), closeTo(0.750, 1e-9));
+
+      // 7. Below 0.0 (clamping to 0.0 -> returns kcIni)
+      expect(wheat.getKcForStageFraction(-0.01), closeTo(0.40, 1e-9));
+      expect(wheat.getKcForStageFraction(-1.0), closeTo(0.40, 1e-9));
+
+      // 8. Above 1.0 (clamping to 1.0 -> returns kcEnd)
+      expect(wheat.getKcForStageFraction(1.05), closeTo(0.35, 1e-9));
+      expect(wheat.getKcForStageFraction(2.5), closeTo(0.35, 1e-9));
+    });
+
+    // Task C: Cumulative ETc and Growth-Stage Alignment comprehensive oracle checks
+    test('Task C: Cumulative cycle water requirement on small independently calculable sequences', () {
+      final wheat =
+          EgyptianCropsCatalog.wheat; // kcIni=0.40, kcMid=1.15, kcEnd=0.35
+
+      // 1. Empty ET0 sequence -> 0.0 totalEtc and 0.0 volume
+      final emptyUnvalidated = EtcCalculator.calculateCycleWaterRequirement(
+        crop: wheat,
+        dailyEt0Series: [],
+      );
+      expect(emptyUnvalidated.totalEtcMm, equals(0.0));
+      expect(emptyUnvalidated.totalVolumeM3PerFeddan, equals(0.0));
+
+      final emptyValidated =
+          EtcCalculator.calculateCycleWaterRequirementValidated(
+            crop: wheat,
+            totalRequestedDays: 0,
+            dailyEt0Series: [],
+          );
+      expect(emptyValidated.isFailure, isTrue);
+      expect(emptyValidated.failureOrNull, isA<InsufficientEvidenceFailure>());
+
+      // 2. Single-day crop cycle (N = 1, fraction = 1/1 = 1.0 -> stage 4 harvest Kc = kcEnd = 0.35)
+      // ET0 = 6.0 mm/day -> daily ETc = 6.0 * 0.35 = 2.10 mm
+      // Volume = 2.10 * 4.2 = 8.82 m³/feddan
+      final singleDayUnvalidated = EtcCalculator.calculateCycleWaterRequirement(
+        crop: wheat,
+        dailyEt0Series: [6.0],
+      );
+      expect(singleDayUnvalidated.totalEtcMm, closeTo(2.10, 1e-9));
+      expect(singleDayUnvalidated.totalVolumeM3PerFeddan, closeTo(8.82, 1e-9));
+
+      final singleDayValidated =
+          EtcCalculator.calculateCycleWaterRequirementValidated(
+            crop: wheat,
+            totalRequestedDays: 1,
+            dailyEt0Series: [6.0],
+          );
+      expect(singleDayValidated.isSuccess, isTrue);
+      expect(singleDayValidated.dataOrNull!.totalEtcMm, closeTo(2.10, 1e-9));
+      expect(
+        singleDayValidated.dataOrNull!.totalVolumeM3PerFeddan,
+        closeTo(8.82, 1e-9),
+      );
+
+      // 3. Multiple days with constant ET0 (e.g., 4 days with ET0 = 5.0 mm/day)
+      // N = 4:
+      // Day 1: p = 1/4 = 0.25 (Dev stage: weight = (0.25-0.20)/0.30 = 1/6. Kc = 0.40 + (1/6)*0.75 = 0.40 + 0.125 = 0.525). ETc = 5.0 * 0.525 = 2.625 mm
+      // Day 2: p = 2/4 = 0.50 (Dev boundary: Kc = 1.15). ETc = 5.0 * 1.15 = 5.750 mm
+      // Day 3: p = 3/4 = 0.75 (Mid stage: Kc = 1.15). ETc = 5.0 * 1.15 = 5.750 mm
+      // Day 4: p = 4/4 = 1.00 (Late boundary: Kc = 0.35). ETc = 5.0 * 0.35 = 1.750 mm
+      // Sum = 2.625 + 5.750 + 5.750 + 1.750 = 15.875 mm
+      // Volume = 15.875 * 4.2 = 66.675 m³/feddan
+      final constEt0Res = EtcCalculator.calculateCycleWaterRequirement(
+        crop: wheat,
+        dailyEt0Series: [5.0, 5.0, 5.0, 5.0],
+      );
+      expect(constEt0Res.totalEtcMm, closeTo(15.875, 1e-9));
+      expect(constEt0Res.totalVolumeM3PerFeddan, closeTo(66.675, 1e-9));
+
+      // 4. Changing ET0 sequence between days (e.g. 4 days with ET0 = [4.0, 6.0, 5.0, 3.0])
+      // Day 1: 4.0 * 0.525 = 2.10 mm
+      // Day 2: 6.0 * 1.15  = 6.90 mm
+      // Day 3: 5.0 * 1.15  = 5.75 mm
+      // Day 4: 3.0 * 0.35  = 1.05 mm
+      // Sum = 2.10 + 6.90 + 5.75 + 1.05 = 15.80 mm
+      // Volume = 15.80 * 4.2 = 66.36 m³/feddan
+      final changingEt0Res = EtcCalculator.calculateCycleWaterRequirement(
+        crop: wheat,
+        dailyEt0Series: [4.0, 6.0, 5.0, 3.0],
+      );
+      expect(changingEt0Res.totalEtcMm, closeTo(15.80, 1e-9));
+      expect(changingEt0Res.totalVolumeM3PerFeddan, closeTo(66.36, 1e-9));
+
+      // 5. Valid missing-data cases: Missing at Beginning, Middle, and End (1 missing day out of 10 days = 10% <= 10%)
+      // Complete 10-day ET0 at 5.0 mm/day:
+      // Fractions i=1..10 (p = 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0)
+      // Kc values:
+      // Day 1 (0.1): 0.40 -> 2.0 mm
+      // Day 2 (0.2): 0.40 -> 2.0 mm
+      // Day 3 (0.3): 0.40 + (1/3)*0.75 = 0.65 -> 3.25 mm
+      // Day 4 (0.4): 0.40 + (2/3)*0.75 = 0.90 -> 4.50 mm
+      // Day 5 (0.5): 1.15 -> 5.75 mm
+      // Day 6 (0.6): 1.15 -> 5.75 mm
+      // Day 7 (0.7): 1.15 -> 5.75 mm
+      // Day 8 (0.8): 1.15 -> 5.75 mm
+      // Day 9 (0.9): 1.15 + 0.5*(-0.80) = 0.75 -> 3.75 mm
+      // Day 10 (1.0): 0.35 -> 1.75 mm
+      // Complete sum = 2.0 + 2.0 + 3.25 + 4.50 + 5.75 + 5.75 + 5.75 + 5.75 + 3.75 + 1.75 = 40.25 mm
+
+      // 5a. Missing at Beginning (Day 1 null):
+      // Expected = 40.25 - 2.0 = 38.25 mm
+      final missingStart = [null, ...List.filled(9, 5.0)];
+      final resMissingStart =
+          EtcCalculator.calculateCycleWaterRequirementValidated(
+            crop: wheat,
+            totalRequestedDays: 10,
+            dailyEt0Series: missingStart,
+          );
+      expect(resMissingStart.isSuccess, isTrue);
+      expect(resMissingStart.dataOrNull!.totalEtcMm, closeTo(38.25, 1e-9));
+
+      // 5b. Missing in Middle (Day 5 null):
+      // Expected = 40.25 - 5.75 = 34.50 mm
+      final missingMid = [...List.filled(4, 5.0), null, ...List.filled(5, 5.0)];
+      final resMissingMid =
+          EtcCalculator.calculateCycleWaterRequirementValidated(
+            crop: wheat,
+            totalRequestedDays: 10,
+            dailyEt0Series: missingMid,
+          );
+      expect(resMissingMid.isSuccess, isTrue);
+      expect(resMissingMid.dataOrNull!.totalEtcMm, closeTo(34.50, 1e-9));
+
+      // 5c. Missing at End (Day 10 null):
+      // Expected = 40.25 - 1.75 = 38.50 mm
+      final missingEnd = [...List.filled(9, 5.0), null];
+      final resMissingEnd =
+          EtcCalculator.calculateCycleWaterRequirementValidated(
+            crop: wheat,
+            totalRequestedDays: 10,
+            dailyEt0Series: missingEnd,
+          );
+      expect(resMissingEnd.isSuccess, isTrue);
+      expect(resMissingEnd.dataOrNull!.totalEtcMm, closeTo(38.50, 1e-9));
+
+      // 6. Data list shorter than totalRequestedDays:
+      // Requested 10 days, provided 8 days (2 days missing at end = 20% > 10% tolerance -> FAIL)
+      final shorterList = List.filled(8, 5.0);
+      final resShorter = EtcCalculator.calculateCycleWaterRequirementValidated(
+        crop: wheat,
+        totalRequestedDays: 10,
+        dailyEt0Series: shorterList,
+      );
+      expect(resShorter.isFailure, isTrue);
+      expect(resShorter.failureOrNull, isA<InsufficientEvidenceFailure>());
+
+      // 7. Data list longer than totalRequestedDays:
+      // Requested 10 days, provided 15 days (days 11-15 must be completely ignored)
+      final longerList = List.filled(15, 5.0);
+      final resLonger = EtcCalculator.calculateCycleWaterRequirementValidated(
+        crop: wheat,
+        totalRequestedDays: 10,
+        dailyEt0Series: longerList,
+      );
+      expect(resLonger.isSuccess, isTrue);
+      // Result must match exactly the 10-day complete sum (40.25 mm)
+      expect(resLonger.dataOrNull!.totalEtcMm, closeTo(40.25, 1e-9));
+
+      // 8. Zero and Negative requested days:
+      final resZero = EtcCalculator.calculateCycleWaterRequirementValidated(
+        crop: wheat,
+        totalRequestedDays: 0,
+        dailyEt0Series: [5.0, 5.0],
+      );
+      expect(resZero.isFailure, isTrue);
+      expect(resZero.failureOrNull, isA<InsufficientEvidenceFailure>());
+
+      final resNeg = EtcCalculator.calculateCycleWaterRequirementValidated(
+        crop: wheat,
+        totalRequestedDays: -5,
+        dailyEt0Series: [5.0, 5.0],
+      );
+      expect(resNeg.isFailure, isTrue);
+      expect(resNeg.failureOrNull, isA<InsufficientEvidenceFailure>());
+    });
+
+    // Task D: Independent verification of water-volume conversion
+    test('Task D: convertMmToCubicMetersPerFeddan depth conversion and domain consistency', () {
+      // Configured constant: 4.2 m³ / feddan / mm
+      expect(AgroConstants.cubicMetersPerFeddanPerMm, equals(4.2));
+
+      // 1. Zero depth -> 0.0 m³
+      expect(EtcCalculator.convertMmToCubicMetersPerFeddan(0.0), equals(0.0));
+
+      // 2. Negative depth -> maps to 0.0 m³ (non-positive depth guard)
+      expect(
+        EtcCalculator.convertMmToCubicMetersPerFeddan(-0.001),
+        equals(0.0),
+      );
+      expect(EtcCalculator.convertMmToCubicMetersPerFeddan(-50.0), equals(0.0));
+
+      // 3. Representative positive depth: 1.0 mm -> 4.2 m³/feddan
+      expect(
+        EtcCalculator.convertMmToCubicMetersPerFeddan(1.0),
+        closeTo(4.2, 1e-9),
+      );
+
+      // 4. Known seasonal ETc depth: e.g. 500.0 mm -> 500.0 * 4.2 = 2100.0 m³/feddan
+      expect(
+        EtcCalculator.convertMmToCubicMetersPerFeddan(500.0),
+        closeTo(2100.0, 1e-9),
+      );
+
+      // 5. Fractional depth: 23.45 mm -> 23.45 * 4.2 = 98.49 m³/feddan
+      expect(
+        EtcCalculator.convertMmToCubicMetersPerFeddan(23.45),
+        closeTo(98.49, 1e-9),
+      );
+    });
+
+    // Task E: Benchmark Crop Catalogue consistency and baseline preservation
+    test('Task E: Egyptian benchmark crops catalog baseline integrity and Kc interpolation', () {
+      final allCrops = EgyptianCropsCatalog.allCrops;
+      expect(allCrops.length, equals(6));
+
+      // Verify each crop has valid identifiers, non-empty names, positive durations, and valid Kc bounds
+      for (final crop in allCrops) {
+        expect(crop.id.isNotEmpty, isTrue);
+        expect(crop.nameAr.isNotEmpty, isTrue);
+        expect(crop.nameEn.isNotEmpty, isTrue);
+        expect(crop.typicalDurationDays, greaterThan(0));
+        expect(crop.baseTemperatureC, greaterThanOrEqualTo(0.0));
+        expect(
+          crop.criticalHeatTemperatureC,
+          greaterThan(crop.baseTemperatureC),
+        );
+        expect(crop.kcIni, greaterThan(0.0));
+        expect(crop.kcMid, greaterThan(crop.kcIni));
+        expect(crop.kcEnd, greaterThan(0.0));
+
+        // Verify findById lookup returns the exact crop instance
+        expect(EgyptianCropsCatalog.findById(crop.id), equals(crop));
+
+        // Verify getKcForStageFraction runs without error and stays within [0.0, 2.0]
+        for (double fraction = 0.0; fraction <= 1.0; fraction += 0.2) {
+          final kc = crop.getKcForStageFraction(fraction);
+          expect(kc, greaterThan(0.0));
+          expect(kc, lessThan(2.0));
+        }
+      }
+
+      // Explicit verification of baseline Kc parameters to prevent accidental regression:
+      // Wheat
+      expect(EgyptianCropsCatalog.wheat.kcIni, equals(0.40));
+      expect(EgyptianCropsCatalog.wheat.kcMid, equals(1.15));
+      expect(EgyptianCropsCatalog.wheat.kcEnd, equals(0.35));
+
+      // Berseem Clover
+      expect(EgyptianCropsCatalog.berseemClover.kcIni, equals(0.45));
+      expect(EgyptianCropsCatalog.berseemClover.kcMid, equals(1.05));
+      expect(EgyptianCropsCatalog.berseemClover.kcEnd, equals(0.90));
+
+      // Faba Bean
+      expect(EgyptianCropsCatalog.fabaBean.kcIni, equals(0.50));
+      expect(EgyptianCropsCatalog.fabaBean.kcMid, equals(1.15));
+      expect(EgyptianCropsCatalog.fabaBean.kcEnd, equals(0.30));
+
+      // Maize
+      expect(EgyptianCropsCatalog.maize.kcIni, equals(0.30));
+      expect(EgyptianCropsCatalog.maize.kcMid, equals(1.20));
+      expect(EgyptianCropsCatalog.maize.kcEnd, equals(0.60));
+
+      // Rice
+      expect(EgyptianCropsCatalog.rice.kcIni, equals(1.05));
+      expect(EgyptianCropsCatalog.rice.kcMid, equals(1.20));
+      expect(EgyptianCropsCatalog.rice.kcEnd, equals(0.90));
+
+      // Cotton
+      expect(EgyptianCropsCatalog.cotton.kcIni, equals(0.35));
+      expect(EgyptianCropsCatalog.cotton.kcMid, equals(1.20));
+      expect(EgyptianCropsCatalog.cotton.kcEnd, equals(0.65));
     });
   });
 
