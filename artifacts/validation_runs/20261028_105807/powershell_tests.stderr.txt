@@ -1,0 +1,86 @@
+﻿Refusing to write into the committed historical API fixtures directory without -SaveCommittedFixtures. Resolved 
+destination: D:\Programming projects\agro_shift\docs\fixtures\historical_api
+At D:\Programming projects\agro_shift\scripts\validate_historical_models.ps1:192 char:9
++         throw (
++         ~~~~~~~
+    + CategoryInfo          : OperationStopped: (Refusing to wri...\historical_api:String) [], RuntimeException
+    + FullyQualifiedErrorId : Refusing to write into the committed historical API fixtures directory without -SaveComm 
+   ittedFixtures. Resolved destination: D:\Programming projects\agro_shift\docs\fixtures\historical_api
+ 
+Refusing to write into the committed historical API fixtures directory without -SaveCommittedFixtures. Resolved 
+destination: D:\Programming projects\agro_shift\docs\fixtures\historical_api\subfolder_not_yet_created
+At D:\Programming projects\agro_shift\scripts\validate_historical_models.ps1:192 char:9
++         throw (
++         ~~~~~~~
+    + CategoryInfo          : OperationStopped: (Refusing to wri...not_yet_created:String) [], RuntimeException
+    + FullyQualifiedErrorId : Refusing to write into the committed historical API fixtures directory without -SaveComm 
+   ittedFixtures. Resolved destination: D:\Programming projects\agro_shift\docs\fixtures\historical_api\subfolder_not  
+  _yet_created
+ 
+Refusing to write into the committed historical API fixtures directory without -SaveCommittedFixtures. Resolved 
+destination: D:\Programming projects\agro_shift\docs\fixtures\historical_api
+At D:\Programming projects\agro_shift\scripts\validate_historical_models.ps1:192 char:9
++         throw (
++         ~~~~~~~
+    + CategoryInfo          : OperationStopped: (Refusing to wri...\historical_api:String) [], RuntimeException
+    + FullyQualifiedErrorId : Refusing to write into the committed historical API fixtures directory without -SaveComm 
+   ittedFixtures. Resolved destination: D:\Programming projects\agro_shift\docs\fixtures\historical_api
+ 
+Refusing to write into the committed historical API fixtures directory without -SaveCommittedFixtures. Resolved 
+destination: C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_test_dbfd46b3056947549fe959d619bf6df5\isolated_
+repo_tree\docs\fixtures\historical_api
+At C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_test_dbfd46b3056947549fe959d619bf6df5\isolated_repo_tree\
+scripts\validate_historical_models.ps1:192 char:9
++         throw (
++         ~~~~~~~
+    + CategoryInfo          : OperationStopped: (Refusing to wri...\historical_api:String) [], RuntimeException
+    + FullyQualifiedErrorId : Refusing to write into the committed historical API fixtures directory without -SaveComm 
+   ittedFixtures. Resolved destination: C:\Users\Abo-Joud-MahmouD\AppData\Local\Temp\agro_shift_ps_test_dbfd46b305694  
+  7549fe959d619bf6df5\isolated_repo_tree\docs\fixtures\historical_api
+ 
+Configuration at index 0 has missing or empty 'Name'.
+At D:\Programming projects\agro_shift\scripts\validate_historical_models.ps1:258 char:13
++             throw "Configuration at index $cfgIdx has missing or empt ...
++             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (Configuration a...r empty 'Name'.:String) [], RuntimeException
+    + FullyQualifiedErrorId : Configuration at index 0 has missing or empty 'Name'.
+ 
+Configuration 'test_invalid_param' at index 0 must have a string 'ModelParam' (can be empty string).
+At D:\Programming projects\agro_shift\scripts\validate_historical_models.ps1:267 char:13
++             throw "Configuration '$cfgName' at index $cfgIdx must hav ...
++             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (Configuration '... empty string).:String) [], RuntimeException
+    + FullyQualifiedErrorId : Configuration 'test_invalid_param' at index 0 must have a string 'ModelParam' (can be em 
+   pty string).
+ 
+Configuration 'test_no_bool' at index 0 must have a boolean 'ExpectPass' value.
+At D:\Programming projects\agro_shift\scripts\validate_historical_models.ps1:277 char:13
++             throw "Configuration '$cfgName' at index $cfgIdx must hav ...
++             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (Configuration '...ectPass' value.:String) [], RuntimeException
+    + FullyQualifiedErrorId : Configuration 'test_no_bool' at index 0 must have a boolean 'ExpectPass' value.
+ 
+Duplicate configuration name 'duplicate_model' detected at index 1.
+At D:\Programming projects\agro_shift\scripts\validate_historical_models.ps1:262 char:13
++             throw "Duplicate configuration name '$cfgName' detected a ...
++             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (Duplicate confi...ted at index 1.:String) [], RuntimeException
+    + FullyQualifiedErrorId : Duplicate configuration name 'duplicate_model' detected at index 1.
+ 
+Assert-ValidTestFilenames : NON_STANDARD_TEST_FILENAME_ERROR: Test files under test/ must not end with '_tests.dart' 
+(violates automatic test discovery):
+test\sub\sample_invalid_tests.dart
+At D:\Programming projects\agro_shift\scripts\record_verification_evidence.ps1:137 char:1
++ Assert-ValidTestFilenames -Root $resolvedRepoRoot
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [Write-Error], WriteErrorException
+    + FullyQualifiedErrorId : Microsoft.PowerShell.Commands.WriteErrorException,Assert-ValidTestFilenames
+ 
+D:\Programming projects\agro_shift\scripts\record_verification_evidence.ps1 : StageTimeoutSeconds must be a positive 
+integer. Provided: 0
+At D:\Programming projects\agro_shift\scripts\record_verification_evidence.ps1:10 char:5
++     Write-Error "StageTimeoutSeconds must be a positive integer. Prov ...
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [Write-Error], WriteErrorException
+    + FullyQualifiedErrorId : Microsoft.PowerShell.Commands.WriteErrorException,record_verification_evidence.ps1
+ 
