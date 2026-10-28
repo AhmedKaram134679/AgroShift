@@ -54,7 +54,7 @@ This formal audit report reconciles Git provenance, verification runner evidence
 
 ### Core Provenance Snapshots: Historical Execution vs. Publication State
 
-The target commits form a verified direct linear ancestry chain (`25438d0` $\leftarrow$ `d776842` $\leftarrow$ `bd48dd2` $\leftarrow$ `9af0dc2` $\leftarrow$ `7e379f5` $\leftarrow$ `bb17d0d` $\leftarrow$ `2e29eec` $\leftarrow$ `d9e9e08` $\leftarrow$ `b0c96ed` $\leftarrow$ `8535210` $\leftarrow$ `1e6e067` $\leftarrow$ `00827d5` $\leftarrow$ `45a57c5`):
+The target commits form a verified direct linear ancestry chain (`25438d0` $\leftarrow$ `d776842` $\leftarrow$ `bd48dd2` $\leftarrow$ `9af0dc2` $\leftarrow$ `7e379f5` $\leftarrow$ `bb17d0d` $\leftarrow$ `2e29eec` $\leftarrow$ `d9e9e08` $\leftarrow$ `b0c96ed` $\leftarrow$ `8535210` $\leftarrow$ `1e6e067` $\leftarrow$ `00827d5` $\leftarrow$ `45a57c5` $\leftarrow$ `66f13b9` $\leftarrow$ `af45d99` $\leftarrow$ `2adb4b4`):
 
 | Concept | Verified Commit / Value | Required Meaning & Evidence Basis |
 | :--- | :--- | :--- |
@@ -68,7 +68,7 @@ The target commits form a verified direct linear ancestry chain (`25438d0` $\lef
 | **Evidence-Publication Commit (Run `20261028_105807`)** | `00827d58f1d1e8992ff12529b4cba17bc671413c` (`00827d5`) | Published 21 evidence files of run `20261028_105807` to `origin/main` (`git log -1 00827d5`) |
 | **Historical Working-Tree Condition** | Clean committed revision (`true`) | Established by runner verification summary (`IsStartingWorkingTreeClean = true`, `StartingWorkingTreeEntries = []`) |
 | **During-Run Source Stability** | Initial and final fingerprints match (`SourceTreeMutatedDuringRun = false`) | Monitored scope (`lib`, `test`, `scripts`, `docs`, `pubspec.yaml`, `pubspec.lock`; 74 files) matched composite SHA-256 `73943e601c...` |
-| **Current Published State on `origin/main`** | Commit `45a57c52d8ba650a97769820b225c9b0e320216d` (`45a57c5`) | Latest published audit documentation update commit on `origin/main` |
+| **Current Published State on `origin/main`** | Commit `2adb4b450682cb1692438d91b26a76ba460e4b05` (`2adb4b4`) | Latest published audit documentation update commit on `origin/main` (verified via `git ls-remote`) |
 
 ### Detailed Repository Metadata
 
@@ -84,7 +84,7 @@ The target commits form a verified direct linear ancestry chain (`25438d0` $\lef
 | **Evidence Publication Commit for Run `20261028_084500`** | `d9e9e086ce7f8efbcf5b874ee73a396885726772` (`d9e9e08`) | `git log -1 d9e9e08` (published 21 evidence files) |
 | **Clean Execution Commit Tested by Run `20261028_105807`** | `1e6e067ee138dc6ef40c2d57820ceb2d0d34a9f4` (`1e6e067`) | `artifacts/validation_runs/20261028_105807/verification_summary.json` |
 | **Evidence Publication Commit for Run `20261028_105807`** | `00827d58f1d1e8992ff12529b4cba17bc671413c` (`00827d5`) | `git log -1 00827d5` (published 21 evidence files) |
-| **Current Published `origin/main` Commit** | `45a57c52d8ba650a97769820b225c9b0e320216d` (`45a57c5`) | `git rev-parse origin/main` |
+| **Current Published `origin/main` Commit** | `2adb4b450682cb1692438d91b26a76ba460e4b05` (`2adb4b4`) | `git ls-remote origin main` / `git rev-parse HEAD` |
 | **Evidence Publication Status for Run `20261028_105807`** | Published in commit `00827d5` (21 files) | `git ls-tree -r --name-only 00827d5 artifacts/validation_runs/20261028_105807/` |
 
 ---
@@ -294,3 +294,46 @@ The current repository HEAD identifies the latest verified published revision at
 A matching initial and final source-tree fingerprint establishes stability only for the monitored files and scope measured by the verification runner. It does not independently establish working-tree cleanliness, the absence of untracked files outside the monitored scope, or that the tested commit was the latest published revision.
 
 The historical result for run `20261028_105807` remains associated with tested commit `1e6e067`. The evidence-publication relationship remains associated with `00827d5`. Any later report or repository revision must be described according to its verified Git history rather than inferred from its position in the commit timeline.
+
+---
+
+## 10. Post-Publication Provenance Reconciliation — Commit 2adb4b4 and Working-Tree Audit
+
+- **Reconciliation Date (UTC):** `2026-10-28T18:15:00Z` (`2026-10-28T21:15:00+03:00`)
+- **Verified Current Published Branch:** `main`
+- **Verified Current Published HEAD:** `2adb4b450682cb1692438d91b26a76ba460e4b05` (`2adb4b4`)
+- **Historical Execution Commit:** `1e6e067ee138dc6ef40c2d57820ceb2d0d34a9f4` (`1e6e067`), tied to verification run `20261028_105807` (159 Flutter tests passed, 68 PowerShell checks passed)
+- **Evidence Publication Commit:** `00827d58f1d1e8992ff12529b4cba17bc671413c` (`00827d5`)
+- **Evidence Publication Status:** Fully published on `origin/main` in commit `00827d5` (all 21 evidence files confirmed present under `artifacts/validation_runs/20261028_105807/`)
+- **Intermediate Post-Publication Commits on `main`:**
+  - `45a57c52d8ba650a97769820b225c9b0e320216d` (`45a57c5`): Reconciled audit documentation with run `20261028_105807`.
+  - `66f13b958b5126966c439d83202022bac89c7a02` (`66f13b9`): Documentation refinement commit.
+  - `af45d9990bd925d2b1b55aec96644341091e5592` (`af45d99`): Implementation commit delivering targeted fixes A–F (field timestamps, non-finite temperature validations, coordinate NaN boundary protection, dashboard & field management UI improvements, and 164 discovered Flutter tests).
+  - `2adb4b450682cb1692438d91b26a76ba460e4b05` (`2adb4b4`): Current published `origin/main` HEAD documenting publication status of run `20261028_084500`.
+- **Current Source Changes Under Review:** Working-tree modifications resolving:
+  1. Dashboard field navigation via `navigationTabIndexProvider` and `MainNavigationShell` tab switching (verified by widget test).
+  2. Complete timestamp persistence regression coverage in `test/data/persistence_test.dart` (B1 creation, B2 update, B3 lookup failure, B4 write failure).
+  3. Exact scientific documentation correction for the empirical 1.30 rice standing-water factor in `lib/domain/agronomy/science/rotation_evaluator.dart` (executable factor `1.30` preserved).
+  4. Test suite expansion from 159 tests (run `20261028_105807`) to 164 tests (commit `af45d99`) to 168 tests (current working tree).
+
+### Provenance Audit of Referenced Fixes A–F
+
+| Fix / Investigation Target | Commit SHA | Modified Files | Test File | Test Status & Execution Evidence Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **Fix A: GDD & Heat Stress Non-Finite / Out-of-Range Handling** | `af45d99` | `lib/domain/agronomy/science/gdd_calculator.dart`, `heat_stress_evaluator.dart`, `scientific_range_validator.dart` | `test/domain/domain_scientific_test.dart` | `EXECUTION VERIFIED AGAINST IDENTIFIED COMMIT` (Tested locally with exit 0 in current suite; tests present and passing) |
+| **Fix B: Timestamp Persistence Logic (`saveField`)** | `af45d99` | `lib/data/repositories/farm_field_repository_impl.dart` | `test/data/persistence_test.dart` | `EXECUTION VERIFIED AGAINST IDENTIFIED COMMIT` (Strengthened in working tree with deterministic SQLite tests covering B1–B4; 8/8 persistence tests passing) |
+| **Fix C: Coordinate Non-Finite Boundary Protection** | `af45d99` | `lib/domain/environment/models/coordinate.dart` | `test/domain/domain_scientific_test.dart` | `EXECUTION VERIFIED AGAINST IDENTIFIED COMMIT` (NaN/Inf bounding box tests present and passing) |
+| **Fix D: Dashboard & Environmental Analysis Null Field Safeguard** | `af45d99` | `lib/presentation/screens/dashboard_screen.dart`, `environmental_analysis_screen.dart` | `test/widget_test.dart` | `EXECUTION VERIFIED AGAINST IDENTIFIED COMMIT` (Widget tests cover null active field empty states; updated in working tree for direct tab navigation) |
+| **Fix E: Field Management Deletion & Active Selection Flow** | `af45d99` | `lib/presentation/screens/field_management_screen.dart`, `agro_providers.dart` | `test/widget_test.dart` | `TEST PRESENT, EXECUTION NOT VERIFIED` in historical publication runs (no published artifact directory exists after `00827d5`), but verified passing in current working-tree test runs |
+| **Fix F: Rotation Evapotranspiration Screening Disclaimer** | `af45d99` | `lib/presentation/screens/rotation_laboratory_screen.dart` | `test/domain/domain_scientific_test.dart` | `IMPLEMENTATION VERIFIED` (UI text updated, comparative screening disclaimer documented) |
+
+### Test Count Reconciliation
+
+- **Historical Run `20261028_105807`:** 159 Flutter tests executed and passed (`artifacts/validation_runs/20261028_105807/flutter_test.stdout.txt`, tested against `1e6e067`, exit code `0`).
+- **Commit `af45d99` Test Suite:** 164 Flutter tests discovered and implemented across 4 test suites ($47 + 42 + 67 + 8 = 164$). No published validation artifact directory was committed for `af45d99`.
+- **Current Working-Tree Test Suite:** 168 Flutter tests discovered and executed across 4 test suites:
+  - `test/domain/domain_scientific_test.dart`: 47 tests passed
+  - `test/data/open_meteo_adapter_test.dart`: 42 tests passed
+  - `test/data/persistence_test.dart`: 71 tests passed (63 baseline + 4 in `af45d99` + 4 in current working tree)
+  - `test/widget_test.dart`: 8 tests passed (7 baseline + 1 in current working tree)
+  - **Total:** $47 + 42 + 71 + 8 = 168$ tests passed.

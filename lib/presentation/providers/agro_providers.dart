@@ -187,3 +187,17 @@ final fieldHistorical30DaysProvider =
         endDate: latestEligible,
       );
     });
+
+// 9. Navigation Tab Index Provider
+class NavigationTabNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void setTab(int index) {
+    state = index;
+  }
+}
+
+final navigationTabIndexProvider = NotifierProvider<NavigationTabNotifier, int>(
+  NavigationTabNotifier.new,
+);

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:agro_shift/presentation/providers/agro_providers.dart';
 
 import 'screens/dashboard_screen.dart';
 import 'screens/environmental_analysis_screen.dart';
@@ -6,16 +8,15 @@ import 'screens/rotation_laboratory_screen.dart';
 import 'screens/field_management_screen.dart';
 import 'screens/scientific_provenance_screen.dart';
 
-class MainNavigationShell extends StatefulWidget {
+class MainNavigationShell extends ConsumerStatefulWidget {
   const MainNavigationShell({super.key});
 
   @override
-  State<MainNavigationShell> createState() => _MainNavigationShellState();
+  ConsumerState<MainNavigationShell> createState() =>
+      _MainNavigationShellState();
 }
 
-class _MainNavigationShellState extends State<MainNavigationShell> {
-  int _currentIndex = 0;
-
+class _MainNavigationShellState extends ConsumerState<MainNavigationShell> {
   final List<Widget> _screens = const [
     DashboardScreen(),
     EnvironmentalAnalysisScreen(),
@@ -26,14 +27,14 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
   @override
   Widget build(BuildContext context) {
+    final currentIndex = ref.watch(navigationTabIndexProvider);
+
     return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _screens),
+      body: IndexedStack(index: currentIndex, children: _screens),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
+        selectedIndex: currentIndex,
         onDestinationSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
+          ref.read(navigationTabIndexProvider.notifier).setTab(index);
         },
         destinations: const [
           NavigationDestination(

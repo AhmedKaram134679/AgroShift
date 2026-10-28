@@ -499,6 +499,77 @@ void main() {
       expect(find.textContaining('م³ / فدان'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'Dashboard add field button navigates to fields management tab and does not show manual snackbar',
+    (WidgetTester tester) async {
+      final testDb = constructTestDb();
+      addTearDown(() => testDb.close());
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDatabaseProvider.overrideWithValue(testDb),
+            weatherRepositoryProvider.overrideWithValue(
+              MockWeatherRepository(),
+            ),
+            fieldListProvider.overrideWith(() => _StaticFieldListNotifier([])),
+            selectedFieldProvider.overrideWith(
+              () => _NullSelectedFieldNotifier(),
+            ),
+          ],
+          child: MaterialApp(
+            theme: AgroTheme.lightTheme,
+            locale: const Locale('ar', 'EG'),
+            supportedLocales: const [Locale('ar', 'EG'), Locale('en', 'US')],
+            localizationsDelegates: const [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            home: const Directionality(
+              textDirection: TextDirection.rtl,
+              child: MainNavigationShell(),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // 1. Verify add-field button is visible on dashboard empty state
+      final addBtnFinder = find.widgetWithText(
+        ElevatedButton,
+        'إضافة حقل زراعي',
+      );
+      expect(addBtnFinder, findsOneWidget);
+
+      // Verify initial selected navigation destination is index 0 (الرئيسية)
+      final navBarFinder = find.byType(NavigationBar);
+      expect(navBarFinder, findsOneWidget);
+      final navBarInitial = tester.widget<NavigationBar>(navBarFinder);
+      expect(navBarInitial.selectedIndex, equals(0));
+
+      // 2. Tap the add-field button
+      await tester.tap(addBtnFinder);
+      await tester.pumpAndSettle();
+
+      // 3. Verify destination tab switched to index 3 (الحقول / FieldManagementScreen)
+      final navBarUpdated = tester.widget<NavigationBar>(navBarFinder);
+      expect(navBarUpdated.selectedIndex, equals(3));
+
+      // 4. Verify that old SnackBar message is NOT displayed
+      expect(
+        find.text('انتقل إلى قسم "الحقول" من الشريط السفلي لإضافة حقل جديد'),
+        findsNothing,
+      );
+    },
+  );
+}
+
+class _NullSelectedFieldNotifier extends SelectedFieldNotifier {
+  @override
+  FarmField? build() => null;
 }
 
 class _StaticFieldNotifier extends SelectedFieldNotifier {

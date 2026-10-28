@@ -85,7 +85,9 @@ class RotationEvaluator {
             sequence.secondCrop.kcMid * 2 +
             sequence.secondCrop.kcEnd) /
         4.0;
-    // Rice maintains standing water (percolation + saturated evaporation factor ~1.25)
+    // Rice maintains standing water; the model uses an empirical 1.30 factor
+    // to approximate percolation and standing-water evaporation.
+    // This approximation requires independent field calibration and validation.
     final cropWaterFactor = sequence.secondCrop.id == 'rice' ? 1.30 : 1.0;
     final secondCropWater =
         (secondMeanKc *

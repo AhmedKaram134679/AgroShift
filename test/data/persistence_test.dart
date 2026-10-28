@@ -165,7 +165,43 @@ void main() {
       expect(reloaded.isEmpty, isTrue);
     });
 
-    test('5. Updating an existing field preserves original createdAt and updates updatedAt', () async {
+    test('5. Creating a new field persists valid createdAt and updatedAt timestamps read back from SQLite', () async {
+      final beforeTime = DateTime.now().subtract(const Duration(seconds: 2));
+      const newField = FarmField(
+        id: 'field_new_timestamp_test',
+        nameAr: 'حقل جديد للتحقق من الطابع الزمني',
+        governorateAr: 'المنيا',
+        coordinate: Coordinate(latitude: 28.10, longitude: 30.70),
+        areaInFeddan: 8.0,
+        soilType: SoilType.clayLoam,
+      );
+
+      // B1: Creating a new field
+      final saveRes = await fieldRepo.saveField(newField);
+      expect(saveRes.isSuccess, isTrue);
+
+      final row = await (db.select(
+        db.farmFieldsTable,
+      )..where((t) => t.id.equals('field_new_timestamp_test'))).getSingle();
+
+      expect(
+        row.createdAt.isAfter(beforeTime) ||
+            row.createdAt.isAtSameMomentAs(beforeTime),
+        isTrue,
+      );
+      expect(
+        row.updatedAt.isAfter(beforeTime) ||
+            row.updatedAt.isAtSameMomentAs(beforeTime),
+        isTrue,
+      );
+      // For a newly created field, createdAt and updatedAt correspond to initial creation time
+      expect(
+        row.createdAt.difference(row.updatedAt).inSeconds.abs() <= 1,
+        isTrue,
+      );
+    });
+
+    test('6. Updating an existing field preserves original createdAt and advances updatedAt', () async {
       const field = FarmField(
         id: 'field_timestamp_test',
         nameAr: 'حقل اختبار الطابع الزمني',
@@ -190,7 +226,7 @@ void main() {
       // Delay 1100ms to cross 1-second boundary for SQLite seconds resolution
       await Future<void>.delayed(const Duration(milliseconds: 1100));
 
-      // 2. Update the field
+      // 2. Update the field (B2)
       const updatedField = FarmField(
         id: 'field_timestamp_test',
         nameAr: 'حقل اختبار الطابع الزمني المحدث',
@@ -217,6 +253,77 @@ void main() {
       // Assert field attributes updated
       expect(updatedRow.nameAr, equals('حقل اختبار الطابع الزمني المحدث'));
       expect(updatedRow.areaInFeddan, equals(12.0));
+    });
+
+    test('7. Database failure on saveField fails safely with ParsingFailure without reporting success', () async {
+      // B3 & B4: Simulate database query/write failure by operating against a closed underlying sqlite3 connection
+      final rawSql = sqlite3.openInMemory();
+      final isolatedDb = AppDatabase(NativeDatabase.opened(rawSql));
+      // Trigger table creation
+      await isolatedDb.customSelect('SELECT 1').get();
+      rawSql.close(); // Close the underlying sqlite3 instance directly
+
+      final isolatedRepo = FarmFieldRepositoryImpl(isolatedDb);
+
+      const field = FarmField(
+        id: 'field_closed_db_test',
+        nameAr: 'حقل قاعدة مغلقة',
+        governorateAr: 'كفر الشيخ',
+        coordinate: Coordinate(latitude: 31.10, longitude: 30.90),
+        areaInFeddan: 5.0,
+        soilType: SoilType.clay,
+      );
+
+      final res = await isolatedRepo.saveField(field);
+      expect(res.isFailure, isTrue);
+      expect(res.failureOrNull, isA<ParsingFailure>());
+      expect(
+        (res.failureOrNull as ParsingFailure).userMessageAr,
+        contains('تعذر حفظ الحقل'),
+      );
+    });
+
+    test('8. Write failure does not corrupt or overwrite existing valid field data', () async {
+      const field = FarmField(
+        id: 'field_integrity_guard_test',
+        nameAr: 'حقل سليم أصلي',
+        governorateAr: 'البحيرة',
+        coordinate: Coordinate(latitude: 30.40, longitude: 30.30),
+        areaInFeddan: 10.0,
+        soilType: SoilType.sandyLoam,
+      );
+
+      // Successfully persist initial valid field
+      final initialSaveRes = await fieldRepo.saveField(field);
+      expect(initialSaveRes.isSuccess, isTrue);
+
+      final initialRow = await (db.select(
+        db.farmFieldsTable,
+      )..where((t) => t.id.equals('field_integrity_guard_test'))).getSingle();
+
+      // Attempt invalid write: coordinate out of Egypt bounds -> validation fails before DB write
+      const invalidUpdate = FarmField(
+        id: 'field_integrity_guard_test',
+        nameAr: 'تعديل فاشل بسبب إحداثيات خاطئة',
+        governorateAr: 'البحيرة',
+        coordinate: Coordinate(latitude: 99.0, longitude: 99.0), // Invalid
+        areaInFeddan: 20.0,
+        soilType: SoilType.sandyLoam,
+      );
+
+      final failedRes = await fieldRepo.saveField(invalidUpdate);
+      expect(failedRes.isFailure, isTrue);
+      expect(failedRes.failureOrNull, isA<CoordinateOutOfBoundsFailure>());
+
+      // Verify that existing row in database remained completely untouched
+      final rowAfterFailure = await (db.select(
+        db.farmFieldsTable,
+      )..where((t) => t.id.equals('field_integrity_guard_test'))).getSingle();
+
+      expect(rowAfterFailure.nameAr, equals('حقل سليم أصلي'));
+      expect(rowAfterFailure.areaInFeddan, equals(10.0));
+      expect(rowAfterFailure.createdAt, equals(initialRow.createdAt));
+      expect(rowAfterFailure.updatedAt, equals(initialRow.updatedAt));
     });
   });
 

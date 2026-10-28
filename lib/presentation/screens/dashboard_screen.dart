@@ -56,14 +56,8 @@ class DashboardScreen extends ConsumerWidget {
                   icon: const Icon(Icons.add_location_alt),
                   label: const Text('إضافة حقل زراعي'),
                   onPressed: () {
-                    // Navigate to fields tab via DefaultTabController or show prompt
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'انتقل إلى قسم "الحقول" من الشريط السفلي لإضافة حقل جديد',
-                        ),
-                      ),
-                    );
+                    // Navigate to fields tab (tab index 3 in MainNavigationShell)
+                    ref.read(navigationTabIndexProvider.notifier).setTab(3);
                   },
                 ),
               ],
