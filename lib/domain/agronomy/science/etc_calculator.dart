@@ -15,6 +15,7 @@ class EtcCalculator {
     required double referenceEt0Mm,
     required double cropKc,
   }) {
+    if (!referenceEt0Mm.isFinite || !cropKc.isFinite) return 0.0;
     if (referenceEt0Mm < 0.0) return 0.0;
     if (cropKc < 0.0) return 0.0;
     return cropKc * referenceEt0Mm;
@@ -24,7 +25,7 @@ class EtcCalculator {
   /// 1 Feddan = 4,200.83 m².
   /// 1 mm depth = 0.001 m * 4,200.83 m² = 4.20083 m³ ≈ 4.2 m³ / feddan.
   static double convertMmToCubicMetersPerFeddan(double mmDepth) {
-    if (mmDepth <= 0.0) return 0.0;
+    if (!mmDepth.isFinite || mmDepth <= 0.0) return 0.0;
     return mmDepth * AgroConstants.cubicMetersPerFeddanPerMm;
   }
 
@@ -57,6 +58,7 @@ class EtcCalculator {
 
   /// Calculates cumulative water requirement over a growth cycle given daily ET0 observations,
   /// assessing ET0 missingness across the requested period using the scientific missingness policy.
+  /// If crop Kc parameters are non-finite or negative, returns PhysicalRangeFailure.
   /// If any finite ET0 observation is outside the operational envelope [0.0, 25.0] mm/day, returns PhysicalRangeFailure.
   /// If missing ratio exceeds 10% (or totalRequestedDays <= 0), returns InsufficientEvidenceFailure.
   static Result<({double totalEtcMm, double totalVolumeM3PerFeddan}), Failure>
@@ -65,6 +67,28 @@ class EtcCalculator {
     required int totalRequestedDays,
     required List<double?> dailyEt0Series,
   }) {
+    final kcIniValidation = ScientificRangeValidator.validateKc(
+      crop.kcIni,
+      variableName: 'kcIni',
+    );
+    if (kcIniValidation.isFailure) {
+      return FailureResult(kcIniValidation.failureOrNull!);
+    }
+    final kcMidValidation = ScientificRangeValidator.validateKc(
+      crop.kcMid,
+      variableName: 'kcMid',
+    );
+    if (kcMidValidation.isFailure) {
+      return FailureResult(kcMidValidation.failureOrNull!);
+    }
+    final kcEndValidation = ScientificRangeValidator.validateKc(
+      crop.kcEnd,
+      variableName: 'kcEnd',
+    );
+    if (kcEndValidation.isFailure) {
+      return FailureResult(kcEndValidation.failureOrNull!);
+    }
+
     final availableRequestedDays = dailyEt0Series.length < totalRequestedDays
         ? dailyEt0Series.length
         : totalRequestedDays;

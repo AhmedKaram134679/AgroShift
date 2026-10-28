@@ -140,6 +140,30 @@ void main() {
         isTrue,
       );
     });
+
+    test(
+      'Validates crop coefficient Kc and rejects negative or non-finite values',
+      () {
+        expect(ScientificRangeValidator.validateKc(0.0).isSuccess, isTrue);
+        expect(ScientificRangeValidator.validateKc(1.15).isSuccess, isTrue);
+        expect(ScientificRangeValidator.validateKc(2.5).isSuccess, isTrue);
+        expect(ScientificRangeValidator.validateKc(-0.01).isFailure, isTrue);
+        expect(ScientificRangeValidator.validateKc(-1.0).isFailure, isTrue);
+        expect(
+          ScientificRangeValidator.validateKc(double.nan).isFailure,
+          isTrue,
+        );
+        expect(
+          ScientificRangeValidator.validateKc(double.infinity).isFailure,
+          isTrue,
+        );
+        expect(
+          ScientificRangeValidator.validateKc(double.negativeInfinity)
+              .isFailure,
+          isTrue,
+        );
+      },
+    );
   });
 
   group('GddCalculator Tests', () {
@@ -510,33 +534,39 @@ void main() {
       );
 
       // 7. Non-finite values in unvalidated arithmetic
-      // In Dart/IEEE 754: double.nan * positive -> NaN; double.infinity * positive -> Infinity
+      // Hardened contract: calculateDailyEtc safely clamps non-finite inputs (NaN, +/-Infinity) to 0.0
       expect(
         EtcCalculator.calculateDailyEtc(
           referenceEt0Mm: double.nan,
           cropKc: 1.0,
-        ).isNaN,
-        isTrue,
+        ),
+        equals(0.0),
       );
       expect(
         EtcCalculator.calculateDailyEtc(
           referenceEt0Mm: 5.0,
           cropKc: double.nan,
-        ).isNaN,
-        isTrue,
+        ),
+        equals(0.0),
       );
       expect(
         EtcCalculator.calculateDailyEtc(
           referenceEt0Mm: double.infinity,
           cropKc: 1.0,
         ),
-        equals(double.infinity),
+        equals(0.0),
       );
-      // Negative infinity is strictly < 0.0, so the guard clamps it to 0.0
       expect(
         EtcCalculator.calculateDailyEtc(
           referenceEt0Mm: double.negativeInfinity,
           cropKc: 1.0,
+        ),
+        equals(0.0),
+      );
+      expect(
+        EtcCalculator.calculateDailyEtc(
+          referenceEt0Mm: 5.0,
+          cropKc: double.infinity,
         ),
         equals(0.0),
       );
@@ -799,6 +829,20 @@ void main() {
       expect(
         EtcCalculator.convertMmToCubicMetersPerFeddan(23.45),
         closeTo(98.49, 1e-9),
+      );
+
+      // 6. Non-finite depth values safely clamp to 0.0
+      expect(
+        EtcCalculator.convertMmToCubicMetersPerFeddan(double.nan),
+        equals(0.0),
+      );
+      expect(
+        EtcCalculator.convertMmToCubicMetersPerFeddan(double.infinity),
+        equals(0.0),
+      );
+      expect(
+        EtcCalculator.convertMmToCubicMetersPerFeddan(double.negativeInfinity),
+        equals(0.0),
       );
     });
 
@@ -1293,6 +1337,61 @@ void main() {
             );
         expect(resWithNanItem.isFailure, isTrue);
         expect(resWithNanItem.failureOrNull, isA<PhysicalRangeFailure>());
+
+        // 9. Case F — Crop Kc validation: Non-finite or negative Kc values fail closed with PhysicalRangeFailure
+        final validSeries = List<double?>.filled(10, 5.0);
+
+        final nanKcCrop = Crop(
+          id: 'nan_kc_test',
+          nameAr: 'محصول اختبار',
+          nameEn: 'NaN Kc Test',
+          season: CropSeason.summer,
+          baseTemperatureC: 10.0,
+          criticalHeatTemperatureC: 35.0,
+          kcIni: double.nan,
+          kcMid: 1.0,
+          kcEnd: 0.5,
+          typicalDurationDays: 100,
+          soilNutrientImpact: SoilNutrientImpact.moderate,
+          scientificNotesAr: 'اختبار معامل محصول غير منتهٍ',
+        );
+        final nanKcRes = EtcCalculator.calculateCycleWaterRequirementValidated(
+          crop: nanKcCrop,
+          totalRequestedDays: 10,
+          dailyEt0Series: validSeries,
+        );
+        expect(nanKcRes.isFailure, isTrue);
+        expect(nanKcRes.failureOrNull, isA<PhysicalRangeFailure>());
+        expect(
+          (nanKcRes.failureOrNull as PhysicalRangeFailure).variableName,
+          equals('kcIni'),
+        );
+
+        final negKcCrop = Crop(
+          id: 'neg_kc_test',
+          nameAr: 'محصول اختبار سالب',
+          nameEn: 'Neg Kc Test',
+          season: CropSeason.summer,
+          baseTemperatureC: 10.0,
+          criticalHeatTemperatureC: 35.0,
+          kcIni: 0.4,
+          kcMid: -0.5,
+          kcEnd: 0.5,
+          typicalDurationDays: 100,
+          soilNutrientImpact: SoilNutrientImpact.moderate,
+          scientificNotesAr: 'اختبار معامل محصول سالب',
+        );
+        final negKcRes = EtcCalculator.calculateCycleWaterRequirementValidated(
+          crop: negKcCrop,
+          totalRequestedDays: 10,
+          dailyEt0Series: validSeries,
+        );
+        expect(negKcRes.isFailure, isTrue);
+        expect(negKcRes.failureOrNull, isA<PhysicalRangeFailure>());
+        expect(
+          (negKcRes.failureOrNull as PhysicalRangeFailure).variableName,
+          equals('kcMid'),
+        );
       },
     );
   });

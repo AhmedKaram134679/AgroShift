@@ -153,6 +153,35 @@ class ScientificRangeValidator {
     return const Success(null);
   }
 
+  /// Validates that a crop coefficient Kc is finite and non-negative.
+  static Result<void, PhysicalRangeFailure> validateKc(
+    double kc, {
+    String variableName = 'kc',
+  }) {
+    if (!kc.isFinite) {
+      return FailureResult(
+        PhysicalRangeFailure(
+          userMessageAr: 'معامل المحصول ($variableName) غير عددي أو غير منتهٍ.',
+          technicalMessage: '$variableName is NaN or Infinite.',
+          variableName: variableName,
+          actualValue: null,
+        ),
+      );
+    }
+    if (kc < 0.0) {
+      return FailureResult(
+        PhysicalRangeFailure(
+          userMessageAr:
+              'معامل المحصول ($variableName = $kc) لا يمكن أن يكون سالباً.',
+          technicalMessage: '$variableName ($kc) cannot be negative.',
+          variableName: variableName,
+          actualValue: kc,
+        ),
+      );
+    }
+    return const Success(null);
+  }
+
   /// Evaluates composite missingness for calculations requiring multiple variables.
   /// Counts a date as incomplete if at least one required input is missing on that date.
   /// Refuses calculation if union of incomplete dates exceeds AgroConstants.maxAcceptableMissingDataRatio (> 10%).
