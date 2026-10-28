@@ -202,8 +202,12 @@ Executed directly from an isolated clean worktree checkout of commit `2e29eecb99
 - **Audit Execution Timestamp (UTC):** `2026-10-28T08:45:00Z`
 - **Tested Committed Revision:** `2e29eecb994a528e06675ded0ba564ced8fa6a34` (`2e29eec`)
 - **Evidence Publication Commit:** `d9e9e086ce7f8efbcf5b874ee73a396885726772` (`d9e9e08`)
+- **Published commit:** `d9e9e086ce7f8efbcf5b874ee73a396885726772`
+- **Publication status:** Verified on `origin/main` at the time of this audit.
+- **Verification basis:** The commit object, remote branch reference, commit ancestry, and relevant evidence paths were checked against the repository state observed during this audit.
+- **Relationship to earlier commit:** Commit `2e29eecb994a528e06675ded0ba564ced8fa6a34` (`2e29eec`) is an earlier commit and is not the latest published commit identified by this audit. The publication state is determined by the verified remote branch HEAD and commit ancestry, not by a previously recorded abbreviated SHA.
 - **Evidence Directory:** `artifacts/validation_runs/20261028_084500` (21 verification artifacts published on `origin/main`)
-- **Evidence Publication Status:** Published in commit `d9e9e08`, with all 21 verified artifact files committed to `origin/main`.
+- **Evidence Publication Status:** Fully published on `origin/main` in commit `d9e9e08`, with all 21 verified artifact files committed to `origin/main`.
 - **Initial Working Tree:** Clean (`IsStartingWorkingTreeClean = true`, `StartingWorkingTreeEntries: []`)
 - **Final Working Tree:** Clean (`IsEndingWorkingTreeClean = true`, `EndingWorkingTreeEntries: []`)
 - **Monitored Source Files:** 74 files
