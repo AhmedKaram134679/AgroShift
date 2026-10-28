@@ -57,11 +57,9 @@ class EtcCalculator {
 
   /// Calculates cumulative water requirement over a growth cycle given daily ET0 observations,
   /// assessing ET0 missingness across the requested period using the scientific missingness policy.
+  /// If any finite ET0 observation is outside the operational envelope [0.0, 25.0] mm/day, returns PhysicalRangeFailure.
   /// If missing ratio exceeds 10% (or totalRequestedDays <= 0), returns InsufficientEvidenceFailure.
-  static Result<
-    ({double totalEtcMm, double totalVolumeM3PerFeddan}),
-    InsufficientEvidenceFailure
-  >
+  static Result<({double totalEtcMm, double totalVolumeM3PerFeddan}), Failure>
   calculateCycleWaterRequirementValidated({
     required Crop crop,
     required int totalRequestedDays,
@@ -83,6 +81,11 @@ class EtcCalculator {
       if (et0 == null || !et0.isFinite) {
         unionOfIncompleteDateIndices.add(dayIndex);
         continue;
+      }
+
+      final et0Validation = ScientificRangeValidator.validateEt0(et0);
+      if (et0Validation.isFailure) {
+        return FailureResult(et0Validation.failureOrNull!);
       }
     }
 

@@ -43,7 +43,9 @@ class Crop {
   });
 
   /// Approximate crop coefficient Kc for a relative stage fraction (0.0 to 1.0).
-  /// Based on standard FAO-56 four-stage linear interpolation.
+  /// Based on standard FAO-56 four-stage linear interpolation with fixed developmental fractions
+  /// [0.20, 0.30, 0.30, 0.20]. Note: This is a documented operational approximation for relative
+  /// comparison, not a calibrated empirical biological schedule for every specific crop/cultivar.
   double getKcForStageFraction(double stageFraction) {
     if (stageFraction < 0.0) stageFraction = 0.0;
     if (stageFraction > 1.0) stageFraction = 1.0;

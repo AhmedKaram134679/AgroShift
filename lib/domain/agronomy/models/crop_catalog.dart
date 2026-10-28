@@ -1,7 +1,21 @@
 import 'crop.dart';
 
-/// Standard benchmark crop dataset for Egypt's Nile Delta and Valley
-/// Verified against FAO-56 Table 12 and Egyptian Agricultural Research Center (ARC).
+/// Standard benchmark crop dataset for Egypt's Nile Delta and Valley.
+///
+/// Source Traceability & Scientific Validation Disclosure:
+/// - Baseline crop coefficients (kcIni, kcMid, kcEnd) are aligned with FAO Irrigation and Drainage Paper No. 56
+///   (Table 12: Single crop coefficients, sub-humid climate RHmin ≈ 45%, u2 ≈ 2 m/s) and regional agronomic bulletins
+///   from the Egyptian Agricultural Research Center (ARC):
+///   * Wheat (Winter wheat): FAO-56 Table 12 (Small grains - Winter wheat: kcIni=0.40, kcMid=1.15, kcEnd=0.25-0.40 -> 0.35 adopted).
+///   * Berseem Clover (Trifolium alexandrinum): ARC regional guidelines and FAO-56 Table 12 (Forage crops - Clover/Alfalfa cutting cycles).
+///   * Faba Bean (Broad bean): FAO-56 Table 12 (Legumes - Fresh/Dry beans: kcIni=0.50, kcMid=1.15, kcEnd=0.30).
+///   * Maize (Field corn): FAO-56 Table 12 (Grain maize: kcIni=0.30, kcMid=1.20, kcEnd=0.60, Tcutoff=30°C).
+///   * Rice (Paddy rice): FAO-56 Table 12 (Rice paddy: kcIni=1.05, kcMid=1.20, kcEnd=0.90; reflects inundated standing water).
+///   * Cotton: FAO-56 Table 12 (Cotton: kcIni=0.35, kcMid=1.15-1.20 -> 1.20, kcEnd=0.65-0.70 -> 0.65).
+/// - LIMITATION: These coefficients represent unadjusted nominal values under standard sub-humid reference conditions.
+///   Local micro-climatic adjustments for wind speed, minimum relative humidity (RHmin), wetting frequency, and
+///   ground-truth lysimeter calibration across specific Egyptian governorates (e.g., Upper Egypt vs. North Delta)
+///   are not empirically integrated in this catalog and remain DEFERRED.
 class EgyptianCropsCatalog {
   EgyptianCropsCatalog._();
 

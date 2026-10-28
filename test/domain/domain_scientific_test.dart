@@ -1,3 +1,4 @@
+import 'package:agro_shift/core/error/failures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:agro_shift/domain/environment/models/coordinate.dart';
 import 'package:agro_shift/domain/validation/scientific_range_validator.dart';
@@ -463,8 +464,11 @@ void main() {
         dailyEt0Series: short17,
       );
       expect(short17Res.isFailure, isTrue);
-      expect(short17Res.failureOrNull?.missingCount, equals(3));
-      expect(short17Res.failureOrNull?.missingRatio, closeTo(3 / 20, 0.001));
+      expect(short17Res.failureOrNull, isA<InsufficientEvidenceFailure>());
+      final short17Fail =
+          short17Res.failureOrNull as InsufficientEvidenceFailure;
+      expect(short17Fail.missingCount, equals(3));
+      expect(short17Fail.missingRatio, closeTo(3 / 20, 0.001));
 
       // 10 & 11. Missingness ratio policy: strict '>' 10%
       // 2 out of 20 = 10.0% exactly -> PASS
@@ -622,7 +626,83 @@ void main() {
           dailyEt0Series: seriesWithInfinities,
         );
         expect(infRes.isFailure, isTrue);
-        expect(infRes.failureOrNull?.missingCount, equals(2));
+        expect(infRes.failureOrNull, isA<InsufficientEvidenceFailure>());
+        expect(
+          (infRes.failureOrNull as InsufficientEvidenceFailure).missingCount,
+          equals(2),
+        );
+
+        // 4. Case A — Lower boundary (ET0 = 0.0): Calculation succeeds, not treated as missing, daily contribution is 0.0
+        final seriesBoundaryZero = List<double?>.filled(10, 0.0);
+        final resBoundaryZero =
+            EtcCalculator.calculateCycleWaterRequirementValidated(
+              crop: wheat,
+              totalRequestedDays: 10,
+              dailyEt0Series: seriesBoundaryZero,
+            );
+        expect(resBoundaryZero.isSuccess, isTrue);
+        expect(resBoundaryZero.dataOrNull?.totalEtcMm, equals(0.0));
+        expect(resBoundaryZero.dataOrNull?.totalVolumeM3PerFeddan, equals(0.0));
+
+        // 5. Case B — Upper boundary (ET0 = 25.0): Range validator accepts 25.0, calculation succeeds
+        final seriesBoundaryMax = List<double?>.filled(10, 25.0);
+        final resBoundaryMax =
+            EtcCalculator.calculateCycleWaterRequirementValidated(
+              crop: wheat,
+              totalRequestedDays: 10,
+              dailyEt0Series: seriesBoundaryMax,
+            );
+        expect(resBoundaryMax.isSuccess, isTrue);
+        expect(resBoundaryMax.dataOrNull!.totalEtcMm, greaterThan(0.0));
+
+        // 6. Case C — Below lower boundary (ET0 = -0.01): Calculation fails with PhysicalRangeFailure on et0
+        final seriesBelowLower = [...List<double?>.filled(9, 5.0), -0.01];
+        final resBelowLower =
+            EtcCalculator.calculateCycleWaterRequirementValidated(
+              crop: wheat,
+              totalRequestedDays: 10,
+              dailyEt0Series: seriesBelowLower,
+            );
+        expect(resBelowLower.isFailure, isTrue);
+        expect(resBelowLower.failureOrNull, isA<PhysicalRangeFailure>());
+        final failBelow = resBelowLower.failureOrNull as PhysicalRangeFailure;
+        expect(failBelow.variableName, equals('et0'));
+        expect(failBelow.actualValue, equals(-0.01));
+
+        // 7. Case D — Above upper boundary (ET0 = 25.01): Calculation fails with PhysicalRangeFailure on et0
+        final seriesAboveUpper = [...List<double?>.filled(9, 5.0), 25.01];
+        final resAboveUpper =
+            EtcCalculator.calculateCycleWaterRequirementValidated(
+              crop: wheat,
+              totalRequestedDays: 10,
+              dailyEt0Series: seriesAboveUpper,
+            );
+        expect(resAboveUpper.isFailure, isTrue);
+        expect(resAboveUpper.failureOrNull, isA<PhysicalRangeFailure>());
+        final failAbove = resAboveUpper.failureOrNull as PhysicalRangeFailure;
+        expect(failAbove.variableName, equals('et0'));
+        expect(failAbove.actualValue, equals(25.01));
+
+        // 8. Case E — Preserve missingness semantics: null and non-finite observations remain missing
+        final seriesPreserveMissing = [
+          null,
+          double.nan,
+          ...List<double?>.filled(8, 5.0),
+        ]; // 2 out of 10 missing = 20% > 10%
+        final resPreserveMissing =
+            EtcCalculator.calculateCycleWaterRequirementValidated(
+              crop: wheat,
+              totalRequestedDays: 10,
+              dailyEt0Series: seriesPreserveMissing,
+            );
+        expect(resPreserveMissing.isFailure, isTrue);
+        expect(
+          resPreserveMissing.failureOrNull,
+          isA<InsufficientEvidenceFailure>(),
+        );
+        final failMissing =
+            resPreserveMissing.failureOrNull as InsufficientEvidenceFailure;
+        expect(failMissing.missingCount, equals(2));
       },
     );
   });
@@ -829,10 +909,12 @@ void main() {
         );
 
         expect(res.isFailure, isTrue);
-        expect(res.failureOrNull?.missingCount, equals(2));
-        expect(res.failureOrNull?.missingRatio, closeTo(0.20, 0.001));
+        expect(res.failureOrNull, isA<InsufficientEvidenceFailure>());
+        final failRes = res.failureOrNull as InsufficientEvidenceFailure;
+        expect(failRes.missingCount, equals(2));
+        expect(failRes.missingRatio, closeTo(0.20, 0.001));
         expect(
-          res.failureOrNull?.variableName,
+          failRes.variableName,
           equals('composite_Crop Water Requirement (ETc)'),
         );
       });
@@ -924,8 +1006,10 @@ void main() {
       );
 
       expect(res.isFailure, isTrue);
-      expect(res.failureOrNull?.missingCount, equals(2));
-      expect(res.failureOrNull?.missingRatio, closeTo(2 / 7, 0.001));
+      expect(res.failureOrNull, isA<InsufficientEvidenceFailure>());
+      final failRes = res.failureOrNull as InsufficientEvidenceFailure;
+      expect(failRes.missingCount, equals(2));
+      expect(failRes.missingRatio, closeTo(2 / 7, 0.001));
     });
 
     test('2. ETc: Longer series ignores extra observations and extra nulls beyond requested period', () {
@@ -978,7 +1062,9 @@ void main() {
       );
 
       expect(res.isFailure, isTrue);
-      expect(res.failureOrNull?.missingCount, equals(2));
+      expect(res.failureOrNull, isA<InsufficientEvidenceFailure>());
+      final failRes = res.failureOrNull as InsufficientEvidenceFailure;
+      expect(failRes.missingCount, equals(2));
     });
 
     test('4. GDD: Longer series ignores extra observations and extra nulls beyond requested period', () {
@@ -1100,7 +1186,10 @@ void main() {
               dailyEt0Series: series2Missing,
             );
         expect(res20Percent.isFailure, isTrue);
-        expect(res20Percent.failureOrNull?.missingCount, equals(2));
+        expect(res20Percent.failureOrNull, isA<InsufficientEvidenceFailure>());
+        final fail20 =
+            res20Percent.failureOrNull as InsufficientEvidenceFailure;
+        expect(fail20.missingCount, equals(2));
       },
     );
 
