@@ -283,7 +283,7 @@ void main() {
       );
     });
 
-    test('8. Write failure does not corrupt or overwrite existing valid field data', () async {
+    test('8. Pre-write coordinate validation failure rejects update and preserves existing valid field data untouched', () async {
       const field = FarmField(
         id: 'field_integrity_guard_test',
         nameAr: 'حقل سليم أصلي',
