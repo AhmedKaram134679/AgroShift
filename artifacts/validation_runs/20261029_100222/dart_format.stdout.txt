@@ -1,0 +1,2 @@
+﻿Changed test\data\persistence_test.dart
+Formatted 42 files (1 changed) in 0.79 seconds.

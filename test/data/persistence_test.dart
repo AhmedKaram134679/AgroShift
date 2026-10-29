@@ -3427,7 +3427,21 @@ void main() {
           );
         ''');
 
-        // Insert legacy field under v2
+        // Pre-migration assertions on raw schema-v2 database:
+        // 1. Verify PRAGMA table_info confirms 'planting_date' is absent before migration
+        final preCols = rawSqliteDb.select(
+          "PRAGMA table_info('farm_fields_table');",
+        );
+        final hasPlantingDateBefore = preCols.any(
+          (row) => row['name'] == 'planting_date',
+        );
+        expect(
+          hasPlantingDateBefore,
+          isFalse,
+          reason: 'Schema v2 must not contain planting_date',
+        );
+
+        // 2. Insert legacy field under v2 preserving all fields
         rawSqliteDb.execute('''
           INSERT INTO farm_fields_table (
             id, name_ar, governorate_ar, latitude, longitude, area_in_feddan,
@@ -3438,23 +3452,59 @@ void main() {
           );
         ''');
 
+        // 3. Mark database explicitly as schema version 2
         rawSqliteDb.execute('PRAGMA user_version = 2;');
+        final preVersion =
+            rawSqliteDb.select('PRAGMA user_version;').first['user_version']
+                as int;
+        expect(
+          preVersion,
+          equals(2),
+          reason: 'Starting database must be user_version 2',
+        );
 
-        // Step 2: Open with AppDatabase (v3)
+        // Step 2: Open with AppDatabase (v3) exercising real lifecycle migration
         final upgradedDb = AppDatabase(
           NativeDatabase.opened(rawSqliteDb, closeUnderlyingOnClose: false),
         );
         expect(upgradedDb.schemaVersion, equals(3));
 
-        // Step 3: Verify existing field data is intact and plantingDate defaults to null
+        // Step 3: Verify post-migration SQLite state
+        // In Drift, opening and running queries (like select or customSelect) executes the migrator
         final fieldRepo = FarmFieldRepositoryImpl(upgradedDb);
         final fieldsRes = await fieldRepo.getAllFields();
         expect(fieldsRes.isSuccess, isTrue);
+
+        // 1. User version pragma updated to 3 by Drift migrator
+        final postVersion =
+            rawSqliteDb.select('PRAGMA user_version;').first['user_version']
+                as int;
+        expect(postVersion, equals(3));
+
+        // 2. Column planting_date now exists in PRAGMA table_info
+        final postCols = rawSqliteDb.select(
+          "PRAGMA table_info('farm_fields_table');",
+        );
+        final hasPlantingDateAfter = postCols.any(
+          (row) => row['name'] == 'planting_date',
+        );
+        expect(
+          hasPlantingDateAfter,
+          isTrue,
+          reason: 'Schema v3 must contain planting_date',
+        );
+
+        // 3. Verify existing field data is intact and plantingDate defaults to null
         final fields = fieldsRes.dataOrNull!;
         expect(fields.length, equals(1));
         final f = fields.first;
         expect(f.id, equals('v2_field_1'));
         expect(f.nameAr, equals('حقل الدلتا القديم'));
+        expect(f.governorateAr, equals('كفر الشيخ'));
+        expect(f.coordinate.latitude, equals(31.10));
+        expect(f.coordinate.longitude, equals(30.95));
+        expect(f.areaInFeddan, equals(5.0));
+        expect(f.soilType, equals(SoilType.clay));
         expect(f.activeCropId, equals('wheat'));
         expect(f.plantingDate, isNull);
 

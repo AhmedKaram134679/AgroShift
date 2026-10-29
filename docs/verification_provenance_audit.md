@@ -35,8 +35,9 @@ This formal audit report reconciles Git provenance, verification runner evidence
    - Commit `cce7f0d66609fedf70a7dfa5ca176e21e70a1187` (`cce7f0d`) added core providers, dashboard navigation shell, and persistence regression tests (168 Flutter tests).
    - Commit `170d2f60bd57ca8f720ffdd819c6ae2729a2f4b7` (`170d2f6`) published run `20261028_185811` artifacts and audit report updates.
    - Commit `605723cc23b6c6bac28ee77447d113ee921109a7` (`605723c`) was the **clean committed execution revision tested by validation run `20261028_234442`**, adding independent domain scientific calculations and test oracles (173 Flutter tests passed).
-   - Commit `f35008e20d5ba68a366046ad324906560baa9dc6` (`f35008e`) is the **evidence-publication commit and latest published HEAD on `origin/main`**, formally publishing the 9 evidence files of run `20261028_234442` and audit updates.
-   - **Verification Qualification:** Clean committed-revision execution has been independently verified across distinct milestones: run `20261027_095914` (over `ef07cda`), run `20261028_024200` (over `25438d0`), run `20261028_084500` (over `2e29eec`), run `20261028_105807` (over `1e6e067`), and run `20261028_234442` (over `605723c`), all achieving `OverallStatus = PASS` or `PASS WITH LIMITATIONS`. Subsequent publication commits (`60f1adf`, `d776842`, `bd48dd2`, `9af0dc2`, `7e379f5`, `bb17d0d`, `d9e9e08`, `b0c96ed`, `00827d5`, `45a57c5`, `170d2f6`, `f35008e`) publish artifacts or documentation improvements and do not alter historical execution revisions.
+   - Commit `f35008e20d5ba68a366046ad324906560baa9dc6` (`f35008e`) was the **evidence-publication commit for run `20261028_234442`**, formally publishing the 9 evidence files of run `20261028_234442` and audit updates.
+   - Commit `c1c79289583b7a29df17ccf6cb4147be6c8b5f65` (`c1c7928`) is the **current published HEAD on `origin/main`**, incorporating farm-field data persistence, domain logic, biological growth-stage forecasting, SQLite schema version 3, and UI screens.
+   - **Verification Qualification:** Clean committed-revision execution has been independently verified across distinct milestones: run `20261027_095914` (over `ef07cda`), run `20261028_024200` (over `25438d0`), run `20261028_084500` (over `2e29eec`), run `20261028_105807` (over `1e6e067`), and run `20261028_234442` (over `605723c`), all achieving `OverallStatus = PASS` or `PASS WITH LIMITATIONS`. Subsequent publication commits (`60f1adf`, `d776842`, `bd48dd2`, `9af0dc2`, `7e379f5`, `bb17d0d`, `d9e9e08`, `b0c96ed`, `00827d5`, `45a57c5`, `170d2f6`, `f35008e`, `854ac0c`, `c02011a`, `d4c6eeb`, `c1c7928`) publish artifacts, documentation improvements, or domain/UI features, and do not alter historical execution revisions.
 2. **Provenance Separation Established:** Verification summaries accurately record distinct fields for starting Git HEAD, ending Git HEAD, initial working-tree cleanliness, final working-tree cleanliness, initial and final source-tree fingerprints, and source mutation during the run.
 3. **Fingerprint vs. Cleanliness Fallacy Resolved:** A stable composite source-tree fingerprint ($SHA\text{-}256$) establishes solely that monitored files in the specified source scope (`lib/`, `test/`, `scripts/`, `docs/`, `pubspec.yaml`, `pubspec.lock`) did not mutate between initial and final measurements during the run (`SourceTreeMutatedDuringRun = false`). It does **not** prove that the starting working tree was clean, nor does it establish that untracked or unmonitored files were absent.
 4. **Historical Runs Reconciled:**
@@ -75,8 +76,9 @@ The target commits form a verified direct linear ancestry chain (`25438d0` $\lef
 | **Execution Commit Tested by Run `20261028_185811`** | `cce7f0d66609fedf70a7dfa5ca176e21e70a1187` (`cce7f0d`) | Tested over modified working tree with persistence tests (`artifacts/validation_runs/20261028_185811/verification_summary.json`) |
 | **Evidence-Publication Commit (Run `20261028_185811`)** | `170d2f60bd57ca8f720ffdd819c6ae2729a2f4b7` (`170d2f6`) | Formally committed 21 evidence files of run `20261028_185811` to `origin/main` |
 | **Clean Execution Commit Tested by Run `20261028_234442`** | `605723cc23b6c6bac28ee77447d113ee921109a7` (`605723c`) | Clean committed revision tested by verification run `20261028_234442` (`artifacts/validation_runs/20261028_234442/verification_summary.json`) |
-| **Evidence-Publication Commit (Run `20261028_234442`)** | `f35008e20d5ba68a366046ad324906560baa9dc6` (`f35008e`) | Formally published 9 evidence files of run `20261028_234442` and audit documentation to `origin/main` (`git log -1 f35008e`) |
-| **Current Published HEAD on `origin/main`** | `f35008e20d5ba68a366046ad324906560baa9dc6` (`f35008e`) | Verified current published commit on `origin/main` (`git rev-parse HEAD`) |
+| **Evidence-Publication Commit (Run `20261028_234442`)** | `f35008e20d5ba68a366046ad324906560baa9dc6` (`f35008e`) | Formally published 9 evidence files of run `20261028_234442` and audit documentation (`git log -1 f35008e`) |
+| **Historical Published HEAD Commits on `main`** | `854ac0c`, `c02011a`, `d4c6eeb` | Intermediate documentation, audit updates, and ETc calculator commits |
+| **Current Published HEAD on `origin/main`** | `c1c79289583b7a29df17ccf6cb4147be6c8b5f65` (`c1c7928`) | Verified current published commit on `origin/main` (`git rev-parse HEAD`) adding field management UI and SQLite schema v3 |
 | **Working-Tree Condition for Run `20261028_234442`** | Clean committed revision (`true`) | Established by runner verification summary (`isStartingWorkingTreeClean = true`, untracked run directory only) |
 
 ### Detailed Repository Metadata
@@ -91,7 +93,8 @@ The target commits form a verified direct linear ancestry chain (`25438d0` $\lef
 | **Evidence Publication Commit for Run `20261028_185811`** | `170d2f60bd57ca8f720ffdd819c6ae2729a2f4b7` (`170d2f6`) | `git log -1 170d2f6` (published 21 evidence files) |
 | **Tested Execution Commit for Run `20261028_234442`** | `605723cc23b6c6bac28ee77447d113ee921109a7` (`605723c`) | `artifacts/validation_runs/20261028_234442/verification_summary.json` & `git_head.txt` |
 | **Evidence Publication Commit for Run `20261028_234442`** | `f35008e20d5ba68a366046ad324906560baa9dc6` (`f35008e`) | `git log -1 f35008e` (published 9 evidence files) |
-| **Current Published `origin/main` HEAD** | `f35008e20d5ba68a366046ad324906560baa9dc6` (`f35008e`) | `git rev-parse HEAD` / `git log -1` |
+| **Historical Published HEAD Commits on `main`** | `854ac0c`, `c02011a`, `d4c6eeb` | Intermediate documentation and ETc calculator commits |
+| **Current Published `origin/main` HEAD** | `c1c79289583b7a29df17ccf6cb4147be6c8b5f65` (`c1c7928`) | Verified current published commit on `origin/main` (`git rev-parse HEAD` / `git log -1`) |
 | **Evidence Publication Status for Run `20261028_234442`** | Published in commit `f35008e` (9 files) | `git ls-tree -r --name-only f35008e artifacts/validation_runs/20261028_234442/` |
 
 ---
@@ -439,3 +442,56 @@ The test suite strictly establishes evidence within designated verification leve
 - **Level A — Software Behavior:** Verified. The implementation adheres to data contracts, rejects non-finite values (`NaN`, $\pm\infty$), handles negative inputs, clamps stage fractions to $[0.0, 1.0]$, and preserves day indexing when data is missing ($<10\%$).
 - **Level B — Numerical & Reference-Case Verification:** Verified. Mathematical calculations ($ET_c = K_c \times ET_0$, piecewise linear interpolation of $K_c$ across four growth stages, cumulative sum, and volumetric conversion using the configured $4.2\text{ m}^3/\text{feddan/mm}$ operational factor) match independent hand-calculated numerical oracles within $10^{-9}$ precision. This verifies implementation correctness against the configured operational factor; it does not establish that the rounded factor of 4.2 is physically exact compared to the unrounded 4.20083 m³.
 - **Level C — Empirical Agronomic Validation:** **Deferred / External.** The test suite does *not* prove field calibration across Egyptian climate zones, lysimeter or eddy-covariance agreement, or universal accuracy of nominal FAO-56 crop coefficients ($K_c$) under Egyptian field management practices. The stage fractions $[0.20, 0.30, 0.30, 0.20]$ are a fixed operational approximation, not independently calibrated biological durations for every crop or cultivar. Full client-side FAO-56 Penman-Monteith recomputation remains incomplete, as daily $ET_0$ is consumed from Open-Meteo ERA5.
+
+---
+
+## 13. Verification Run `20261029_100759` & Source-Verified Remediation (187 Flutter Tests Passed)
+
+### 13.1 Provenance and Execution State Overview
+- **Run ID:** `20261029_100759`
+- **Execution Timestamp (UTC):** `2026-10-29T07:08:15Z` to `2026-10-29T07:10:26Z` (Duration: 130.48 s)
+- **Baseline Git HEAD:** `c1c79289583b7a29df17ccf6cb4147be6c8b5f65` (`c1c7928`)
+- **Git Branch:** `main` (tracks `origin/main`)
+- **Initial Working-Tree State:** Modified (`IsStartingWorkingTreeClean = false`, `StartingWorkingTreeEntries: [" M test/data/persistence_test.dart", "?? artifacts/validation_runs/20261029_100222/"]`)
+- **Ending Working-Tree State:** Modified (`IsEndingWorkingTreeClean = false`)
+- **Monitored Scope:** `lib`, `test`, `scripts`, `docs`, `pubspec.yaml`, `pubspec.lock` (74 files)
+- **Initial & Final Composite Fingerprint:** `a9f5ef2ab62028cabb94707a0e6b0ab34589271876d9832ff25db751088af831`
+- **Source Mutation During Run:** `false` (Monitored source files did not mutate between start and end of run)
+- **Validation Scope:** `Modified Working Tree over (c1c79289583b7a29df17ccf6cb4147be6c8b5f65)`
+- **Overall Status:** **`PASS`** (All 5 stages completed with exit code 0)
+- **Evidence Directory:** `artifacts/validation_runs/20261029_100759/` (21 verification artifacts)
+
+### 13.2 Stage Execution Results (`20261029_100759`)
+
+| Stage | Command | Exit Code | Status | Duration | Evidence File & Summary |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| **Dart Format** | `dart format --output=none --set-exit-if-changed lib/ test/` | `0` | **`PASS`** | 2 s | `dart_format.stdout.txt` (42 files formatted, 0 changed) |
+| **Flutter Analyze** | `flutter analyze` | `0` | **`PASS`** | 9 s | `flutter_analyze.stdout.txt` (No issues found!) |
+| **Flutter Tests** | `flutter test` | `0` | **`PASS`** | 11 s | `flutter_test.stdout.txt` (187 passed across all 4 test suites) |
+| **PowerShell Tests** | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File test/scripts/test_validate_historical_models.ps1` | `0` | **`PASS`** | 82 s | `powershell_tests.stdout.txt` (67 deterministic + 1 live = 68 passed) |
+| **Release Build** | `flutter build apk --release` | `0` | **`PASS`** | 26 s | `release_build.stdout.txt` (Built release APK: 58.7MB) |
+
+### 13.3 Test Suite Reconciliation: 187 Passed Tests
+
+The current repository test inventory comprises 187 test cases executed across 4 test suites:
+1. `test/domain/domain_scientific_test.dart`: **68 passed** (includes geographic coordinates, GDD, heat stress, range validators, and 12 biological growth stage & forecast ETc tests).
+2. `test/data/persistence_test.dart`: **69 passed** (includes field CRUD, default seeding, offline fallback, cache policies, and genuine SQLite schema v2-to-v3 Drift migration).
+3. `test/data/open_meteo_adapter_test.dart`: **42 passed** (Open-Meteo payload parsing, date sequence integrity, ERA5 model consistency).
+4. `test/widget_test.dart`: **8 passed** (UI smoke tests, provenance cards, heat stress alerts, ETc failure states, and navigation).
+
+$$\text{Total Passed: } 68 + 69 + 42 + 8 = \mathbf{187\text{ passed (0 failed, 0 skipped)}}.$$
+
+### 13.4 Genuine SQLite v2-to-v3 Migration Regression Verification
+In `test/data/persistence_test.dart` (lines 3380–3521):
+- A genuine SQLite database is constructed in schema version 2 without `planting_date` in `farm_fields_table`.
+- The test verifies that `PRAGMA table_info('farm_fields_table')` does not contain `planting_date` before migration.
+- A valid legacy field record (`v2_field_1`, `حقل الدلتا القديم`, `كفر الشيخ`, `31.10`, `30.95`, `5.0 feddan`, `clay`, `wheat`) is inserted.
+- The SQLite pragma `user_version` is set to 2.
+- The database is opened via `AppDatabase(NativeDatabase.opened(rawSqliteDb))` to exercise the production Drift migration lifecycle.
+- Post-migration assertions confirm:
+  1. `PRAGMA user_version` updates from 2 to 3.
+  2. `PRAGMA table_info` confirms the addition of `planting_date`.
+  3. Existing legacy records and values remain unchanged.
+  4. Migrated legacy records have `plantingDate == null`.
+  5. Updating the field with a valid `plantingDate` and reopening the database confirms persistence and idempotency.
+- *Limitation:* Physical Android SQLite migration on hardware flash storage remains `DEFERRED` until a physical device is connected.
