@@ -57,15 +57,21 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
             return Directionality(
               textDirection: TextDirection.rtl,
               child: AlertDialog(
+                insetPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 24,
+                ),
                 title: const Row(
                   children: [
                     Icon(Icons.add_location_alt, color: Color(0xFF1B5E20)),
                     SizedBox(width: 8),
-                    Text(
-                      'إضافة حقل زراعي جديد في مصر',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                    Expanded(
+                      child: Text(
+                        'إضافة حقل زراعي جديد في مصر',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],
@@ -117,6 +123,7 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                           ),
                           const SizedBox(height: 12),
                           Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Expanded(
                                 child: TextFormField(
@@ -126,7 +133,9 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                                         decimal: true,
                                       ),
                                   decoration: InputDecoration(
-                                    labelText: 'خط العرض (22 - 31.8)',
+                                    labelText: 'خط العرض',
+                                    helperText: '22 - 31.8 شمالاً',
+                                    hintText: '31.10',
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(10),
                                     ),
@@ -138,7 +147,7 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                                   validator: (v) {
                                     final d = double.tryParse(v ?? '');
                                     if (d == null || d < 22.0 || d > 31.8) {
-                                      return 'خط عرض غير صحيح لمصر';
+                                      return 'بين 22 و 31.8';
                                     }
                                     return null;
                                   },
@@ -153,7 +162,9 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                                         decimal: true,
                                       ),
                                   decoration: InputDecoration(
-                                    labelText: 'خط الطول (25 - 37)',
+                                    labelText: 'خط الطول',
+                                    helperText: '25 - 37 شرقاً',
+                                    hintText: '30.95',
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(10),
                                     ),
@@ -165,7 +176,7 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                                   validator: (v) {
                                     final d = double.tryParse(v ?? '');
                                     if (d == null || d < 25.0 || d > 37.0) {
-                                      return 'خط طول غير صحيح لمصر';
+                                      return 'بين 25 و 37';
                                     }
                                     return null;
                                   },
@@ -199,6 +210,7 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                           const SizedBox(height: 12),
                           DropdownButtonFormField<SoilType>(
                             initialValue: selectedSoil,
+                            isExpanded: true,
                             decoration: InputDecoration(
                               labelText: 'نوع التربة',
                               border: OutlineInputBorder(
@@ -212,7 +224,10 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                             items: SoilType.values.map((s) {
                               return DropdownMenuItem(
                                 value: s,
-                                child: Text(_soilTypeName(s)),
+                                child: Text(
+                                  _soilTypeName(s),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               );
                             }).toList(),
                             onChanged: (val) {
@@ -224,6 +239,7 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                           const SizedBox(height: 12),
                           DropdownButtonFormField<String>(
                             initialValue: selectedCropId,
+                            isExpanded: true,
                             decoration: InputDecoration(
                               labelText: 'المحصول القائم',
                               border: OutlineInputBorder(
@@ -242,7 +258,10 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                               ...EgyptianCropsCatalog.allCrops.map((c) {
                                 return DropdownMenuItem(
                                   value: c.id,
-                                  child: Text('${c.nameAr} (${c.nameEn})'),
+                                  child: Text(
+                                    '${c.nameAr} (${c.nameEn})',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 );
                               }),
                             ],
@@ -257,82 +276,64 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                           ),
                           if (selectedCropId.isNotEmpty) ...[
                             const SizedBox(height: 12),
-                            Container(
-                              decoration: BoxDecoration(
-                                border: Border.all(color: Colors.grey.shade400),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 6,
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.calendar_today,
-                                    size: 20,
+                            InkWell(
+                              borderRadius: BorderRadius.circular(10),
+                              onTap: () async {
+                                final now = DateTime.now();
+                                final picked = await showDatePicker(
+                                  context: dialogCtx,
+                                  initialDate: selectedPlantingDate ?? now,
+                                  firstDate: now.subtract(
+                                    const Duration(days: 365),
+                                  ),
+                                  lastDate: now,
+                                );
+                                if (picked != null) {
+                                  setDialogState(
+                                    () => selectedPlantingDate = picked,
+                                  );
+                                }
+                              },
+                              child: InputDecorator(
+                                decoration: InputDecoration(
+                                  labelText: 'تاريخ زراعة المحصول',
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 12,
+                                  ),
+                                  prefixIcon: const Icon(
+                                    Icons.calendar_month_outlined,
                                     color: Color(0xFF1B5E20),
                                   ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        const Text(
-                                          'تاريخ زراعة المحصول',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: Colors.grey,
+                                  suffixIcon: selectedPlantingDate != null
+                                      ? IconButton(
+                                          icon: const Icon(
+                                            Icons.clear,
+                                            size: 18,
                                           ),
-                                        ),
-                                        Text(
-                                          selectedPlantingDate != null
-                                              ? DateFormat(
-                                                  'yyyy-MM-dd',
-                                                ).format(selectedPlantingDate!)
-                                              : 'غير محدد (انقر للاختيار)',
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            color: selectedPlantingDate != null
-                                                ? Colors.black87
-                                                : Colors.grey.shade600,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
+                                          onPressed: () {
+                                            setDialogState(
+                                              () => selectedPlantingDate = null,
+                                            );
+                                          },
+                                        )
+                                      : null,
+                                ),
+                                child: Text(
+                                  selectedPlantingDate != null
+                                      ? DateFormat('yyyy-MM-dd')
+                                            .format(selectedPlantingDate!)
+                                      : 'غير محدد (انقر للاختيار)',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: selectedPlantingDate != null
+                                        ? Colors.black87
+                                        : Colors.grey.shade600,
                                   ),
-                                  if (selectedPlantingDate != null)
-                                    IconButton(
-                                      icon: const Icon(Icons.clear, size: 18),
-                                      visualDensity: VisualDensity.compact,
-                                      onPressed: () {
-                                        setDialogState(
-                                          () => selectedPlantingDate = null,
-                                        );
-                                      },
-                                    ),
-                                  IconButton(
-                                    icon: const Icon(Icons.calendar_month),
-                                    onPressed: () async {
-                                      final now = DateTime.now();
-                                      final picked = await showDatePicker(
-                                        context: dialogCtx,
-                                        initialDate:
-                                            selectedPlantingDate ?? now,
-                                        firstDate: now.subtract(
-                                          const Duration(days: 365),
-                                        ),
-                                        lastDate: now,
-                                      );
-                                      if (picked != null) {
-                                        setDialogState(
-                                          () => selectedPlantingDate = picked,
-                                        );
-                                      }
-                                    },
-                                  ),
-                                ],
+                                ),
                               ),
                             ),
                           ],
@@ -414,12 +415,24 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
             return Directionality(
               textDirection: TextDirection.rtl,
               child: AlertDialog(
-                title: Text(
-                  'تحديث محصول وتاريخ زراعة ${field.nameAr}',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
+                insetPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 24,
+                ),
+                title: Row(
+                  children: [
+                    const Icon(Icons.edit_calendar, color: Color(0xFF1B5E20)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'تحديث محصول وتاريخ زراعة ${field.nameAr}',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 content: SingleChildScrollView(
                   child: Column(
@@ -427,6 +440,7 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                     children: [
                       DropdownButtonFormField<String>(
                         initialValue: currentCropId,
+                        isExpanded: true,
                         decoration: InputDecoration(
                           labelText: 'المحصول القائم',
                           border: OutlineInputBorder(
@@ -445,7 +459,10 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                           ...EgyptianCropsCatalog.allCrops.map((c) {
                             return DropdownMenuItem(
                               value: c.id,
-                              child: Text('${c.nameAr} (${c.nameEn})'),
+                              child: Text(
+                                '${c.nameAr} (${c.nameEn})',
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             );
                           }),
                         ],
@@ -463,79 +480,61 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                       ),
                       if (currentCropId.isNotEmpty) ...[
                         const SizedBox(height: 12),
-                        Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.grey.shade400),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.calendar_today,
-                                size: 20,
+                        InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: () async {
+                            final now = DateTime.now();
+                            final picked = await showDatePicker(
+                              context: dialogContext,
+                              initialDate: currentPlantingDate ?? now,
+                              firstDate: now.subtract(
+                                const Duration(days: 365),
+                              ),
+                              lastDate: now,
+                            );
+                            if (picked != null) {
+                              setDialogState(
+                                () => currentPlantingDate = picked,
+                              );
+                            }
+                          },
+                          child: InputDecorator(
+                            decoration: InputDecoration(
+                              labelText: 'تاريخ زراعة المحصول',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                              prefixIcon: const Icon(
+                                Icons.calendar_month_outlined,
                                 color: Color(0xFF1B5E20),
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'تاريخ زراعة المحصول',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                    Text(
-                                      currentPlantingDate != null
-                                          ? DateFormat('yyyy-MM-dd')
-                                                .format(currentPlantingDate!)
-                                          : 'غير محدد (انقر للاختيار)',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        color: currentPlantingDate != null
-                                            ? Colors.black87
-                                            : Colors.grey.shade600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                              suffixIcon: currentPlantingDate != null
+                                  ? IconButton(
+                                      icon: const Icon(Icons.clear, size: 18),
+                                      onPressed: () {
+                                        setDialogState(
+                                          () => currentPlantingDate = null,
+                                        );
+                                      },
+                                    )
+                                  : null,
+                            ),
+                            child: Text(
+                              currentPlantingDate != null
+                                  ? DateFormat('yyyy-MM-dd')
+                                        .format(currentPlantingDate!)
+                                  : 'غير محدد (انقر للاختيار)',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: currentPlantingDate != null
+                                    ? Colors.black87
+                                    : Colors.grey.shade600,
                               ),
-                              if (currentPlantingDate != null)
-                                IconButton(
-                                  icon: const Icon(Icons.clear, size: 18),
-                                  visualDensity: VisualDensity.compact,
-                                  onPressed: () {
-                                    setDialogState(
-                                      () => currentPlantingDate = null,
-                                    );
-                                  },
-                                ),
-                              IconButton(
-                                icon: const Icon(Icons.calendar_month),
-                                onPressed: () async {
-                                  final now = DateTime.now();
-                                  final picked = await showDatePicker(
-                                    context: dialogContext,
-                                    initialDate: currentPlantingDate ?? now,
-                                    firstDate: now.subtract(
-                                      const Duration(days: 365),
-                                    ),
-                                    lastDate: now,
-                                  );
-                                  if (picked != null) {
-                                    setDialogState(
-                                      () => currentPlantingDate = picked,
-                                    );
-                                  }
-                                },
-                              ),
-                            ],
+                            ),
                           ),
                         ),
                       ],
