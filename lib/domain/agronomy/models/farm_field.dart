@@ -1,4 +1,7 @@
+import 'package:agro_shift/core/error/failures.dart';
+import 'package:agro_shift/core/error/result.dart';
 import 'package:agro_shift/domain/environment/models/coordinate.dart';
+import 'package:agro_shift/domain/validation/scientific_range_validator.dart';
 
 enum SoilType {
   clay, // طينية ثقيلة (الدلتا القديمة)
@@ -28,6 +31,19 @@ class FarmField {
     this.activeCropId,
     this.plantingDate,
   });
+
+  /// Validates core physical invariants of the farm field parcel.
+  Result<FarmField, Failure> validate() {
+    final coordVal = coordinate.validate();
+    if (coordVal.isFailure) {
+      return FailureResult(coordVal.failureOrNull!);
+    }
+    final areaVal = ScientificRangeValidator.validateAreaInFeddan(areaInFeddan);
+    if (areaVal.isFailure) {
+      return FailureResult(areaVal.failureOrNull!);
+    }
+    return Success(this);
+  }
 
   String get soilTypeNameAr => switch (soilType) {
     SoilType.clay => 'طينية ثقيلة (دلتا قديمة)',

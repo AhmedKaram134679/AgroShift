@@ -29,25 +29,25 @@ class FarmFieldRepositoryImpl implements IFarmFieldRepository {
           governorateName: row.governorateAr,
         );
 
+        final field = FarmField(
+          id: row.id,
+          nameAr: row.nameAr,
+          governorateAr: row.governorateAr,
+          coordinate: coord,
+          areaInFeddan: row.areaInFeddan,
+          soilType: soil,
+          activeCropId: row.activeCropId,
+          plantingDate: row.plantingDate,
+        );
+
         // Physical validation guard when reading
-        final coordVal = coord.validate();
-        if (coordVal.isFailure) {
+        final val = field.validate();
+        if (val.isFailure) {
           // Skip or log corrupted record rather than crashing the whole app
           continue;
         }
 
-        fields.add(
-          FarmField(
-            id: row.id,
-            nameAr: row.nameAr,
-            governorateAr: row.governorateAr,
-            coordinate: coord,
-            areaInFeddan: row.areaInFeddan,
-            soilType: soil,
-            activeCropId: row.activeCropId,
-            plantingDate: row.plantingDate,
-          ),
-        );
+        fields.add(field);
       }
 
       return Success(fields);
@@ -67,9 +67,9 @@ class FarmFieldRepositoryImpl implements IFarmFieldRepository {
     FarmField field, {
     bool isDefault = false,
   }) async {
-    final coordVal = field.coordinate.validate();
-    if (coordVal.isFailure) {
-      return FailureResult(coordVal.failureOrNull!);
+    final val = field.validate();
+    if (val.isFailure) {
+      return FailureResult(val.failureOrNull!);
     }
 
     try {

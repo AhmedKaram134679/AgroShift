@@ -182,6 +182,35 @@ class ScientificRangeValidator {
     return const Success(null);
   }
 
+  /// Validates that a farm field area in feddan is finite and strictly greater than zero.
+  static Result<void, PhysicalRangeFailure> validateAreaInFeddan(
+    double area, {
+    String variableName = 'areaInFeddan',
+  }) {
+    if (!area.isFinite) {
+      return FailureResult(
+        PhysicalRangeFailure(
+          userMessageAr: 'مساحة الحقل غير عددية أو غير منتهية.',
+          technicalMessage: '$variableName is NaN or Infinite.',
+          variableName: variableName,
+          actualValue: null,
+        ),
+      );
+    }
+    if (area <= 0.0) {
+      return FailureResult(
+        PhysicalRangeFailure(
+          userMessageAr: 'مساحة الحقل يجب أن تكون أكبر من الصفر.',
+          technicalMessage:
+              '$variableName ($area) must be strictly greater than zero.',
+          variableName: variableName,
+          actualValue: area,
+        ),
+      );
+    }
+    return const Success(null);
+  }
+
   /// Evaluates composite missingness for calculations requiring multiple variables.
   /// Counts a date as incomplete if at least one required input is missing on that date.
   /// Refuses calculation if union of incomplete dates exceeds AgroConstants.maxAcceptableMissingDataRatio (> 10%).

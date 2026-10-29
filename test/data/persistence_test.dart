@@ -326,6 +326,180 @@ void main() {
       expect(rowAfterFailure.updatedAt, equals(initialRow.updatedAt));
     });
 
+    test('8_area_1. Pre-write area validation rejects zero area and does not create database row', () async {
+      const field = FarmField(
+        id: 'field_zero_area_test',
+        nameAr: 'حقل مساحة صفرية',
+        governorateAr: 'الغربية',
+        coordinate: Coordinate(latitude: 30.80, longitude: 31.00),
+        areaInFeddan: 0.0,
+        soilType: SoilType.clay,
+      );
+
+      final res = await fieldRepo.saveField(field);
+      expect(res.isFailure, isTrue);
+      expect(res.failureOrNull, isA<PhysicalRangeFailure>());
+      final failure = res.failureOrNull as PhysicalRangeFailure;
+      expect(failure.variableName, equals('areaInFeddan'));
+      expect(failure.actualValue, equals(0.0));
+
+      final row = await (db.select(
+        db.farmFieldsTable,
+      )..where((t) => t.id.equals('field_zero_area_test'))).getSingleOrNull();
+      expect(
+        row,
+        isNull,
+        reason: 'Zero area must not create a row in the database',
+      );
+    });
+
+    test('8_area_2. Pre-write area validation rejects negative area and does not create database row', () async {
+      const field = FarmField(
+        id: 'field_negative_area_test',
+        nameAr: 'حقل مساحة سالبة',
+        governorateAr: 'المنيا',
+        coordinate: Coordinate(latitude: 28.50, longitude: 30.80),
+        areaInFeddan: -3.5,
+        soilType: SoilType.clayLoam,
+      );
+
+      final res = await fieldRepo.saveField(field);
+      expect(res.isFailure, isTrue);
+      expect(res.failureOrNull, isA<PhysicalRangeFailure>());
+      final failure = res.failureOrNull as PhysicalRangeFailure;
+      expect(failure.variableName, equals('areaInFeddan'));
+      expect(failure.actualValue, equals(-3.5));
+
+      final row =
+          await (db.select(db.farmFieldsTable)
+                ..where((t) => t.id.equals('field_negative_area_test')))
+              .getSingleOrNull();
+      expect(
+        row,
+        isNull,
+        reason: 'Negative area must not create a row in the database',
+      );
+    });
+
+    test('8_area_3. Pre-write area validation rejects NaN and infinite area values and does not create database row', () async {
+      for (final nonFinite in [
+        double.nan,
+        double.infinity,
+        double.negativeInfinity,
+      ]) {
+        final field = FarmField(
+          id: 'field_non_finite_${nonFinite.hashCode}',
+          nameAr: 'حقل غير منته',
+          governorateAr: 'البحيرة',
+          coordinate: const Coordinate(latitude: 30.40, longitude: 30.30),
+          areaInFeddan: nonFinite,
+          soilType: SoilType.sandyLoam,
+        );
+
+        final res = await fieldRepo.saveField(field);
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<PhysicalRangeFailure>());
+        final failure = res.failureOrNull as PhysicalRangeFailure;
+        expect(failure.variableName, equals('areaInFeddan'));
+
+        final row = await (db.select(
+          db.farmFieldsTable,
+        )..where((t) => t.id.equals(field.id))).getSingleOrNull();
+        expect(
+          row,
+          isNull,
+          reason: 'Non-finite area must not create a database row',
+        );
+      }
+    });
+
+    test('8_area_4. Pre-write area validation rejects invalid update and preserves existing valid database row untouched', () async {
+      const initialField = FarmField(
+        id: 'field_area_update_guard',
+        nameAr: 'حقل سليم للحماية',
+        governorateAr: 'كفر الشيخ',
+        coordinate: Coordinate(latitude: 31.10, longitude: 30.95),
+        areaInFeddan: 8.0,
+        soilType: SoilType.clay,
+      );
+
+      final initialSave = await fieldRepo.saveField(initialField);
+      expect(initialSave.isSuccess, isTrue);
+
+      final initialRow = await (db.select(
+        db.farmFieldsTable,
+      )..where((t) => t.id.equals('field_area_update_guard'))).getSingle();
+
+      for (final invalidArea in [
+        0.0,
+        -2.5,
+        double.nan,
+        double.infinity,
+        double.negativeInfinity,
+      ]) {
+        final invalidUpdate = FarmField(
+          id: 'field_area_update_guard',
+          nameAr: 'اسم معدل خاطئ',
+          governorateAr: 'كفر الشيخ',
+          coordinate: const Coordinate(latitude: 31.10, longitude: 30.95),
+          areaInFeddan: invalidArea,
+          soilType: SoilType.clay,
+        );
+
+        final res = await fieldRepo.saveField(invalidUpdate);
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<PhysicalRangeFailure>());
+
+        final rowAfter = await (db.select(
+          db.farmFieldsTable,
+        )..where((t) => t.id.equals('field_area_update_guard'))).getSingle();
+
+        expect(rowAfter.nameAr, equals('حقل سليم للحماية'));
+        expect(rowAfter.areaInFeddan, equals(8.0));
+        expect(rowAfter.createdAt, equals(initialRow.createdAt));
+        expect(rowAfter.updatedAt, equals(initialRow.updatedAt));
+      }
+    });
+
+    test('8_area_5. Valid field insertion and subsequent valid update succeed and persist correct area to SQLite', () async {
+      const validField = FarmField(
+        id: 'field_valid_area_lifecycle',
+        nameAr: 'حقل دورة حياة المساحة',
+        governorateAr: 'الشرقية',
+        coordinate: Coordinate(latitude: 30.58, longitude: 31.50),
+        areaInFeddan: 7.5,
+        soilType: SoilType.clayLoam,
+      );
+
+      final saveRes = await fieldRepo.saveField(validField);
+      expect(saveRes.isSuccess, isTrue);
+
+      final insertedRow = await (db.select(
+        db.farmFieldsTable,
+      )..where((t) => t.id.equals('field_valid_area_lifecycle'))).getSingle();
+      expect(insertedRow.areaInFeddan, equals(7.5));
+      expect(insertedRow.nameAr, equals('حقل دورة حياة المساحة'));
+
+      final validUpdate = FarmField(
+        id: 'field_valid_area_lifecycle',
+        nameAr: 'حقل دورة حياة المساحة المعدل',
+        governorateAr: 'الشرقية',
+        coordinate: const Coordinate(latitude: 30.58, longitude: 31.50),
+        areaInFeddan: 14.25,
+        soilType: SoilType.clayLoam,
+      );
+
+      final updateRes = await fieldRepo.saveField(validUpdate);
+      expect(updateRes.isSuccess, isTrue);
+
+      final updatedRow = await (db.select(
+        db.farmFieldsTable,
+      )..where((t) => t.id.equals('field_valid_area_lifecycle'))).getSingle();
+      expect(updatedRow.areaInFeddan, equals(14.25));
+      expect(updatedRow.nameAr, equals('حقل دورة حياة المساحة المعدل'));
+      expect(updatedRow.createdAt, equals(insertedRow.createdAt));
+    });
+
     test('8b. Default-field identity is preserved during updates and seeding failures propagate', () async {
       // 1. Saving a new ordinary field without specifying isDefault persists false
       const ordinaryField = FarmField(

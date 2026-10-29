@@ -1,5 +1,6 @@
 import 'package:agro_shift/core/constants/agro_constants.dart';
 import 'package:agro_shift/core/error/failures.dart';
+import 'package:agro_shift/domain/agronomy/models/farm_field.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:agro_shift/domain/environment/models/coordinate.dart';
 import 'package:agro_shift/domain/validation/scientific_range_validator.dart';
@@ -164,6 +165,86 @@ void main() {
         );
       },
     );
+
+    test(
+      'Validates areaInFeddan and rejects zero, negative, or non-finite values',
+      () {
+        expect(
+          ScientificRangeValidator.validateAreaInFeddan(5.0).isSuccess,
+          isTrue,
+        );
+        expect(
+          ScientificRangeValidator.validateAreaInFeddan(0.1).isSuccess,
+          isTrue,
+        );
+        expect(
+          ScientificRangeValidator.validateAreaInFeddan(0.0).isFailure,
+          isTrue,
+        );
+        expect(
+          ScientificRangeValidator.validateAreaInFeddan(-1.0).isFailure,
+          isTrue,
+        );
+        expect(
+          ScientificRangeValidator.validateAreaInFeddan(double.nan).isFailure,
+          isTrue,
+        );
+        expect(
+          ScientificRangeValidator.validateAreaInFeddan(double.infinity)
+              .isFailure,
+          isTrue,
+        );
+        expect(
+          ScientificRangeValidator.validateAreaInFeddan(double.negativeInfinity)
+              .isFailure,
+          isTrue,
+        );
+
+        final zeroRes = ScientificRangeValidator.validateAreaInFeddan(0.0);
+        expect(zeroRes.failureOrNull, isA<PhysicalRangeFailure>());
+        final zeroFail = zeroRes.failureOrNull as PhysicalRangeFailure;
+        expect(zeroFail.variableName, equals('areaInFeddan'));
+        expect(zeroFail.actualValue, equals(0.0));
+      },
+    );
+
+    test('FarmField.validate validates both coordinates and areaInFeddan', () {
+      const validField = FarmField(
+        id: 'field_val_test',
+        nameAr: 'حقل اختبار الصلاحية',
+        governorateAr: 'كفر الشيخ',
+        coordinate: Coordinate(latitude: 31.10, longitude: 30.95),
+        areaInFeddan: 5.0,
+        soilType: SoilType.clay,
+      );
+      expect(validField.validate().isSuccess, isTrue);
+
+      const invalidCoordField = FarmField(
+        id: 'field_val_test',
+        nameAr: 'حقل اختبار',
+        governorateAr: 'كفر الشيخ',
+        coordinate: Coordinate(latitude: 99.0, longitude: 30.95),
+        areaInFeddan: 5.0,
+        soilType: SoilType.clay,
+      );
+      expect(
+        invalidCoordField.validate().failureOrNull,
+        isA<CoordinateOutOfBoundsFailure>(),
+      );
+
+      const zeroAreaField = FarmField(
+        id: 'field_val_test',
+        nameAr: 'حقل اختبار',
+        governorateAr: 'كفر الشيخ',
+        coordinate: Coordinate(latitude: 31.10, longitude: 30.95),
+        areaInFeddan: 0.0,
+        soilType: SoilType.clay,
+      );
+      expect(
+        zeroAreaField.validate().failureOrNull,
+        isA<PhysicalRangeFailure>(),
+      );
+    });
   });
 
   group('GddCalculator Tests', () {

@@ -110,7 +110,7 @@ class FieldListNotifier extends Notifier<List<FarmField>> {
   }
 
   Future<Result<void, Failure>> addField(FarmField field) async {
-    final val = field.coordinate.validate();
+    final val = field.validate();
     if (val.isFailure) {
       return FailureResult(val.failureOrNull!);
     }
