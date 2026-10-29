@@ -94,7 +94,14 @@ class FieldListNotifier extends Notifier<List<FarmField>> {
   Future<void> _loadPersistedFields() async {
     final repo = ref.read(farmFieldRepositoryProvider);
     // Ensure default benchmark fields are seeded if not previously deleted
-    await repo.seedDefaultFieldsIfNecessary(defaultEgyptianFields);
+    final seedRes = await repo.seedDefaultFieldsIfNecessary(
+      defaultEgyptianFields,
+    );
+    if (seedRes.isFailure) {
+      // Seeding failed: do not overwrite the initial defaultEgyptianFields state
+      // with a potentially broken or incomplete database snapshot
+      return;
+    }
 
     final res = await repo.getAllFields();
     if (res.isSuccess && res.dataOrNull != null) {

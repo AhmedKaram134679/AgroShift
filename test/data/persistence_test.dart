@@ -325,6 +325,160 @@ void main() {
       expect(rowAfterFailure.createdAt, equals(initialRow.createdAt));
       expect(rowAfterFailure.updatedAt, equals(initialRow.updatedAt));
     });
+
+    test('8b. Default-field identity is preserved during updates and seeding failures propagate', () async {
+      // 1. Saving a new ordinary field without specifying isDefault persists false
+      const ordinaryField = FarmField(
+        id: 'field_ordinary_1',
+        nameAr: 'حقل مستخدم عادي',
+        governorateAr: 'الدقهلية',
+        coordinate: Coordinate(latitude: 31.05, longitude: 31.38),
+        areaInFeddan: 5.0,
+        soilType: SoilType.clay,
+      );
+      final saveOrdRes = await fieldRepo.saveField(ordinaryField);
+      expect(saveOrdRes.isSuccess, isTrue);
+
+      final ordRow = await (db.select(
+        db.farmFieldsTable,
+      )..where((t) => t.id.equals('field_ordinary_1'))).getSingle();
+      expect(
+        ordRow.isDefault,
+        isFalse,
+        reason: 'Ordinary field must persist isDefault = false',
+      );
+
+      // 2. Saving a new field with isDefault: true persists true
+      const defaultField = FarmField(
+        id: 'field_default_1',
+        nameAr: 'حقل نموذجي أصلي',
+        governorateAr: 'الغربية',
+        coordinate: Coordinate(latitude: 30.80, longitude: 31.00),
+        areaInFeddan: 4.0,
+        soilType: SoilType.clayLoam,
+      );
+      final saveDefRes = await fieldRepo.saveField(
+        defaultField,
+        isDefault: true,
+      );
+      expect(saveDefRes.isSuccess, isTrue);
+
+      final defRow = await (db.select(
+        db.farmFieldsTable,
+      )..where((t) => t.id.equals('field_default_1'))).getSingle();
+      expect(
+        defRow.isDefault,
+        isTrue,
+        reason: 'Explicit default field must persist isDefault = true',
+      );
+
+      // 3. Updating an existing default field without specifying isDefault preserves true
+      const updatedDefaultField = FarmField(
+        id: 'field_default_1',
+        nameAr: 'حقل نموذجي معدل المساحة والمحصول',
+        governorateAr: 'الغربية',
+        coordinate: Coordinate(latitude: 30.80, longitude: 31.00),
+        areaInFeddan: 6.5,
+        soilType: SoilType.clayLoam,
+        activeCropId: 'wheat',
+      );
+      // Notice: isDefault parameter is omitted (defaults to false)
+      final updateDefRes = await fieldRepo.saveField(updatedDefaultField);
+      expect(updateDefRes.isSuccess, isTrue);
+
+      final updatedDefRow = await (db.select(
+        db.farmFieldsTable,
+      )..where((t) => t.id.equals('field_default_1'))).getSingle();
+      expect(
+        updatedDefRow.isDefault,
+        isTrue,
+        reason: 'Updating default field without isDefault parameter must preserve isDefault = true',
+      );
+      expect(updatedDefRow.areaInFeddan, equals(6.5));
+      expect(updatedDefRow.activeCropId, equals('wheat'));
+
+      // 4. Deleting that updated default field records its ID in the deleted-default registry
+      final delRes = await fieldRepo.deleteField('field_default_1');
+      expect(delRes.isSuccess, isTrue);
+
+      final tombstoneRow = await (db.select(
+        db.deletedDefaultFieldIdsTable,
+      )..where((t) => t.id.equals('field_default_1'))).getSingleOrNull();
+      expect(
+        tombstoneRow,
+        isNotNull,
+        reason: 'Deleting updated default field must record its ID in deletedDefaultFieldIdsTable',
+      );
+
+      // 5. Running default-field seeding afterward does not recreate that deleted field
+      final reseedRepo = FarmFieldRepositoryImpl(db);
+      final seedRes = await reseedRepo.seedDefaultFieldsIfNecessary([
+        defaultField,
+      ]);
+      expect(seedRes.isSuccess, isTrue);
+
+      final fieldAfterReseed = await (db.select(
+        db.farmFieldsTable,
+      )..where((t) => t.id.equals('field_default_1'))).getSingleOrNull();
+      expect(
+        fieldAfterReseed,
+        isNull,
+        reason:
+            'Tombstoned default field must not be resurrected during seeding',
+      );
+    });
+
+    test('8c. Failed default-field save causes seedDefaultFieldsIfNecessary to propagate failure', () async {
+      // Deterministically inject an SQLite trigger that fails insert into farm_fields_table
+      // for a specific sentinel field ID
+      await db.customStatement('''
+        CREATE TRIGGER abort_sentinel_insert
+        BEFORE INSERT ON farm_fields_table
+        WHEN NEW.id = 'field_failing_sentinel'
+        BEGIN
+          SELECT RAISE(ABORT, 'Simulated SQLite insert failure for sentinel default field');
+        END;
+      ''');
+
+      const normalDefault = FarmField(
+        id: 'field_seed_ok',
+        nameAr: 'حقل نموذجي صالح',
+        governorateAr: 'كفر الشيخ',
+        coordinate: Coordinate(latitude: 31.10, longitude: 30.90),
+        areaInFeddan: 3.0,
+        soilType: SoilType.clay,
+      );
+
+      const failingDefault = FarmField(
+        id: 'field_failing_sentinel',
+        nameAr: 'حقل نموذجي يفشل في الإدراج',
+        governorateAr: 'المنيا',
+        coordinate: Coordinate(latitude: 28.10, longitude: 30.70),
+        areaInFeddan: 5.0,
+        soilType: SoilType.clayLoam,
+      );
+
+      // Attempt seeding with the failing sentinel
+      final seedRes = await fieldRepo.seedDefaultFieldsIfNecessary([
+        normalDefault,
+        failingDefault,
+      ]);
+
+      // 1. Must report Failure, NOT Success
+      expect(
+        seedRes.isFailure,
+        isTrue,
+        reason: 'seedDefaultFieldsIfNecessary must return Failure when a save fails',
+      );
+      expect(seedRes.failureOrNull, isA<ParsingFailure>());
+      expect(
+        seedRes.failureOrNull?.userMessageAr,
+        contains('تعذر حفظ الحقل في قاعدة البيانات.'),
+      );
+
+      // 2. Clean up SQLite test trigger
+      await db.customStatement('DROP TRIGGER IF EXISTS abort_sentinel_insert;');
+    });
   });
 
   group('Weather Cache Persistence & Integrity Tests', () {

@@ -93,7 +93,7 @@ class FarmFieldRepositoryImpl implements IFarmFieldRepository {
               soilType: Value(field.soilType.name),
               activeCropId: Value(field.activeCropId),
               plantingDate: Value(field.plantingDate),
-              isDefault: Value(isDefault),
+              isDefault: Value(isDefault || (existing?.isDefault ?? false)),
               createdAt: Value(createdAtValue),
               updatedAt: Value(now),
             ),
@@ -165,7 +165,10 @@ class FarmFieldRepositoryImpl implements IFarmFieldRepository {
         )..where((t) => t.id.equals(defField.id))).getSingleOrNull();
 
         if (existing == null) {
-          await saveField(defField, isDefault: true);
+          final saveResult = await saveField(defField, isDefault: true);
+          if (saveResult.isFailure) {
+            return saveResult;
+          }
         }
       }
 
