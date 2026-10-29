@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:agro_shift/app/theme.dart';
 import 'package:agro_shift/presentation/main_navigation_shell.dart';
+import 'package:agro_shift/presentation/screens/field_management_screen.dart';
 import 'package:agro_shift/presentation/providers/agro_providers.dart';
 import 'package:agro_shift/domain/environment/repositories/i_weather_repository.dart';
 import 'package:agro_shift/domain/environment/models/coordinate.dart';
@@ -563,6 +564,107 @@ void main() {
         find.text('انتقل إلى قسم "الحقول" من الشريط السفلي لإضافة حقل جديد'),
         findsNothing,
       );
+    },
+  );
+
+  testWidgets(
+    'FieldManagementScreen displays structured field cards and opens add field dialog',
+    (WidgetTester tester) async {
+      final testDb = constructTestDb();
+      addTearDown(() => testDb.close());
+
+      const activeField = FarmField(
+        id: 'f_active',
+        nameAr: 'حقل سيدي سالم (كفر الشيخ)',
+        governorateAr: 'كفر الشيخ',
+        coordinate: Coordinate(
+          latitude: 31.10,
+          longitude: 30.95,
+          governorateName: 'كفر الشيخ',
+        ),
+        areaInFeddan: 5.0,
+        soilType: SoilType.clay,
+        activeCropId: 'wheat',
+      );
+
+      const inactiveField = FarmField(
+        id: 'f_inactive',
+        nameAr: 'مزرعة طنطا الإرشادية',
+        governorateAr: 'الغربية',
+        coordinate: Coordinate(
+          latitude: 30.79,
+          longitude: 31.00,
+          governorateName: 'الغربية',
+        ),
+        areaInFeddan: 3.5,
+        soilType: SoilType.clayLoam,
+        activeCropId: 'berseem',
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDatabaseProvider.overrideWithValue(testDb),
+            weatherRepositoryProvider.overrideWithValue(
+              MockWeatherRepository(),
+            ),
+            fieldListProvider.overrideWith(
+              () => _StaticFieldListNotifier([activeField, inactiveField]),
+            ),
+            selectedFieldProvider.overrideWith(
+              () => _StaticFieldNotifier(activeField),
+            ),
+          ],
+          child: MaterialApp(
+            theme: AgroTheme.lightTheme,
+            locale: const Locale('ar', 'EG'),
+            supportedLocales: const [Locale('ar', 'EG'), Locale('en', 'US')],
+            localizationsDelegates: const [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            home: const Directionality(
+              textDirection: TextDirection.rtl,
+              child: FieldManagementScreen(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify header and registered fields count
+      expect(find.text('الحقول المسجلة في مصر (2):'), findsOneWidget);
+
+      // Verify both fields are rendered
+      expect(find.text('حقل سيدي سالم (كفر الشيخ)'), findsOneWidget);
+      expect(find.text('مزرعة طنطا الإرشادية'), findsOneWidget);
+
+      // Verify active badge on active field and activate button on inactive field
+      expect(find.text('الحقل النشط'), findsOneWidget);
+      expect(find.text('تفعيل'), findsOneWidget);
+
+      // Verify metadata is displayed without character squishing
+      expect(find.text('5.0 فدان'), findsOneWidget);
+      expect(find.text('3.5 فدان'), findsOneWidget);
+      expect(find.text('تعديل المحصول والزراعة'), findsNWidgets(2));
+
+      // Tap the FAB to open the Add Field Dialog
+      final fabFinder = find.byType(FloatingActionButton);
+      expect(fabFinder, findsOneWidget);
+      await tester.tap(fabFinder);
+      await tester.pumpAndSettle();
+
+      // Verify Dialog opens with title and inputs
+      expect(find.text('إضافة حقل زراعي جديد في مصر'), findsOneWidget);
+      expect(find.text('اسم الحقل / المزرعة'), findsOneWidget);
+      expect(find.text('حفظ الحقل'), findsOneWidget);
+      expect(find.text('إلغاء'), findsOneWidget);
+
+      // Close dialog
+      await tester.tap(find.text('إلغاء'));
+      await tester.pumpAndSettle();
+      expect(find.text('إضافة حقل زراعي جديد في مصر'), findsNothing);
     },
   );
 }

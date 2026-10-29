@@ -21,9 +21,6 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
   final _latController = TextEditingController(text: '31.10');
   final _lonController = TextEditingController(text: '30.95');
   final _areaController = TextEditingController(text: '5.0');
-  SoilType _selectedSoil = SoilType.clay;
-  String _selectedCropId = 'wheat';
-  DateTime? _selectedPlantingDate;
 
   String _soilTypeName(SoilType s) => switch (s) {
     SoilType.clay => 'طينية ثقيلة (دلتا قديمة)',
@@ -43,240 +40,363 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
   }
 
   void _showAddFieldDialog() {
+    _nameController.clear();
+    _govController.text = 'كفر الشيخ';
+    _latController.text = '31.10';
+    _lonController.text = '30.95';
+    _areaController.text = '5.0';
+    var selectedSoil = SoilType.clay;
+    var selectedCropId = 'wheat';
+    DateTime? selectedPlantingDate;
+
     showDialog(
       context: context,
       builder: (ctx) {
-        return Directionality(
-          textDirection: TextDirection.rtl,
-          child: AlertDialog(
-            title: const Text(
-              'إضافة حقل زراعي جديد في مصر',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            content: SingleChildScrollView(
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            return Directionality(
+              textDirection: TextDirection.rtl,
+              child: AlertDialog(
+                title: const Row(
                   children: [
-                    TextFormField(
-                      controller: _nameController,
-                      decoration: const InputDecoration(
-                        labelText: 'اسم الحقل / المزرعة',
+                    Icon(Icons.add_location_alt, color: Color(0xFF1B5E20)),
+                    SizedBox(width: 8),
+                    Text(
+                      'إضافة حقل زراعي جديد في مصر',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
                       ),
-                      validator: (v) => (v == null || v.isEmpty)
-                          ? 'يرجى إدخال اسم الحقل'
-                          : null,
                     ),
-                    TextFormField(
-                      controller: _govController,
-                      decoration: const InputDecoration(
-                        labelText: 'المحافظة (مثال: كفر الشيخ، المنيا)',
-                      ),
-                      validator: (v) => (v == null || v.isEmpty)
-                          ? 'يرجى إدخال اسم المحافظة'
-                          : null,
-                    ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: _latController,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            decoration: const InputDecoration(
-                              labelText: 'خط العرض (22 - 31.8)',
-                            ),
-                            validator: (v) {
-                              final d = double.tryParse(v ?? '');
-                              if (d == null || d < 22.0 || d > 31.8) {
-                                return 'خط عرض غير صحيح لمصر';
-                              }
-                              return null;
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextFormField(
-                            controller: _lonController,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            decoration: const InputDecoration(
-                              labelText: 'خط الطول (25 - 37)',
-                            ),
-                            validator: (v) {
-                              final d = double.tryParse(v ?? '');
-                              if (d == null || d < 25.0 || d > 37.0) {
-                                return 'خط طول غير صحيح لمصر';
-                              }
-                              return null;
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                    TextFormField(
-                      controller: _areaController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      decoration: const InputDecoration(
-                        labelText: 'المساحة (بالفدان)',
-                      ),
-                      validator: (v) {
-                        final d = double.tryParse(v ?? '');
-                        if (d == null || d <= 0) return 'قيمة غير صحيحة';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<SoilType>(
-                      initialValue: _selectedSoil,
-                      decoration: const InputDecoration(
-                        labelText: 'نوع التربة',
-                      ),
-                      items: SoilType.values.map((s) {
-                        return DropdownMenuItem(
-                          value: s,
-                          child: Text(_soilTypeName(s)),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        if (val != null) setState(() => _selectedSoil = val);
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: _selectedCropId,
-                      decoration: const InputDecoration(
-                        labelText: 'المحصول القائم',
-                      ),
-                      items: [
-                        const DropdownMenuItem<String>(
-                          value: '',
-                          child: Text('بدون محصول (غير محدد)'),
-                        ),
-                        ...EgyptianCropsCatalog.allCrops.map((c) {
-                          return DropdownMenuItem(
-                            value: c.id,
-                            child: Text('${c.nameAr} (${c.nameEn})'),
-                          );
-                        }),
-                      ],
-                      onChanged: (val) {
-                        setState(() {
-                          _selectedCropId = val ?? '';
-                          if (_selectedCropId.isEmpty) {
-                            _selectedPlantingDate = null;
-                          }
-                        });
-                      },
-                    ),
-                    if (_selectedCropId.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('تاريخ زراعة المحصول'),
-                        subtitle: Text(
-                          _selectedPlantingDate != null
-                              ? DateFormat('yyyy-MM-dd')
-                                    .format(_selectedPlantingDate!)
-                              : 'غير محدد (انقر للاختيار)',
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (_selectedPlantingDate != null)
-                              IconButton(
-                                icon: const Icon(Icons.clear, size: 20),
-                                onPressed: () {
-                                  setState(() => _selectedPlantingDate = null);
-                                },
-                              ),
-                            IconButton(
-                              icon: const Icon(Icons.calendar_today),
-                              onPressed: () async {
-                                final now = DateTime.now();
-                                final picked = await showDatePicker(
-                                  context: ctx,
-                                  initialDate: _selectedPlantingDate ?? now,
-                                  firstDate: now.subtract(
-                                    const Duration(days: 365),
-                                  ),
-                                  lastDate: now,
-                                );
-                                if (picked != null) {
-                                  setState(
-                                    () => _selectedPlantingDate = picked,
-                                  );
-                                }
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
                   ],
                 ),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('إلغاء'),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  if (_formKey.currentState?.validate() ?? false) {
-                    final newField = FarmField(
-                      id: 'field_${DateTime.now().millisecondsSinceEpoch}',
-                      nameAr: _nameController.text.trim(),
-                      governorateAr: _govController.text.trim(),
-                      coordinate: Coordinate(
-                        latitude: double.parse(_latController.text),
-                        longitude: double.parse(_lonController.text),
-                        governorateName: _govController.text.trim(),
-                      ),
-                      areaInFeddan: double.parse(_areaController.text),
-                      soilType: _selectedSoil,
-                      activeCropId: _selectedCropId.isNotEmpty
-                          ? _selectedCropId
-                          : null,
-                      plantingDate: _selectedCropId.isNotEmpty
-                          ? _selectedPlantingDate
-                          : null,
-                    );
-
-                    final addRes = await ref
-                        .read(fieldListProvider.notifier)
-                        .addField(newField);
-                    if (!mounted || !ctx.mounted) return;
-                    if (addRes.isSuccess) {
-                      Navigator.of(ctx).pop();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('تم تسجيل الحقل الزراعي بنجاح'),
-                        ),
-                      );
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            addRes.failureOrNull?.userMessageAr ??
-                                'خطأ في التسجيل',
+                content: SizedBox(
+                  width: double.maxFinite,
+                  child: SingleChildScrollView(
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const SizedBox(height: 4),
+                          TextFormField(
+                            controller: _nameController,
+                            decoration: InputDecoration(
+                              labelText: 'اسم الحقل / المزرعة',
+                              hintText: 'مثال: مزرعة الأمل',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                            ),
+                            validator: (v) => (v == null || v.trim().isEmpty)
+                                ? 'يرجى إدخال اسم الحقل'
+                                : null,
                           ),
-                        ),
-                      );
-                    }
-                  }
-                },
-                child: const Text('حفظ الحقل'),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _govController,
+                            decoration: InputDecoration(
+                              labelText: 'المحافظة (مثال: كفر الشيخ، المنيا)',
+                              hintText: 'مثال: كفر الشيخ',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                            ),
+                            validator: (v) => (v == null || v.trim().isEmpty)
+                                ? 'يرجى إدخال اسم المحافظة'
+                                : null,
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _latController,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                  decoration: InputDecoration(
+                                    labelText: 'خط العرض (22 - 31.8)',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                  validator: (v) {
+                                    final d = double.tryParse(v ?? '');
+                                    if (d == null || d < 22.0 || d > 31.8) {
+                                      return 'خط عرض غير صحيح لمصر';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _lonController,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                  decoration: InputDecoration(
+                                    labelText: 'خط الطول (25 - 37)',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                  validator: (v) {
+                                    final d = double.tryParse(v ?? '');
+                                    if (d == null || d < 25.0 || d > 37.0) {
+                                      return 'خط طول غير صحيح لمصر';
+                                    }
+                                    return null;
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _areaController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: InputDecoration(
+                              labelText: 'المساحة (بالفدان)',
+                              hintText: 'مثال: 5.0',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                            ),
+                            validator: (v) {
+                              final d = double.tryParse(v ?? '');
+                              if (d == null || d <= 0) return 'قيمة غير صحيحة';
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<SoilType>(
+                            initialValue: selectedSoil,
+                            decoration: InputDecoration(
+                              labelText: 'نوع التربة',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                            ),
+                            items: SoilType.values.map((s) {
+                              return DropdownMenuItem(
+                                value: s,
+                                child: Text(_soilTypeName(s)),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                setDialogState(() => selectedSoil = val);
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            initialValue: selectedCropId,
+                            decoration: InputDecoration(
+                              labelText: 'المحصول القائم',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                            ),
+                            items: [
+                              const DropdownMenuItem<String>(
+                                value: '',
+                                child: Text('بدون محصول (غير محدد)'),
+                              ),
+                              ...EgyptianCropsCatalog.allCrops.map((c) {
+                                return DropdownMenuItem(
+                                  value: c.id,
+                                  child: Text('${c.nameAr} (${c.nameEn})'),
+                                );
+                              }),
+                            ],
+                            onChanged: (val) {
+                              setDialogState(() {
+                                selectedCropId = val ?? '';
+                                if (selectedCropId.isEmpty) {
+                                  selectedPlantingDate = null;
+                                }
+                              });
+                            },
+                          ),
+                          if (selectedCropId.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey.shade400),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.calendar_today,
+                                    size: 20,
+                                    color: Color(0xFF1B5E20),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'تاريخ زراعة المحصول',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                        Text(
+                                          selectedPlantingDate != null
+                                              ? DateFormat(
+                                                  'yyyy-MM-dd',
+                                                ).format(selectedPlantingDate!)
+                                              : 'غير محدد (انقر للاختيار)',
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: selectedPlantingDate != null
+                                                ? Colors.black87
+                                                : Colors.grey.shade600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (selectedPlantingDate != null)
+                                    IconButton(
+                                      icon: const Icon(Icons.clear, size: 18),
+                                      visualDensity: VisualDensity.compact,
+                                      onPressed: () {
+                                        setDialogState(
+                                          () => selectedPlantingDate = null,
+                                        );
+                                      },
+                                    ),
+                                  IconButton(
+                                    icon: const Icon(Icons.calendar_month),
+                                    onPressed: () async {
+                                      final now = DateTime.now();
+                                      final picked = await showDatePicker(
+                                        context: dialogCtx,
+                                        initialDate:
+                                            selectedPlantingDate ?? now,
+                                        firstDate: now.subtract(
+                                          const Duration(days: 365),
+                                        ),
+                                        lastDate: now,
+                                      );
+                                      if (picked != null) {
+                                        setDialogState(
+                                          () => selectedPlantingDate = picked,
+                                        );
+                                      }
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text('إلغاء'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      if (_formKey.currentState?.validate() ?? false) {
+                        final newField = FarmField(
+                          id: 'field_${DateTime.now().millisecondsSinceEpoch}',
+                          nameAr: _nameController.text.trim(),
+                          governorateAr: _govController.text.trim(),
+                          coordinate: Coordinate(
+                            latitude: double.parse(_latController.text),
+                            longitude: double.parse(_lonController.text),
+                            governorateName: _govController.text.trim(),
+                          ),
+                          areaInFeddan: double.parse(_areaController.text),
+                          soilType: selectedSoil,
+                          activeCropId: selectedCropId.isNotEmpty
+                              ? selectedCropId
+                              : null,
+                          plantingDate: selectedCropId.isNotEmpty
+                              ? selectedPlantingDate
+                              : null,
+                        );
+
+                        final addRes = await ref
+                            .read(fieldListProvider.notifier)
+                            .addField(newField);
+                        if (!mounted || !ctx.mounted) return;
+                        if (addRes.isSuccess) {
+                          Navigator.of(ctx).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('تم تسجيل الحقل الزراعي بنجاح'),
+                            ),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                addRes.failureOrNull?.userMessageAr ??
+                                    'خطأ في التسجيل',
+                              ),
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    child: const Text('حفظ الحقل'),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -307,8 +427,15 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                     children: [
                       DropdownButtonFormField<String>(
                         initialValue: currentCropId,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'المحصول القائم',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
                         ),
                         items: [
                           const DropdownMenuItem<String>(
@@ -336,21 +463,53 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                       ),
                       if (currentCropId.isNotEmpty) ...[
                         const SizedBox(height: 12),
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('تاريخ زراعة المحصول'),
-                          subtitle: Text(
-                            currentPlantingDate != null
-                                ? DateFormat('yyyy-MM-dd')
-                                      .format(currentPlantingDate!)
-                                : 'غير محدد (انقر للاختيار)',
+                        Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade400),
+                            borderRadius: BorderRadius.circular(10),
                           ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          child: Row(
                             children: [
+                              const Icon(
+                                Icons.calendar_today,
+                                size: 20,
+                                color: Color(0xFF1B5E20),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'تاريخ زراعة المحصول',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                    Text(
+                                      currentPlantingDate != null
+                                          ? DateFormat('yyyy-MM-dd')
+                                                .format(currentPlantingDate!)
+                                          : 'غير محدد (انقر للاختيار)',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: currentPlantingDate != null
+                                            ? Colors.black87
+                                            : Colors.grey.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                               if (currentPlantingDate != null)
                                 IconButton(
-                                  icon: const Icon(Icons.clear, size: 20),
+                                  icon: const Icon(Icons.clear, size: 18),
+                                  visualDensity: VisualDensity.compact,
                                   onPressed: () {
                                     setDialogState(
                                       () => currentPlantingDate = null,
@@ -358,7 +517,7 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                                   },
                                 ),
                               IconButton(
-                                icon: const Icon(Icons.calendar_today),
+                                icon: const Icon(Icons.calendar_month),
                                 onPressed: () async {
                                   final now = DateTime.now();
                                   final picked = await showDatePicker(
@@ -496,8 +655,9 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                   : null;
 
               return Card(
+                elevation: isActive ? 2 : 1,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                   side: BorderSide(
                     color: isActive
                         ? const Color(0xFF2E7D32)
@@ -505,107 +665,272 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                     width: isActive ? 2 : 1,
                   ),
                 ),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: isActive
-                        ? const Color(0xFF1B5E20)
-                        : Colors.grey.shade300,
-                    foregroundColor: isActive ? Colors.white : Colors.black87,
-                    child: const Icon(Icons.agriculture, size: 20),
-                  ),
-                  title: Text(
-                    f.nameAr,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                  subtitle: Text(
-                    '${f.governorateAr} | ${f.coordinate.latitude.toStringAsFixed(2)}°N, ${f.coordinate.longitude.toStringAsFixed(2)}°E | ${f.areaInFeddan} فدان\nالمحصول: ${crop?.nameAr ?? "غير محدد"}${f.plantingDate != null ? " (زراعة: ${DateFormat('yyyy-MM-dd').format(f.plantingDate!)})" : ""}',
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
+                child: Padding(
+                  padding: const EdgeInsets.all(14.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (!isActive)
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFF1F8E9),
-                            foregroundColor: const Color(0xFF1B5E20),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 4,
+                      // Header Row: Avatar + Field Name & Governorate + Active / Activate Button
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          CircleAvatar(
+                            radius: 20,
+                            backgroundColor: isActive
+                                ? const Color(0xFF1B5E20)
+                                : Colors.grey.shade300,
+                            foregroundColor: isActive
+                                ? Colors.white
+                                : Colors.black87,
+                            child: const Icon(Icons.agriculture, size: 22),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  f.nameAr,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 3),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.location_on_outlined,
+                                      size: 14,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      f.governorateAr,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
-                          onPressed: () {
-                            ref
-                                .read(selectedFieldProvider.notifier)
-                                .selectField(f);
-                          },
-                          child: const Text(
-                            'تفعيل',
-                            style: TextStyle(fontSize: 12),
-                          ),
-                        )
-                      else
-                        const Chip(
-                          label: Text(
-                            'الحقل النشط',
-                            style: TextStyle(fontSize: 11, color: Colors.white),
-                          ),
-                          backgroundColor: Color(0xFF2E7D32),
-                        ),
-                      const SizedBox(width: 4),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.edit_calendar_outlined,
-                          size: 20,
-                          color: Color(0xFF1B5E20),
-                        ),
-                        tooltip: 'تعديل المحصول وتاريخ الزراعة',
-                        onPressed: () => _showEditCropDialog(f),
-                      ),
-                      const SizedBox(width: 4),
-                      IconButton(
-                        icon: const Icon(
-                          Icons.delete_outline,
-                          size: 20,
-                          color: Colors.red,
-                        ),
-                        tooltip: 'حذف الحقل',
-                        onPressed: () async {
-                          final confirm = await showDialog<bool>(
-                            context: context,
-                            builder: (c) => Directionality(
-                              textDirection: TextDirection.rtl,
-                              child: AlertDialog(
-                                title: const Text('تأكيد حذف الحقل'),
-                                content: Text(
-                                  'هل أنت متأكد من حذف ${f.nameAr}؟ لن يتم استرجاعه تلقائياً.',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(c, false),
-                                    child: const Text('إلغاء'),
+                          const SizedBox(width: 8),
+                          if (isActive)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2E7D32),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.check_circle,
+                                    size: 14,
+                                    color: Colors.white,
                                   ),
-                                  ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.red,
-                                      foregroundColor: Colors.white,
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'الحقل النشط',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
                                     ),
-                                    onPressed: () => Navigator.pop(c, true),
-                                    child: const Text('حذف'),
                                   ),
                                 ],
                               ),
+                            )
+                          else
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFF1F8E9),
+                                foregroundColor: const Color(0xFF1B5E20),
+                                elevation: 0,
+                                side: const BorderSide(
+                                  color: Color(0xFFC8E6C9),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                minimumSize: const Size(0, 32),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              onPressed: () {
+                                ref
+                                    .read(selectedFieldProvider.notifier)
+                                    .selectField(f);
+                              },
+                              child: const Text(
+                                'تفعيل',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
-                          );
-                          if (confirm == true) {
-                            await ref
-                                .read(fieldListProvider.notifier)
-                                .deleteField(f.id);
-                          }
-                        },
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      const Divider(height: 1),
+                      const SizedBox(height: 10),
+
+                      // Details Container: Area, Coordinates, Crop, Planting Date
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF9FBF7),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFE8ECE5)),
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.straighten,
+                                        size: 15,
+                                        color: Color(0xFF5D4037),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${f.areaInFeddan} فدان',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Row(
+                                    children: [
+                                      const Icon(
+                                        Icons.gps_fixed,
+                                        size: 15,
+                                        color: Color(0xFF5D4037),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Expanded(
+                                        child: Text(
+                                          '\u200E${f.coordinate.latitude.toStringAsFixed(2)}°N, ${f.coordinate.longitude.toStringAsFixed(2)}°E\u200E',
+                                          style: const TextStyle(
+                                            fontSize: 11.5,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.eco_outlined,
+                                  size: 15,
+                                  color: Color(0xFF2E7D32),
+                                ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    crop != null
+                                        ? 'المحصول: ${crop.nameAr}${f.plantingDate != null ? " (زراعة: ${DateFormat('yyyy-MM-dd').format(f.plantingDate!)})" : ""}'
+                                        : 'المحصول: غير محدد',
+                                    style: const TextStyle(fontSize: 12),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+
+                      // Action Buttons Row: Edit Crop & Planting Date, Delete Field
+                      Row(
+                        children: [
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFF1B5E20),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              minimumSize: const Size(0, 32),
+                            ),
+                            icon: const Icon(
+                              Icons.edit_calendar_outlined,
+                              size: 17,
+                            ),
+                            label: const Text(
+                              'تعديل المحصول والزراعة',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                            onPressed: () => _showEditCropDialog(f),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              size: 20,
+                              color: Colors.red,
+                            ),
+                            tooltip: 'حذف الحقل',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (c) => Directionality(
+                                  textDirection: TextDirection.rtl,
+                                  child: AlertDialog(
+                                    title: const Text('تأكيد حذف الحقل'),
+                                    content: Text(
+                                      'هل أنت متأكد من حذف ${f.nameAr}؟ لن يتم استرجاعه تلقائياً.',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(c, false),
+                                        child: const Text('إلغاء'),
+                                      ),
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.red,
+                                          foregroundColor: Colors.white,
+                                        ),
+                                        onPressed: () => Navigator.pop(c, true),
+                                        child: const Text('حذف'),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                              if (confirm == true) {
+                                await ref
+                                    .read(fieldListProvider.notifier)
+                                    .deleteField(f.id);
+                              }
+                            },
+                          ),
+                        ],
                       ),
                     ],
                   ),
