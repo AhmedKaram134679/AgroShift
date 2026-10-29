@@ -39,11 +39,11 @@ final weatherRepositoryProvider = Provider<IWeatherRepository>((ref) {
 
 // 4. Pre-seeded Egyptian benchmark fields across governorates
 final defaultEgyptianFields = <FarmField>[
-  const FarmField(
+  FarmField(
     id: 'field_kafr_sheikh',
     nameAr: 'حقل سيدي سالم (كفر الشيخ)',
     governorateAr: 'كفر الشيخ (شمال الدلتا)',
-    coordinate: Coordinate(
+    coordinate: const Coordinate(
       latitude: 31.27,
       longitude: 30.79,
       governorateName: 'كفر الشيخ',
@@ -51,12 +51,13 @@ final defaultEgyptianFields = <FarmField>[
     areaInFeddan: 5.0,
     soilType: SoilType.clay,
     activeCropId: 'wheat',
+    plantingDate: DateTime(2024, 1, 15),
   ),
-  const FarmField(
+  FarmField(
     id: 'field_gharbia',
     nameAr: 'مزرعة طنطا الإرشادية',
     governorateAr: 'الغربية (وسط الدلتا)',
-    coordinate: Coordinate(
+    coordinate: const Coordinate(
       latitude: 30.79,
       longitude: 31.00,
       governorateName: 'الغربية',
@@ -64,12 +65,13 @@ final defaultEgyptianFields = <FarmField>[
     areaInFeddan: 3.5,
     soilType: SoilType.clay,
     activeCropId: 'berseem',
+    plantingDate: DateTime(2024, 2, 1),
   ),
-  const FarmField(
+  FarmField(
     id: 'field_minya',
     nameAr: 'حقل بني مزار (المنيا)',
     governorateAr: 'المنيا (مصر الوسطى)',
-    coordinate: Coordinate(
+    coordinate: const Coordinate(
       latitude: 28.50,
       longitude: 30.80,
       governorateName: 'المنيا',
@@ -77,6 +79,7 @@ final defaultEgyptianFields = <FarmField>[
     areaInFeddan: 10.0,
     soilType: SoilType.clayLoam,
     activeCropId: 'maize',
+    plantingDate: DateTime(2024, 5, 10),
   ),
 ];
 
@@ -124,6 +127,55 @@ class FieldListNotifier extends Notifier<List<FarmField>> {
       return const Success(null);
     }
     return delRes;
+  }
+
+  Future<Result<void, Failure>> updateCropAndPlantingDate({
+    required String fieldId,
+    required String? newCropId,
+    required DateTime? newPlantingDate,
+  }) async {
+    final fieldIndex = state.indexWhere((f) => f.id == fieldId);
+    if (fieldIndex == -1) {
+      return const FailureResult(
+        ParsingFailure(
+          userMessageAr: 'الحقل المطلوب تحديثه غير موجود.',
+          technicalMessage: 'Field not found in state.',
+        ),
+      );
+    }
+
+    final oldField = state[fieldIndex];
+    // If active crop changes, do not silently retain previous crop's planting date
+    final effectivePlantingDate = oldField.activeCropId == newCropId
+        ? newPlantingDate
+        : newPlantingDate;
+
+    final updatedField = FarmField(
+      id: oldField.id,
+      nameAr: oldField.nameAr,
+      governorateAr: oldField.governorateAr,
+      coordinate: oldField.coordinate,
+      areaInFeddan: oldField.areaInFeddan,
+      soilType: oldField.soilType,
+      activeCropId: newCropId,
+      plantingDate: effectivePlantingDate,
+    );
+
+    final repo = ref.read(farmFieldRepositoryProvider);
+    final saveRes = await repo.saveField(updatedField);
+    if (saveRes.isSuccess) {
+      state = [
+        for (int i = 0; i < state.length; i++)
+          if (i == fieldIndex) updatedField else state[i],
+      ];
+      // Keep selectedFieldProvider synced if this was the selected field
+      final selectedField = ref.read(selectedFieldProvider);
+      if (selectedField?.id == fieldId) {
+        ref.read(selectedFieldProvider.notifier).selectField(updatedField);
+      }
+      return const Success(null);
+    }
+    return saveRes;
   }
 }
 

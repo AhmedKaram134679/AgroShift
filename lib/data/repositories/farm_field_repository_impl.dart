@@ -45,6 +45,7 @@ class FarmFieldRepositoryImpl implements IFarmFieldRepository {
             areaInFeddan: row.areaInFeddan,
             soilType: soil,
             activeCropId: row.activeCropId,
+            plantingDate: row.plantingDate,
           ),
         );
       }
@@ -91,6 +92,7 @@ class FarmFieldRepositoryImpl implements IFarmFieldRepository {
               areaInFeddan: Value(field.areaInFeddan),
               soilType: Value(field.soilType.name),
               activeCropId: Value(field.activeCropId),
+              plantingDate: Value(field.plantingDate),
               isDefault: Value(isDefault),
               createdAt: Value(createdAtValue),
               updatedAt: Value(now),

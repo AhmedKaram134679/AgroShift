@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import 'package:agro_shift/presentation/providers/agro_providers.dart';
 import 'package:agro_shift/domain/agronomy/models/farm_field.dart';
 import 'package:agro_shift/domain/environment/models/coordinate.dart';
@@ -20,8 +21,16 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
   final _latController = TextEditingController(text: '31.10');
   final _lonController = TextEditingController(text: '30.95');
   final _areaController = TextEditingController(text: '5.0');
-  final SoilType _selectedSoil = SoilType.clay;
-  final String _selectedCropId = 'wheat';
+  SoilType _selectedSoil = SoilType.clay;
+  String _selectedCropId = 'wheat';
+  DateTime? _selectedPlantingDate;
+
+  String _soilTypeName(SoilType s) => switch (s) {
+    SoilType.clay => 'طينية ثقيلة (دلتا قديمة)',
+    SoilType.clayLoam => 'طميية طينية (وادي النيل)',
+    SoilType.sandyLoam => 'طميية رملية (أراضي جديدة)',
+    SoilType.sandy => 'رملية صحراوية',
+  };
 
   @override
   void dispose() {
@@ -123,6 +132,93 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                         return null;
                       },
                     ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<SoilType>(
+                      initialValue: _selectedSoil,
+                      decoration: const InputDecoration(
+                        labelText: 'نوع التربة',
+                      ),
+                      items: SoilType.values.map((s) {
+                        return DropdownMenuItem(
+                          value: s,
+                          child: Text(_soilTypeName(s)),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                        if (val != null) setState(() => _selectedSoil = val);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: _selectedCropId,
+                      decoration: const InputDecoration(
+                        labelText: 'المحصول القائم',
+                      ),
+                      items: [
+                        const DropdownMenuItem<String>(
+                          value: '',
+                          child: Text('بدون محصول (غير محدد)'),
+                        ),
+                        ...EgyptianCropsCatalog.allCrops.map((c) {
+                          return DropdownMenuItem(
+                            value: c.id,
+                            child: Text('${c.nameAr} (${c.nameEn})'),
+                          );
+                        }),
+                      ],
+                      onChanged: (val) {
+                        setState(() {
+                          _selectedCropId = val ?? '';
+                          if (_selectedCropId.isEmpty) {
+                            _selectedPlantingDate = null;
+                          }
+                        });
+                      },
+                    ),
+                    if (_selectedCropId.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('تاريخ زراعة المحصول'),
+                        subtitle: Text(
+                          _selectedPlantingDate != null
+                              ? DateFormat('yyyy-MM-dd')
+                                    .format(_selectedPlantingDate!)
+                              : 'غير محدد (انقر للاختيار)',
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_selectedPlantingDate != null)
+                              IconButton(
+                                icon: const Icon(Icons.clear, size: 20),
+                                onPressed: () {
+                                  setState(() => _selectedPlantingDate = null);
+                                },
+                              ),
+                            IconButton(
+                              icon: const Icon(Icons.calendar_today),
+                              onPressed: () async {
+                                final now = DateTime.now();
+                                final picked = await showDatePicker(
+                                  context: ctx,
+                                  initialDate: _selectedPlantingDate ?? now,
+                                  firstDate: now.subtract(
+                                    const Duration(days: 365),
+                                  ),
+                                  lastDate: now,
+                                );
+                                if (picked != null) {
+                                  setState(
+                                    () => _selectedPlantingDate = picked,
+                                  );
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -146,7 +242,12 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                       ),
                       areaInFeddan: double.parse(_areaController.text),
                       soilType: _selectedSoil,
-                      activeCropId: _selectedCropId,
+                      activeCropId: _selectedCropId.isNotEmpty
+                          ? _selectedCropId
+                          : null,
+                      plantingDate: _selectedCropId.isNotEmpty
+                          ? _selectedPlantingDate
+                          : null,
                     );
 
                     final addRes = await ref
@@ -176,6 +277,157 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
               ),
             ],
           ),
+        );
+      },
+    );
+  }
+
+  void _showEditCropDialog(FarmField field) {
+    String currentCropId = field.activeCropId ?? '';
+    DateTime? currentPlantingDate = field.plantingDate;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return Directionality(
+              textDirection: TextDirection.rtl,
+              child: AlertDialog(
+                title: Text(
+                  'تحديث محصول وتاريخ زراعة ${field.nameAr}',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        initialValue: currentCropId,
+                        decoration: const InputDecoration(
+                          labelText: 'المحصول القائم',
+                        ),
+                        items: [
+                          const DropdownMenuItem<String>(
+                            value: '',
+                            child: Text('بدون محصول (إلغاء المحصول)'),
+                          ),
+                          ...EgyptianCropsCatalog.allCrops.map((c) {
+                            return DropdownMenuItem(
+                              value: c.id,
+                              child: Text('${c.nameAr} (${c.nameEn})'),
+                            );
+                          }),
+                        ],
+                        onChanged: (newCrop) {
+                          setDialogState(() {
+                            currentCropId = newCrop ?? '';
+                            // Rule 8: If active crop changes, do not silently retain previous crop's planting date
+                            if (currentCropId != field.activeCropId) {
+                              currentPlantingDate = null;
+                            } else {
+                              currentPlantingDate = field.plantingDate;
+                            }
+                          });
+                        },
+                      ),
+                      if (currentCropId.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('تاريخ زراعة المحصول'),
+                          subtitle: Text(
+                            currentPlantingDate != null
+                                ? DateFormat('yyyy-MM-dd')
+                                      .format(currentPlantingDate!)
+                                : 'غير محدد (انقر للاختيار)',
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (currentPlantingDate != null)
+                                IconButton(
+                                  icon: const Icon(Icons.clear, size: 20),
+                                  onPressed: () {
+                                    setDialogState(
+                                      () => currentPlantingDate = null,
+                                    );
+                                  },
+                                ),
+                              IconButton(
+                                icon: const Icon(Icons.calendar_today),
+                                onPressed: () async {
+                                  final now = DateTime.now();
+                                  final picked = await showDatePicker(
+                                    context: dialogContext,
+                                    initialDate: currentPlantingDate ?? now,
+                                    firstDate: now.subtract(
+                                      const Duration(days: 365),
+                                    ),
+                                    lastDate: now,
+                                  );
+                                  if (picked != null) {
+                                    setDialogState(
+                                      () => currentPlantingDate = picked,
+                                    );
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text('إلغاء'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final updateRes = await ref
+                          .read(fieldListProvider.notifier)
+                          .updateCropAndPlantingDate(
+                            fieldId: field.id,
+                            newCropId: currentCropId.isNotEmpty
+                                ? currentCropId
+                                : null,
+                            newPlantingDate: currentCropId.isNotEmpty
+                                ? currentPlantingDate
+                                : null,
+                          );
+                      if (!mounted || !ctx.mounted) return;
+                      Navigator.of(ctx).pop();
+                      if (updateRes.isSuccess) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'تم تحديث المحصول وتاريخ الزراعة بنجاح',
+                            ),
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              updateRes.failureOrNull?.userMessageAr ??
+                                  'خطأ في التحديث',
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                    child: const Text('حفظ'),
+                  ),
+                ],
+              ),
+            );
+          },
         );
       },
     );
@@ -269,7 +521,7 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                     ),
                   ),
                   subtitle: Text(
-                    '${f.governorateAr} | ${f.coordinate.latitude.toStringAsFixed(2)}°N, ${f.coordinate.longitude.toStringAsFixed(2)}°E | ${f.areaInFeddan} فدان\nالمحصول: ${crop?.nameAr ?? "غير محدد"}',
+                    '${f.governorateAr} | ${f.coordinate.latitude.toStringAsFixed(2)}°N, ${f.coordinate.longitude.toStringAsFixed(2)}°E | ${f.areaInFeddan} فدان\nالمحصول: ${crop?.nameAr ?? "غير محدد"}${f.plantingDate != null ? " (زراعة: ${DateFormat('yyyy-MM-dd').format(f.plantingDate!)})" : ""}',
                     style: const TextStyle(fontSize: 12),
                   ),
                   trailing: Row(
@@ -303,6 +555,16 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                           ),
                           backgroundColor: Color(0xFF2E7D32),
                         ),
+                      const SizedBox(width: 4),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.edit_calendar_outlined,
+                          size: 20,
+                          color: Color(0xFF1B5E20),
+                        ),
+                        tooltip: 'تعديل المحصول وتاريخ الزراعة',
+                        onPressed: () => _showEditCropDialog(f),
+                      ),
                       const SizedBox(width: 4),
                       IconButton(
                         icon: const Icon(

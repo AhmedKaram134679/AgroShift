@@ -2014,4 +2014,407 @@ void main() {
       expect(wheat.getKcForStageFraction(1.00), closeTo(0.35, 0.0001));
     });
   });
+
+  group('Crop Growth Stage & Forecast ETc Scientific Validation Tests', () {
+    const wheat = EgyptianCropsCatalog
+        .wheat; // 150 days, kcIni=0.40, kcMid=1.15, kcEnd=0.35
+
+    test('1. A 7-day forecast at cycle start (crop age 0-6 days) does NOT progress through entire lifecycle', () {
+      final plantingDate = DateTime.utc(2024, 11, 15);
+      final forecastDates = List.generate(
+        7,
+        (i) => plantingDate.add(Duration(days: i)),
+      );
+      final et0Series = List.generate(7, (_) => 5.0);
+
+      final res = EtcCalculator.calculateForecastEtcValidated(
+        crop: wheat,
+        plantingDate: plantingDate,
+        forecastDates: forecastDates,
+        dailyEt0Series: et0Series,
+        totalRequestedDays: 7,
+      );
+
+      expect(res.isSuccess, isTrue);
+      final data = res.dataOrNull!;
+      // Typical duration = 150 days. Days 0..6 gives stageFraction 0/150 to 6/150 (<= 0.04 <= 0.20)
+      // All 7 days must strictly receive kcIni = 0.40!
+      for (final kc in data.dailyKcSeries) {
+        expect(kc, equals(0.40));
+      }
+      for (final dailyEtc in data.dailyEtcMmSeries) {
+        expect(dailyEtc, equals(2.0)); // 5.0 * 0.40
+      }
+      expect(data.totalEtcMm, equals(14.0)); // 7 * 2.0
+      expect(data.totalVolumeM3PerFeddan, equals(14.0 * 4.2));
+    });
+
+    test('2. A 7-day forecast in mid-season uses the corresponding mid-season Kc plateau', () {
+      final plantingDate = DateTime.utc(2024, 11, 15);
+      // Mid-season for wheat (150 days) is stageFraction 0.50 to 0.80 -> day 75 to day 120
+      // Let forecast start at day 80 after planting
+      final forecastStart = plantingDate.add(const Duration(days: 80));
+      final forecastDates = List.generate(
+        7,
+        (i) => forecastStart.add(Duration(days: i)),
+      );
+      final et0Series = List.generate(7, (_) => 4.0);
+
+      final res = EtcCalculator.calculateForecastEtcValidated(
+        crop: wheat,
+        plantingDate: plantingDate,
+        forecastDates: forecastDates,
+        dailyEt0Series: et0Series,
+        totalRequestedDays: 7,
+      );
+
+      expect(res.isSuccess, isTrue);
+      final data = res.dataOrNull!;
+      // Days 80..86 correspond to fractions 80/150 (0.533) to 86/150 (0.573) - all in mid-season plateau!
+      for (final kc in data.dailyKcSeries) {
+        expect(kc, equals(1.15));
+      }
+      for (final dailyEtc in data.dailyEtcMmSeries) {
+        expect(dailyEtc, equals(4.6)); // 4.0 * 1.15
+      }
+      expect(data.totalEtcMm, closeTo(32.2, 1e-9));
+    });
+
+    test('3. Identical ET0 series for identical crop age produces reproducible results', () {
+      final plantingDate = DateTime.utc(2024, 11, 15);
+      final forecastDates = List.generate(
+        7,
+        (i) => plantingDate.add(Duration(days: 40 + i)),
+      );
+      final et0Series = [3.5, 4.0, 4.2, 3.8, 4.5, 5.0, 4.1];
+
+      final res1 = EtcCalculator.calculateForecastEtcValidated(
+        crop: wheat,
+        plantingDate: plantingDate,
+        forecastDates: forecastDates,
+        dailyEt0Series: et0Series,
+        totalRequestedDays: 7,
+      );
+
+      final res2 = EtcCalculator.calculateForecastEtcValidated(
+        crop: wheat,
+        plantingDate: plantingDate,
+        forecastDates: forecastDates,
+        dailyEt0Series: et0Series,
+        totalRequestedDays: 7,
+      );
+
+      expect(res1.dataOrNull?.totalEtcMm, equals(res2.dataOrNull?.totalEtcMm));
+      expect(
+        res1.dataOrNull?.totalVolumeM3PerFeddan,
+        equals(res2.dataOrNull?.totalVolumeM3PerFeddan),
+      );
+      expect(
+        res1.dataOrNull?.dailyKcSeries,
+        equals(res2.dataOrNull?.dailyKcSeries),
+      );
+    });
+
+    test('4. Advancing planting date/crop age changes Kc across interpolation boundaries', () {
+      final forecastStart = DateTime.utc(2025, 1, 1);
+      final forecastDates = List.generate(
+        7,
+        (i) => forecastStart.add(Duration(days: i)),
+      );
+      final et0Series = List.generate(7, (_) => 5.0);
+
+      // Crop planted 10 days ago (Initial stage, fraction 10/150 = 0.066 <= 0.20) -> Kc = 0.40
+      final resEarly = EtcCalculator.calculateForecastEtcValidated(
+        crop: wheat,
+        plantingDate: forecastStart.subtract(const Duration(days: 10)),
+        forecastDates: forecastDates,
+        dailyEt0Series: et0Series,
+        totalRequestedDays: 7,
+      );
+
+      // Crop planted 60 days ago (Development stage, fraction 60/150 = 0.40 in (0.20, 0.50])
+      // Interpolation: 0.40 + (0.40 - 0.20)/0.30 * (1.15 - 0.40) = 0.40 + 2/3 * 0.75 = 0.90
+      final resDev = EtcCalculator.calculateForecastEtcValidated(
+        crop: wheat,
+        plantingDate: forecastStart.subtract(const Duration(days: 60)),
+        forecastDates: forecastDates,
+        dailyEt0Series: et0Series,
+        totalRequestedDays: 7,
+      );
+
+      // Crop planted 90 days ago (Mid-season plateau, fraction 90/150 = 0.60) -> Kc = 1.15
+      final resMid = EtcCalculator.calculateForecastEtcValidated(
+        crop: wheat,
+        plantingDate: forecastStart.subtract(const Duration(days: 90)),
+        forecastDates: forecastDates,
+        dailyEt0Series: et0Series,
+        totalRequestedDays: 7,
+      );
+
+      expect(resEarly.dataOrNull!.dailyKcSeries.first, equals(0.40));
+      expect(resDev.dataOrNull!.dailyKcSeries.first, closeTo(0.90, 1e-4));
+      expect(resMid.dataOrNull!.dailyKcSeries.first, equals(1.15));
+    });
+
+    test('5. Calendar date handling correctly handles month-end and leap-year boundaries without off-by-one errors', () {
+      // Leap year 2024: Feb has 29 days
+      final plantingDate = DateTime.utc(2024, 2, 27);
+      // Crossing Feb 27, 28, 29, Mar 1, 2
+      final forecastDates = [
+        DateTime.utc(2024, 2, 28), // day 1 after planting
+        DateTime.utc(2024, 2, 29), // day 2
+        DateTime.utc(2024, 3, 1), // day 3
+        DateTime.utc(2024, 3, 2), // day 4
+      ];
+
+      final res = EtcCalculator.calculateForecastEtcValidated(
+        crop: wheat,
+        plantingDate: plantingDate,
+        forecastDates: forecastDates,
+        dailyEt0Series: [4.0, 4.0, 4.0, 4.0],
+        totalRequestedDays: 4,
+      );
+
+      expect(res.isSuccess, isTrue);
+      // Stage fractions should be exactly 1/150, 2/150, 3/150, 4/150
+      final data = res.dataOrNull!;
+      expect(data.dailyKcSeries.length, equals(4));
+      expect(data.dailyKcSeries.every((kc) => kc == 0.40), isTrue);
+    });
+
+    test('6. Crop typicalDurationDays directly controls developmental stage fraction', () {
+      final forecastDate = [DateTime.utc(2025, 3, 1)];
+      final plantingDate = DateTime.utc(2025, 1, 1); // 59 days prior
+
+      // Test with 120-day crop vs 180-day crop
+      const maize120 = EgyptianCropsCatalog.maize; // 120 days
+      const cotton180 = EgyptianCropsCatalog.cotton; // 180 days
+
+      final resMaize = EtcCalculator.calculateForecastEtcValidated(
+        crop: maize120,
+        plantingDate: plantingDate,
+        forecastDates: forecastDate,
+        dailyEt0Series: [5.0],
+        totalRequestedDays: 1,
+      );
+
+      final resCotton = EtcCalculator.calculateForecastEtcValidated(
+        crop: cotton180,
+        plantingDate: plantingDate,
+        forecastDates: forecastDate,
+        dailyEt0Series: [5.0],
+        totalRequestedDays: 1,
+      );
+
+      // 59/120 = ~0.4916 (near end of development stage)
+      // 59/180 = ~0.3277 (early in development stage)
+      final kcMaize = resMaize.dataOrNull!.dailyKcSeries.first;
+      final kcCotton = resCotton.dataOrNull!.dailyKcSeries.first;
+      expect(kcMaize, isNot(equals(kcCotton)));
+    });
+
+    test('7. Missing ET0 observations do NOT shift subsequent forecast dates or crop stages', () {
+      final plantingDate = DateTime.utc(2024, 11, 15);
+      final forecastStart = plantingDate.add(
+        const Duration(days: 58),
+      ); // development stage
+      final forecastDates = List.generate(
+        10,
+        (i) => forecastStart.add(Duration(days: i)),
+      );
+      // Day 3 (index 2) is missing
+      final et0Series = List<double?>.generate(10, (i) => i == 2 ? null : 5.0);
+
+      final res = EtcCalculator.calculateForecastEtcValidated(
+        crop: wheat,
+        plantingDate: plantingDate,
+        forecastDates: forecastDates,
+        dailyEt0Series: et0Series,
+        totalRequestedDays: 10,
+      );
+
+      expect(res.isSuccess, isTrue);
+      final data = res.dataOrNull!;
+      // Missing day has null etc contribution
+      expect(data.dailyEtcMmSeries[2], isNull);
+      // Day 4 (index 3) retains its exact biological Kc corresponding to day 61 after planting
+      final expectedKcDay4 = wheat.getKcForStageFraction(61 / 150);
+      expect(data.dailyKcSeries[3], closeTo(expectedKcDay4, 1e-6));
+      expect(data.dailyEtcMmSeries[3], closeTo(5.0 * expectedKcDay4, 1e-6));
+    });
+
+    test(
+      '8. Missing plantingDate fails closed with MissingCropStageFailure',
+      () {
+        final forecastDates = List.generate(
+          7,
+          (i) => DateTime.utc(2025, 1, 1 + i),
+        );
+        final res = EtcCalculator.calculateForecastEtcValidated(
+          crop: wheat,
+          plantingDate: null,
+          forecastDates: forecastDates,
+          dailyEt0Series: [5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0],
+          totalRequestedDays: 7,
+        );
+
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<MissingCropStageFailure>());
+        expect(
+          res.failureOrNull?.userMessageAr.contains('تاريخ زراعة المحصول'),
+          isTrue,
+        );
+      },
+    );
+
+    test('9. Planting date in the future relative to forecast period fails closed with MissingCropStageFailure', () {
+      final forecastDates = [DateTime.utc(2025, 1, 1)];
+      final futurePlanting = DateTime.utc(2025, 1, 10);
+
+      final res = EtcCalculator.calculateForecastEtcValidated(
+        crop: wheat,
+        plantingDate: futurePlanting,
+        forecastDates: forecastDates,
+        dailyEt0Series: [5.0],
+        totalRequestedDays: 1,
+      );
+
+      expect(res.isFailure, isTrue);
+      expect(res.failureOrNull, isA<MissingCropStageFailure>());
+      expect(res.failureOrNull?.userMessageAr.contains('المستقبل'), isTrue);
+    });
+
+    test('10. Invalid typicalDurationDays (<= 0) fails closed with MissingCropStageFailure', () {
+      final invalidCrop = Crop(
+        id: 'bad_crop',
+        nameAr: 'محصول غير صالح',
+        nameEn: 'Invalid Crop',
+        season: CropSeason.winter,
+        baseTemperatureC: 5.0,
+        criticalHeatTemperatureC: 30.0,
+        kcIni: 0.40,
+        kcMid: 1.15,
+        kcEnd: 0.35,
+        typicalDurationDays: 0, // Invalid!
+        soilNutrientImpact: SoilNutrientImpact.moderate,
+        scientificNotesAr: '',
+      );
+
+      final res = EtcCalculator.calculateForecastEtcValidated(
+        crop: invalidCrop,
+        plantingDate: DateTime.utc(2024, 1, 1),
+        forecastDates: [DateTime.utc(2024, 1, 5)],
+        dailyEt0Series: [5.0],
+        totalRequestedDays: 1,
+      );
+
+      expect(res.isFailure, isTrue);
+      expect(res.failureOrNull, isA<MissingCropStageFailure>());
+    });
+
+    test('11. Operational ET0 envelope, NaN/Infinities, and missingness policy enforcement', () {
+      final plantingDate = DateTime.utc(2024, 1, 1);
+      final forecastDates = List.generate(
+        10,
+        (i) => DateTime.utc(2024, 1, 10 + i),
+      );
+
+      // Negative ET0 -> PhysicalRangeFailure
+      final negRes = EtcCalculator.calculateForecastEtcValidated(
+        crop: wheat,
+        plantingDate: plantingDate,
+        forecastDates: forecastDates,
+        dailyEt0Series: [-1.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0],
+        totalRequestedDays: 10,
+      );
+      expect(negRes.isFailure, isTrue);
+      expect(negRes.failureOrNull, isA<PhysicalRangeFailure>());
+
+      // ET0 > 25.0 -> PhysicalRangeFailure
+      final highRes = EtcCalculator.calculateForecastEtcValidated(
+        crop: wheat,
+        plantingDate: plantingDate,
+        forecastDates: forecastDates,
+        dailyEt0Series: [25.1, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0],
+        totalRequestedDays: 10,
+      );
+      expect(highRes.isFailure, isTrue);
+      expect(highRes.failureOrNull, isA<PhysicalRangeFailure>());
+
+      // NaN ET0 -> PhysicalRangeFailure
+      final nanRes = EtcCalculator.calculateForecastEtcValidated(
+        crop: wheat,
+        plantingDate: plantingDate,
+        forecastDates: forecastDates,
+        dailyEt0Series: [
+          double.nan,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+        ],
+        totalRequestedDays: 10,
+      );
+      expect(nanRes.isFailure, isTrue);
+      expect(nanRes.failureOrNull, isA<PhysicalRangeFailure>());
+
+      // Missing > 10% (2 missing out of 10) -> InsufficientEvidenceFailure
+      final missingRes = EtcCalculator.calculateForecastEtcValidated(
+        crop: wheat,
+        plantingDate: plantingDate,
+        forecastDates: forecastDates,
+        dailyEt0Series: [null, null, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0],
+        totalRequestedDays: 10,
+      );
+      expect(missingRes.isFailure, isTrue);
+      expect(missingRes.failureOrNull, isA<InsufficientEvidenceFailure>());
+
+      // Extra observations beyond requested period are ignored
+      final extraRes = EtcCalculator.calculateForecastEtcValidated(
+        crop: wheat,
+        plantingDate: plantingDate,
+        forecastDates: [...forecastDates, DateTime.utc(2024, 1, 20)],
+        dailyEt0Series: [
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          5.0,
+          999.0,
+        ], // 11th observation is invalid but beyond requested
+        totalRequestedDays: 10,
+      );
+      expect(extraRes.isSuccess, isTrue);
+      expect(extraRes.dataOrNull!.dailyEtcMmSeries.length, equals(10));
+    });
+
+    test('12. Crop age beyond typicalDurationDays clamps fraction to 1.0 returning kcEnd', () {
+      final plantingDate = DateTime.utc(2024, 1, 1);
+      // Wheat duration is 150 days; forecast date is 200 days after planting
+      final forecastDates = [plantingDate.add(const Duration(days: 200))];
+
+      final res = EtcCalculator.calculateForecastEtcValidated(
+        crop: wheat,
+        plantingDate: plantingDate,
+        forecastDates: forecastDates,
+        dailyEt0Series: [5.0],
+        totalRequestedDays: 1,
+      );
+
+      expect(res.isSuccess, isTrue);
+      final data = res.dataOrNull!;
+      expect(data.dailyKcSeries.first, closeTo(wheat.kcEnd, 1e-6)); // 0.35
+      expect(data.dailyEtcMmSeries.first, closeTo(5.0 * wheat.kcEnd, 1e-6));
+    });
+  });
 }

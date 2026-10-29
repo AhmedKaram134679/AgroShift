@@ -12,6 +12,7 @@ class FarmFieldsTable extends Table {
   RealColumn get areaInFeddan => real()();
   TextColumn get soilType => text()(); // clay, clayLoam, sandyLoam, sandy
   TextColumn get activeCropId => text().nullable()();
+  DateTimeColumn get plantingDate => dateTime().nullable()();
   BoolColumn get isDefault => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
@@ -69,7 +70,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase(super.e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -79,6 +80,19 @@ class AppDatabase extends _$AppDatabase {
     onUpgrade: (m, from, to) async {
       if (from < 2) {
         await m.alterTable(TableMigration(cachedDailyRecordsTable));
+      }
+      if (from < 3) {
+        // Only add planting_date if it does not already exist in farm_fields_table
+        // (prevents duplicate column error when onUpgrade is called on a freshly created table)
+        final columns = await customSelect(
+          "PRAGMA table_info('farm_fields_table')",
+        ).get();
+        final hasPlantingDate = columns.any(
+          (c) => c.data['name'] == 'planting_date',
+        );
+        if (!hasPlantingDate) {
+          await m.addColumn(farmFieldsTable, farmFieldsTable.plantingDate);
+        }
       }
     },
   );

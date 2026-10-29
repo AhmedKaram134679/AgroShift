@@ -71,3 +71,16 @@ final class InsufficientEvidenceFailure extends Failure {
     this.totalCount,
   });
 }
+
+/// Agronomic failure: triggered when required crop stage, planting date, or duration is unavailable or invalid.
+final class MissingCropStageFailure extends Failure {
+  final String? cropId;
+  final String? fieldId;
+
+  const MissingCropStageFailure({
+    required super.userMessageAr,
+    required super.technicalMessage,
+    this.cropId,
+    this.fieldId,
+  });
+}

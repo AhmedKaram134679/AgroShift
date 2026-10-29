@@ -16,6 +16,7 @@ class FarmField {
   final double areaInFeddan;
   final SoilType soilType;
   final String? activeCropId;
+  final DateTime? plantingDate;
 
   const FarmField({
     required this.id,
@@ -25,6 +26,7 @@ class FarmField {
     required this.areaInFeddan,
     required this.soilType,
     this.activeCropId,
+    this.plantingDate,
   });
 
   String get soilTypeNameAr => switch (soilType) {

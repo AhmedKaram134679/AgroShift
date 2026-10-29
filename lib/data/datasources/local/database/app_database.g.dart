@@ -93,6 +93,17 @@ class $FarmFieldsTableTable extends FarmFieldsTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _plantingDateMeta = const VerificationMeta(
+    'plantingDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> plantingDate = GeneratedColumn<DateTime>(
+    'planting_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _isDefaultMeta = const VerificationMeta(
     'isDefault',
   );
@@ -140,6 +151,7 @@ class $FarmFieldsTableTable extends FarmFieldsTable
     areaInFeddan,
     soilType,
     activeCropId,
+    plantingDate,
     isDefault,
     createdAt,
     updatedAt,
@@ -224,6 +236,15 @@ class $FarmFieldsTableTable extends FarmFieldsTable
         ),
       );
     }
+    if (data.containsKey('planting_date')) {
+      context.handle(
+        _plantingDateMeta,
+        plantingDate.isAcceptableOrUnknown(
+          data['planting_date']!,
+          _plantingDateMeta,
+        ),
+      );
+    }
     if (data.containsKey('is_default')) {
       context.handle(
         _isDefaultMeta,
@@ -287,6 +308,10 @@ class $FarmFieldsTableTable extends FarmFieldsTable
         DriftSqlType.string,
         data['${effectivePrefix}active_crop_id'],
       ),
+      plantingDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}planting_date'],
+      ),
       isDefault: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_default'],
@@ -318,6 +343,7 @@ class FarmFieldsTableData extends DataClass
   final double areaInFeddan;
   final String soilType;
   final String? activeCropId;
+  final DateTime? plantingDate;
   final bool isDefault;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -330,6 +356,7 @@ class FarmFieldsTableData extends DataClass
     required this.areaInFeddan,
     required this.soilType,
     this.activeCropId,
+    this.plantingDate,
     required this.isDefault,
     required this.createdAt,
     required this.updatedAt,
@@ -346,6 +373,9 @@ class FarmFieldsTableData extends DataClass
     map['soil_type'] = Variable<String>(soilType);
     if (!nullToAbsent || activeCropId != null) {
       map['active_crop_id'] = Variable<String>(activeCropId);
+    }
+    if (!nullToAbsent || plantingDate != null) {
+      map['planting_date'] = Variable<DateTime>(plantingDate);
     }
     map['is_default'] = Variable<bool>(isDefault);
     map['created_at'] = Variable<DateTime>(createdAt);
@@ -365,6 +395,9 @@ class FarmFieldsTableData extends DataClass
       activeCropId: activeCropId == null && nullToAbsent
           ? const Value.absent()
           : Value(activeCropId),
+      plantingDate: plantingDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(plantingDate),
       isDefault: Value(isDefault),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
@@ -385,6 +418,7 @@ class FarmFieldsTableData extends DataClass
       areaInFeddan: serializer.fromJson<double>(json['areaInFeddan']),
       soilType: serializer.fromJson<String>(json['soilType']),
       activeCropId: serializer.fromJson<String?>(json['activeCropId']),
+      plantingDate: serializer.fromJson<DateTime?>(json['plantingDate']),
       isDefault: serializer.fromJson<bool>(json['isDefault']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -402,6 +436,7 @@ class FarmFieldsTableData extends DataClass
       'areaInFeddan': serializer.toJson<double>(areaInFeddan),
       'soilType': serializer.toJson<String>(soilType),
       'activeCropId': serializer.toJson<String?>(activeCropId),
+      'plantingDate': serializer.toJson<DateTime?>(plantingDate),
       'isDefault': serializer.toJson<bool>(isDefault),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -417,6 +452,7 @@ class FarmFieldsTableData extends DataClass
     double? areaInFeddan,
     String? soilType,
     Value<String?> activeCropId = const Value.absent(),
+    Value<DateTime?> plantingDate = const Value.absent(),
     bool? isDefault,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -429,6 +465,7 @@ class FarmFieldsTableData extends DataClass
     areaInFeddan: areaInFeddan ?? this.areaInFeddan,
     soilType: soilType ?? this.soilType,
     activeCropId: activeCropId.present ? activeCropId.value : this.activeCropId,
+    plantingDate: plantingDate.present ? plantingDate.value : this.plantingDate,
     isDefault: isDefault ?? this.isDefault,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -449,6 +486,9 @@ class FarmFieldsTableData extends DataClass
       activeCropId: data.activeCropId.present
           ? data.activeCropId.value
           : this.activeCropId,
+      plantingDate: data.plantingDate.present
+          ? data.plantingDate.value
+          : this.plantingDate,
       isDefault: data.isDefault.present ? data.isDefault.value : this.isDefault,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -466,6 +506,7 @@ class FarmFieldsTableData extends DataClass
           ..write('areaInFeddan: $areaInFeddan, ')
           ..write('soilType: $soilType, ')
           ..write('activeCropId: $activeCropId, ')
+          ..write('plantingDate: $plantingDate, ')
           ..write('isDefault: $isDefault, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -483,6 +524,7 @@ class FarmFieldsTableData extends DataClass
     areaInFeddan,
     soilType,
     activeCropId,
+    plantingDate,
     isDefault,
     createdAt,
     updatedAt,
@@ -499,6 +541,7 @@ class FarmFieldsTableData extends DataClass
           other.areaInFeddan == this.areaInFeddan &&
           other.soilType == this.soilType &&
           other.activeCropId == this.activeCropId &&
+          other.plantingDate == this.plantingDate &&
           other.isDefault == this.isDefault &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -513,6 +556,7 @@ class FarmFieldsTableCompanion extends UpdateCompanion<FarmFieldsTableData> {
   final Value<double> areaInFeddan;
   final Value<String> soilType;
   final Value<String?> activeCropId;
+  final Value<DateTime?> plantingDate;
   final Value<bool> isDefault;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -526,6 +570,7 @@ class FarmFieldsTableCompanion extends UpdateCompanion<FarmFieldsTableData> {
     this.areaInFeddan = const Value.absent(),
     this.soilType = const Value.absent(),
     this.activeCropId = const Value.absent(),
+    this.plantingDate = const Value.absent(),
     this.isDefault = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -540,6 +585,7 @@ class FarmFieldsTableCompanion extends UpdateCompanion<FarmFieldsTableData> {
     required double areaInFeddan,
     required String soilType,
     this.activeCropId = const Value.absent(),
+    this.plantingDate = const Value.absent(),
     this.isDefault = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
@@ -562,6 +608,7 @@ class FarmFieldsTableCompanion extends UpdateCompanion<FarmFieldsTableData> {
     Expression<double>? areaInFeddan,
     Expression<String>? soilType,
     Expression<String>? activeCropId,
+    Expression<DateTime>? plantingDate,
     Expression<bool>? isDefault,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -576,6 +623,7 @@ class FarmFieldsTableCompanion extends UpdateCompanion<FarmFieldsTableData> {
       if (areaInFeddan != null) 'area_in_feddan': areaInFeddan,
       if (soilType != null) 'soil_type': soilType,
       if (activeCropId != null) 'active_crop_id': activeCropId,
+      if (plantingDate != null) 'planting_date': plantingDate,
       if (isDefault != null) 'is_default': isDefault,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -592,6 +640,7 @@ class FarmFieldsTableCompanion extends UpdateCompanion<FarmFieldsTableData> {
     Value<double>? areaInFeddan,
     Value<String>? soilType,
     Value<String?>? activeCropId,
+    Value<DateTime?>? plantingDate,
     Value<bool>? isDefault,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
@@ -606,6 +655,7 @@ class FarmFieldsTableCompanion extends UpdateCompanion<FarmFieldsTableData> {
       areaInFeddan: areaInFeddan ?? this.areaInFeddan,
       soilType: soilType ?? this.soilType,
       activeCropId: activeCropId ?? this.activeCropId,
+      plantingDate: plantingDate ?? this.plantingDate,
       isDefault: isDefault ?? this.isDefault,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -640,6 +690,9 @@ class FarmFieldsTableCompanion extends UpdateCompanion<FarmFieldsTableData> {
     if (activeCropId.present) {
       map['active_crop_id'] = Variable<String>(activeCropId.value);
     }
+    if (plantingDate.present) {
+      map['planting_date'] = Variable<DateTime>(plantingDate.value);
+    }
     if (isDefault.present) {
       map['is_default'] = Variable<bool>(isDefault.value);
     }
@@ -666,6 +719,7 @@ class FarmFieldsTableCompanion extends UpdateCompanion<FarmFieldsTableData> {
           ..write('areaInFeddan: $areaInFeddan, ')
           ..write('soilType: $soilType, ')
           ..write('activeCropId: $activeCropId, ')
+          ..write('plantingDate: $plantingDate, ')
           ..write('isDefault: $isDefault, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -1945,6 +1999,7 @@ typedef $$FarmFieldsTableTableCreateCompanionBuilder =
       required double areaInFeddan,
       required String soilType,
       Value<String?> activeCropId,
+      Value<DateTime?> plantingDate,
       Value<bool> isDefault,
       required DateTime createdAt,
       required DateTime updatedAt,
@@ -1960,6 +2015,7 @@ typedef $$FarmFieldsTableTableUpdateCompanionBuilder =
       Value<double> areaInFeddan,
       Value<String> soilType,
       Value<String?> activeCropId,
+      Value<DateTime?> plantingDate,
       Value<bool> isDefault,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -2012,6 +2068,11 @@ class $$FarmFieldsTableTableFilterComposer
 
   ColumnFilters<String> get activeCropId => $composableBuilder(
     column: $table.activeCropId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get plantingDate => $composableBuilder(
+    column: $table.plantingDate,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2080,6 +2141,11 @@ class $$FarmFieldsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get plantingDate => $composableBuilder(
+    column: $table.plantingDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isDefault => $composableBuilder(
     column: $table.isDefault,
     builder: (column) => ColumnOrderings(column),
@@ -2132,6 +2198,11 @@ class $$FarmFieldsTableTableAnnotationComposer
 
   GeneratedColumn<String> get activeCropId => $composableBuilder(
     column: $table.activeCropId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get plantingDate => $composableBuilder(
+    column: $table.plantingDate,
     builder: (column) => column,
   );
 
@@ -2190,6 +2261,7 @@ class $$FarmFieldsTableTableTableManager
                 Value<double> areaInFeddan = const Value.absent(),
                 Value<String> soilType = const Value.absent(),
                 Value<String?> activeCropId = const Value.absent(),
+                Value<DateTime?> plantingDate = const Value.absent(),
                 Value<bool> isDefault = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -2203,6 +2275,7 @@ class $$FarmFieldsTableTableTableManager
                 areaInFeddan: areaInFeddan,
                 soilType: soilType,
                 activeCropId: activeCropId,
+                plantingDate: plantingDate,
                 isDefault: isDefault,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -2218,6 +2291,7 @@ class $$FarmFieldsTableTableTableManager
                 required double areaInFeddan,
                 required String soilType,
                 Value<String?> activeCropId = const Value.absent(),
+                Value<DateTime?> plantingDate = const Value.absent(),
                 Value<bool> isDefault = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
@@ -2231,6 +2305,7 @@ class $$FarmFieldsTableTableTableManager
                 areaInFeddan: areaInFeddan,
                 soilType: soilType,
                 activeCropId: activeCropId,
+                plantingDate: plantingDate,
                 isDefault: isDefault,
                 createdAt: createdAt,
                 updatedAt: updatedAt,

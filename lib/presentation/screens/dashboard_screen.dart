@@ -2,6 +2,7 @@ import 'dart:core';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:agro_shift/core/error/failures.dart';
 import 'package:agro_shift/presentation/providers/agro_providers.dart';
 import 'package:agro_shift/domain/agronomy/models/crop_catalog.dart';
 import 'package:agro_shift/domain/agronomy/science/heat_stress_evaluator.dart';
@@ -275,15 +276,18 @@ class DashboardScreen extends ConsumerWidget {
                           )
                         : null;
 
-                    // Validated ETc Water Requirement
+                    // Validated ETc Water Requirement for Forecast Period based on true crop age
+                    final forecastDates = records.map((r) => r.date).toList();
                     final et0Series = records
                         .map((r) => r.referenceEt0Mm)
                         .toList();
                     final etcResult = activeCrop != null
-                        ? EtcCalculator.calculateCycleWaterRequirementValidated(
+                        ? EtcCalculator.calculateForecastEtcValidated(
                             crop: activeCrop,
-                            totalRequestedDays: expectedForecastDays,
+                            plantingDate: activeField.plantingDate,
+                            forecastDates: forecastDates,
                             dailyEt0Series: et0Series,
+                            totalRequestedDays: expectedForecastDays,
                           )
                         : null;
 
@@ -471,9 +475,12 @@ class DashboardScreen extends ConsumerWidget {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        const Text(
-                                          'تعذر حساب الاحتياج المائي (ETc) — بيانات غير مكتملة',
-                                          style: TextStyle(
+                                        Text(
+                                          etcResult.failureOrNull
+                                                  is MissingCropStageFailure
+                                              ? 'تاريخ زراعة المحصول غير محدد'
+                                              : 'تعذر حساب الاحتياج المائي (ETc) — بيانات غير مكتملة',
+                                          style: const TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: 13,
                                             color: Color(0xFFE65100),
@@ -486,6 +493,31 @@ class DashboardScreen extends ConsumerWidget {
                                               .userMessageAr,
                                           style: const TextStyle(fontSize: 12),
                                         ),
+                                        if (etcResult.failureOrNull
+                                            is MissingCropStageFailure) ...[
+                                          const SizedBox(height: 8),
+                                          InkWell(
+                                            onTap: () {
+                                              // Navigate to fields management tab to set planting date
+                                              ref
+                                                  .read(
+                                                    navigationTabIndexProvider
+                                                        .notifier,
+                                                  )
+                                                  .setTab(3);
+                                            },
+                                            child: const Text(
+                                              'اضغط هنا للانتقال لتبويب الحقول لتحديد تاريخ الزراعة',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFF1B5E20),
+                                                decoration:
+                                                    TextDecoration.underline,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ],
                                     ),
                                   ),

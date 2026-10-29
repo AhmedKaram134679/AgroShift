@@ -522,9 +522,9 @@ void main() {
       // Test schema creation & migration strategy execution
       await fieldRepo.saveField(testField);
 
-      // Trigger onUpgrade explicitly
+      // Trigger onUpgrade explicitly for existing schema version (v2 -> v3)
       final migrator = db.createMigrator();
-      await db.migration.onUpgrade(migrator, 1, 1);
+      await db.migration.onUpgrade(migrator, 2, 3);
 
       final fields = (await fieldRepo.getAllFields()).dataOrNull!;
       expect(fields.length, equals(1));
@@ -3208,8 +3208,8 @@ void main() {
           NativeDatabase.opened(rawSqliteDb, closeUnderlyingOnClose: false),
         );
 
-        // Verify that onUpgrade ran and schemaVersion is now 2
-        expect(upgradedDb.schemaVersion, equals(2));
+        // Verify that onUpgrade ran and schemaVersion is now 3
+        expect(upgradedDb.schemaVersion, equals(3));
 
         // Step 3: Verify the legacy records (farm field and weather) are preserved with exact original values
         final legacyField = await (upgradedDb.select(
@@ -3219,6 +3219,7 @@ void main() {
         expect(legacyField.areaInFeddan, equals(5.0));
         expect(legacyField.soilType, equals('clay'));
         expect(legacyField.activeCropId, equals('wheat'));
+        expect(legacyField.plantingDate, isNull);
         expect(legacyField.isDefault, isTrue);
 
         final legacyRow = await (upgradedDb.select(
@@ -3359,7 +3360,7 @@ void main() {
 
         // Step 8: Reopen database and verify migration idempotency (no data duplication or corruption)
         final reopenedDb = AppDatabase(NativeDatabase.opened(rawSqliteDb));
-        expect(reopenedDb.schemaVersion, equals(2));
+        expect(reopenedDb.schemaVersion, equals(3));
 
         final fieldsAfterReopen = await reopenedDb
             .select(reopenedDb.farmFieldsTable)
@@ -3371,6 +3372,122 @@ void main() {
             .select(reopenedDb.cachedDailyRecordsTable)
             .get();
         expect(weatherAfterReopen.length, equals(3));
+
+        await reopenedDb.close();
+        rawSqliteDb.close();
+      });
+
+      test('Drift Schema Migration Tests: v2 to v3 upgrades farm_fields_table with nullable planting_date', () async {
+        // Step 1: Create an in-memory SQLite database simulating schema v2
+        final rawSqliteDb = sqlite3.openInMemory();
+        final nowMs = DateTime.utc(2024, 6, 1, 12, 0).millisecondsSinceEpoch;
+
+        rawSqliteDb.execute('''
+          CREATE TABLE farm_fields_table (
+            id TEXT NOT NULL PRIMARY KEY,
+            name_ar TEXT NOT NULL,
+            governorate_ar TEXT NOT NULL,
+            latitude REAL NOT NULL,
+            longitude REAL NOT NULL,
+            area_in_feddan REAL NOT NULL,
+            soil_type TEXT NOT NULL,
+            active_crop_id TEXT,
+            is_default INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+          );
+        ''');
+
+        rawSqliteDb.execute('''
+          CREATE TABLE deleted_default_field_ids_table (
+            id TEXT NOT NULL PRIMARY KEY,
+            deleted_at INTEGER NOT NULL
+          );
+        ''');
+
+        rawSqliteDb.execute('''
+          CREATE TABLE cached_daily_records_table (
+            cache_key TEXT NOT NULL,
+            record_date INTEGER NOT NULL,
+            max_temperature_c REAL,
+            min_temperature_c REAL,
+            precipitation_mm REAL,
+            reference_et0_mm REAL,
+            provider_name TEXT NOT NULL,
+            dataset_name TEXT NOT NULL,
+            requested_latitude REAL NOT NULL,
+            requested_longitude REAL NOT NULL,
+            grid_latitude REAL NOT NULL,
+            grid_longitude REAL NOT NULL,
+            grid_elevation_meters REAL,
+            acquisition_timestamp INTEGER NOT NULL,
+            scientific_disclaimer_ar TEXT NOT NULL,
+            cached_at INTEGER NOT NULL,
+            PRIMARY KEY (cache_key, record_date)
+          );
+        ''');
+
+        // Insert legacy field under v2
+        rawSqliteDb.execute('''
+          INSERT INTO farm_fields_table (
+            id, name_ar, governorate_ar, latitude, longitude, area_in_feddan,
+            soil_type, active_crop_id, is_default, created_at, updated_at
+          ) VALUES (
+            'v2_field_1', 'حقل الدلتا القديم', 'كفر الشيخ', 31.10, 30.95, 5.0,
+            'clay', 'wheat', 1, $nowMs, $nowMs
+          );
+        ''');
+
+        rawSqliteDb.execute('PRAGMA user_version = 2;');
+
+        // Step 2: Open with AppDatabase (v3)
+        final upgradedDb = AppDatabase(
+          NativeDatabase.opened(rawSqliteDb, closeUnderlyingOnClose: false),
+        );
+        expect(upgradedDb.schemaVersion, equals(3));
+
+        // Step 3: Verify existing field data is intact and plantingDate defaults to null
+        final fieldRepo = FarmFieldRepositoryImpl(upgradedDb);
+        final fieldsRes = await fieldRepo.getAllFields();
+        expect(fieldsRes.isSuccess, isTrue);
+        final fields = fieldsRes.dataOrNull!;
+        expect(fields.length, equals(1));
+        final f = fields.first;
+        expect(f.id, equals('v2_field_1'));
+        expect(f.nameAr, equals('حقل الدلتا القديم'));
+        expect(f.activeCropId, equals('wheat'));
+        expect(f.plantingDate, isNull);
+
+        // Step 4: Save field with planting date and reload
+        final plantingDate = DateTime.utc(2024, 1, 10);
+        final updated = FarmField(
+          id: f.id,
+          nameAr: f.nameAr,
+          governorateAr: f.governorateAr,
+          coordinate: f.coordinate,
+          areaInFeddan: f.areaInFeddan,
+          soilType: f.soilType,
+          activeCropId: f.activeCropId,
+          plantingDate: plantingDate,
+        );
+        final saveRes = await fieldRepo.saveField(updated);
+        expect(saveRes.isSuccess, isTrue);
+
+        final reloaded = (await fieldRepo.getAllFields()).dataOrNull!.first;
+        expect(reloaded.plantingDate?.year, equals(2024));
+        expect(reloaded.plantingDate?.month, equals(1));
+        expect(reloaded.plantingDate?.day, equals(10));
+
+        await upgradedDb.close();
+
+        // Step 5: Reopen and verify persistence idempotency
+        final reopenedDb = AppDatabase(NativeDatabase.opened(rawSqliteDb));
+        expect(reopenedDb.schemaVersion, equals(3));
+        final reopenedRepo = FarmFieldRepositoryImpl(reopenedDb);
+        final persisted = (await reopenedRepo.getAllFields()).dataOrNull!.first;
+        expect(persisted.plantingDate?.year, equals(2024));
+        expect(persisted.plantingDate?.month, equals(1));
+        expect(persisted.plantingDate?.day, equals(10));
 
         await reopenedDb.close();
         rawSqliteDb.close();
