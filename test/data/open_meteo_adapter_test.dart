@@ -1662,34 +1662,6 @@ void main() {
       });
 
       test(
-        'E2b. Map-valued unit declaration is rejected as non-string',
-        () {
-          final units = Map<String, dynamic>.from(validDailyUnits)
-            ..['precipitation_sum'] = <String, dynamic>{
-              'unexpected': 'mm',
-            };
-
-          final dto = makeDtoWithUnits(units);
-
-          final res = OpenMeteoAdapter.toDomainRecords(
-            dto: dto,
-            requestedCoordinate: coord,
-            datasetLabel: 'Test Map-Valued Unit',
-          );
-
-          expect(res.isFailure, isTrue);
-          expect(res.failureOrNull, isA<ParsingFailure>());
-
-          final failure = res.failureOrNull as ParsingFailure;
-
-          expect(failure.technicalMessage, contains('is not a string'));
-          expect(failure.technicalMessage, contains('precipitation_sum'));
-          expect(failure.technicalMessage, contains('Map'));
-          expect(failure.userMessageAr, contains('غير صالحة وليست نصاً'));
-        },
-      );
-
-      test(
         'E3. Empty unit string is rejected with diagnostic ParsingFailure',
         () {
           final units = Map<String, dynamic>.from(validDailyUnits)
@@ -1930,81 +1902,6 @@ void main() {
           );
         },
       );
-
-      test('G5. JSON deserialization: Nested Map in unit field is preserved and rejected as non-string', () {
-        final json = <String, dynamic>{
-          'latitude': 31.05,
-          'longitude': 31.20,
-          'generationtime_ms': 1.0,
-          'utc_offset_seconds': 10800,
-          'timezone': 'Africa/Cairo',
-          'daily_units': {
-            'temperature_2m_max': '°C',
-            'temperature_2m_min': '°C',
-            'et0_fao_evapotranspiration': 'mm',
-            'precipitation_sum': <String, dynamic>{'nested': 'mm'},
-          },
-          'daily': {
-            'time': ['2026-06-01'],
-            'temperature_2m_max': [34.0],
-            'temperature_2m_min': [22.0],
-            'et0_fao_evapotranspiration': [6.0],
-            'precipitation_sum': [0.0],
-          },
-        };
-
-        final dto = OpenMeteoDailyResponseDto.fromJson(json);
-        expect(dto.dailyUnits['precipitation_sum'], isA<Map>());
-
-        final res = OpenMeteoAdapter.toDomainRecords(
-          dto: dto,
-          requestedCoordinate: coord,
-          datasetLabel: 'JSON Nested Map Unit',
-        );
-
-        expect(res.isFailure, isTrue);
-        expect(res.failureOrNull, isA<ParsingFailure>());
-        final failure = res.failureOrNull as ParsingFailure;
-        expect(failure.technicalMessage, contains('is not a string'));
-        expect(failure.technicalMessage, contains('precipitation_sum'));
-        expect(failure.userMessageAr, contains('غير صالحة وليست نصاً'));
-      });
-
-      test('G4. JSON deserialization: Non-Map daily_units is rejected by adapter', () {
-        final json = <String, dynamic>{
-          'latitude': 31.05,
-          'longitude': 31.20,
-          'generationtime_ms': 1.0,
-          'utc_offset_seconds': 10800,
-          'timezone': 'Africa/Cairo',
-          'daily_units': 'invalid',
-          'daily': {
-            'time': ['2026-06-01'],
-            'temperature_2m_max': [34.0],
-            'temperature_2m_min': [22.0],
-            'et0_fao_evapotranspiration': [6.0],
-            'precipitation_sum': [0.0],
-          },
-        };
-
-        final dto = OpenMeteoDailyResponseDto.fromJson(json);
-
-        // Characterize the current DTO behavior explicitly.
-        expect(dto.dailyUnits, isEmpty);
-
-        final res = OpenMeteoAdapter.toDomainRecords(
-          dto: dto,
-          requestedCoordinate: coord,
-          datasetLabel: 'JSON Malformed Units',
-        );
-
-        expect(res.isFailure, isTrue);
-        expect(res.failureOrNull, isA<ParsingFailure>());
-        expect(
-          res.failureOrNull!.technicalMessage,
-          contains('Missing unit declaration'),
-        );
-      });
 
       test('G5. JSON deserialization: Nested Map in unit field is preserved and rejected as non-string', () {
         final json = <String, dynamic>{
