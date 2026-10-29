@@ -1,0 +1,130 @@
+﻿{
+    "RunStartUtc":  "2026-10-29T10:13:34Z",
+    "RunEndUtc":  "2026-10-29T10:17:38Z",
+    "DurationSeconds":  243.28,
+    "Provenance":  {
+                       "Branch":  "HEAD",
+                       "StartingHeadCommit":  "fc42ff342013475e7e8767966016c3040127f22d",
+                       "StartingHeadShort":  "fc42ff3",
+                       "EndingHeadCommit":  "fc42ff342013475e7e8767966016c3040127f22d",
+                       "EndingHeadShort":  "fc42ff3",
+                       "IsStartingWorkingTreeClean":  true,
+                       "StartingWorkingTreeEntries":  [
+
+                                                      ],
+                       "IsEndingWorkingTreeClean":  true,
+                       "EndingWorkingTreeEntries":  [
+
+                                                    ],
+                       "MonitoredSourceScope":  [
+                                                    "lib",
+                                                    "test",
+                                                    "scripts",
+                                                    "docs",
+                                                    "pubspec.yaml",
+                                                    "pubspec.lock"
+                                                ],
+                       "InitialSourceFileCount":  74,
+                       "FinalSourceFileCount":  74,
+                       "InitialSourceTreeFingerprint":  "7e6388c543d9e6c92ec6f5e9d4bb8cdebf8846cd7b0fa35ad703a4465475a097",
+                       "FinalSourceTreeFingerprint":  "7e6388c543d9e6c92ec6f5e9d4bb8cdebf8846cd7b0fa35ad703a4465475a097",
+                       "FingerprintError":  null,
+                       "SourceTreeMutatedDuringRun":  false,
+                       "ValidationScope":  "Clean Committed Revision (fc42ff342013475e7e8767966016c3040127f22d)"
+                   },
+    "OverallStatus":  "PASS",
+    "EvidenceDirectory":  "D:\\AgroShift-validation-runs\\20261029_131304",
+    "Stages":  [
+                   {
+                       "Stage":  "Dart Format",
+                       "WaitError":  null,
+                       "StartedAtUtc":  "2026-10-29T10:13:35Z",
+                       "OutputError":  null,
+                       "TimeoutError":  null,
+                       "StdoutPath":  "D:\\AgroShift-validation-runs\\20261029_131304\\dart_format.stdout.txt",
+                       "ExitCodePath":  "D:\\AgroShift-validation-runs\\20261029_131304\\dart_format.exitcode.txt",
+                       "ExitCode":  0,
+                       "Status":  "PASS",
+                       "Command":  "dart format --output=none --set-exit-if-changed lib/ test/",
+                       "PreparationError":  null,
+                       "EvidenceWriteError":  null,
+                       "CompletedAtUtc":  "2026-10-29T10:13:37Z",
+                       "StderrPath":  "D:\\AgroShift-validation-runs\\20261029_131304\\dart_format.stderr.txt",
+                       "LaunchError":  null
+                   },
+                   {
+                       "Stage":  "Flutter Analyze",
+                       "WaitError":  null,
+                       "StartedAtUtc":  "2026-10-29T10:13:37Z",
+                       "OutputError":  null,
+                       "TimeoutError":  null,
+                       "StdoutPath":  "D:\\AgroShift-validation-runs\\20261029_131304\\flutter_analyze.stdout.txt",
+                       "ExitCodePath":  "D:\\AgroShift-validation-runs\\20261029_131304\\flutter_analyze.exitcode.txt",
+                       "ExitCode":  0,
+                       "Status":  "PASS",
+                       "Command":  "flutter analyze",
+                       "PreparationError":  null,
+                       "EvidenceWriteError":  null,
+                       "CompletedAtUtc":  "2026-10-29T10:13:49Z",
+                       "StderrPath":  "D:\\AgroShift-validation-runs\\20261029_131304\\flutter_analyze.stderr.txt",
+                       "LaunchError":  null
+                   },
+                   {
+                       "Stage":  "Flutter Tests",
+                       "WaitError":  null,
+                       "StartedAtUtc":  "2026-10-29T10:13:49Z",
+                       "OutputError":  null,
+                       "TimeoutError":  null,
+                       "StdoutPath":  "D:\\AgroShift-validation-runs\\20261029_131304\\flutter_test.stdout.txt",
+                       "ExitCodePath":  "D:\\AgroShift-validation-runs\\20261029_131304\\flutter_test.exitcode.txt",
+                       "ExitCode":  0,
+                       "Status":  "PASS",
+                       "Command":  "flutter test",
+                       "PreparationError":  null,
+                       "EvidenceWriteError":  null,
+                       "CompletedAtUtc":  "2026-10-29T10:14:01Z",
+                       "StderrPath":  "D:\\AgroShift-validation-runs\\20261029_131304\\flutter_test.stderr.txt",
+                       "LaunchError":  null
+                   },
+                   {
+                       "Stage":  "PowerShell Tests",
+                       "WaitError":  null,
+                       "StartedAtUtc":  "2026-10-29T10:14:01Z",
+                       "OutputError":  null,
+                       "TimeoutError":  null,
+                       "StdoutPath":  "D:\\AgroShift-validation-runs\\20261029_131304\\powershell_tests.stdout.txt",
+                       "ExitCodePath":  "D:\\AgroShift-validation-runs\\20261029_131304\\powershell_tests.exitcode.txt",
+                       "ExitCode":  0,
+                       "Status":  "PASS",
+                       "Command":  "powershell.exe -NoProfile -ExecutionPolicy Bypass -File test/scripts/test_validate_historical_models.ps1",
+                       "PreparationError":  null,
+                       "EvidenceWriteError":  null,
+                       "CompletedAtUtc":  "2026-10-29T10:15:26Z",
+                       "StderrPath":  "D:\\AgroShift-validation-runs\\20261029_131304\\powershell_tests.stderr.txt",
+                       "LaunchError":  null
+                   },
+                   {
+                       "Stage":  "Release Build",
+                       "WaitError":  null,
+                       "StartedAtUtc":  "2026-10-29T10:15:26Z",
+                       "OutputError":  null,
+                       "TimeoutError":  null,
+                       "StdoutPath":  "D:\\AgroShift-validation-runs\\20261029_131304\\release_build.stdout.txt",
+                       "ExitCodePath":  "D:\\AgroShift-validation-runs\\20261029_131304\\release_build.exitcode.txt",
+                       "ExitCode":  0,
+                       "Status":  "PASS",
+                       "Command":  "flutter build apk --release",
+                       "PreparationError":  null,
+                       "EvidenceWriteError":  null,
+                       "CompletedAtUtc":  "2026-10-29T10:17:38Z",
+                       "StderrPath":  "D:\\AgroShift-validation-runs\\20261029_131304\\release_build.stderr.txt",
+                       "LaunchError":  null
+                   }
+               ],
+    "DeferredItems":  [
+                          {
+                              "Name":  "Physical Android Database Migration",
+                              "Status":  "DEFERRED - NO PHYSICAL ANDROID DEVICE CONNECTED"
+                          }
+                      ]
+}

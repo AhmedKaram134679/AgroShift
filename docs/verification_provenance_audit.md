@@ -1,7 +1,7 @@
 # Final Provenance and Scientific Evidence Consistency Audit Report
 ## Repository: AhmedKaram134679/AgroShift
 
-**Audit Date:** 2026-10-28T11:05:00Z (2026-10-28T14:05:00+03:00)
+**Audit Date:** 2026-10-29T10:30:00Z (2026-10-29T13:30:00+03:00)
 **Auditor Roles:** Senior Git Provenance Engineer, Flutter/Dart Verification Auditor, PowerShell Test Infrastructure Reviewer, Scientific Evidence Documentation Specialist
 **Primary Branch:** `main`  
 **Governing Standard:** Antigravity Audit and Scientific Evidence Consistency Protocol  
@@ -36,8 +36,10 @@ This formal audit report reconciles Git provenance, verification runner evidence
    - Commit `170d2f60bd57ca8f720ffdd819c6ae2729a2f4b7` (`170d2f6`) published run `20261028_185811` artifacts and audit report updates.
    - Commit `605723cc23b6c6bac28ee77447d113ee921109a7` (`605723c`) was the **clean committed execution revision tested by validation run `20261028_234442`**, adding independent domain scientific calculations and test oracles (173 Flutter tests passed).
    - Commit `f35008e20d5ba68a366046ad324906560baa9dc6` (`f35008e`) was the **evidence-publication commit for run `20261028_234442`**, formally publishing the 9 evidence files of run `20261028_234442` and audit updates.
-   - Commit `c1c79289583b7a29df17ccf6cb4147be6c8b5f65` (`c1c7928`) is the **current published HEAD on `origin/main`**, incorporating farm-field data persistence, domain logic, biological growth-stage forecasting, SQLite schema version 3, and UI screens.
-   - **Verification Qualification:** Clean committed-revision execution has been independently verified across distinct milestones: run `20261027_095914` (over `ef07cda`), run `20261028_024200` (over `25438d0`), run `20261028_084500` (over `2e29eec`), run `20261028_105807` (over `1e6e067`), and run `20261028_234442` (over `605723c`), all achieving `OverallStatus = PASS` or `PASS WITH LIMITATIONS`. Subsequent publication commits (`60f1adf`, `d776842`, `bd48dd2`, `9af0dc2`, `7e379f5`, `bb17d0d`, `d9e9e08`, `b0c96ed`, `00827d5`, `45a57c5`, `170d2f6`, `f35008e`, `854ac0c`, `c02011a`, `d4c6eeb`, `c1c7928`) publish artifacts, documentation improvements, or domain/UI features, and do not alter historical execution revisions.
+   - Commit `c1c79289583b7a29df17ccf6cb4147be6c8b5f65` (`c1c7928`) incorporated farm-field data persistence, biological growth-stage forecasting, SQLite schema version 3, and UI screens (187 Flutter tests passed).
+   - Commit `6fb2ddfc1147b14eff4d369b964ddb6fa2867865` (`6fb2ddf`) implemented FarmField persistence reliability hardening, preserving default-field identity during updates and guaranteeing seeding idempotency (189 Flutter tests passed).
+   - Commit `fc42ff342013475e7e8767966016c3040127f22d` (`fc42ff3`) is the **current published HEAD on `origin/main`** and the **clean committed execution revision tested by validation run `20261029_131304`** (189 Flutter tests passed, 68 PowerShell checks passed, exit code 0).
+   - **Verification Qualification:** Clean committed-revision execution has been independently verified across distinct milestones: run `20261027_095914` (over `ef07cda`), run `20261028_024200` (over `25438d0`), run `20261028_084500` (over `2e29eec`), run `20261028_105807` (over `1e6e067`), run `20261028_234442` (over `605723c`), and run `20261029_131304` (over `fc42ff3`), all achieving `OverallStatus = PASS` or `PASS WITH LIMITATIONS`.
 2. **Provenance Separation Established:** Verification summaries accurately record distinct fields for starting Git HEAD, ending Git HEAD, initial working-tree cleanliness, final working-tree cleanliness, initial and final source-tree fingerprints, and source mutation during the run.
 3. **Fingerprint vs. Cleanliness Fallacy Resolved:** A stable composite source-tree fingerprint ($SHA\text{-}256$) establishes solely that monitored files in the specified source scope (`lib/`, `test/`, `scripts/`, `docs/`, `pubspec.yaml`, `pubspec.lock`) did not mutate between initial and final measurements during the run (`SourceTreeMutatedDuringRun = false`). It does **not** prove that the starting working tree was clean, nor does it establish that untracked or unmonitored files were absent.
 4. **Historical Runs Reconciled:**
@@ -50,11 +52,16 @@ This formal audit report reconciles Git provenance, verification runner evidence
    - Run `20261028_105807` tested a **Clean Committed Revision (`1e6e067ee138dc6ef40c2d57820ceb2d0d34a9f4`)** (67 det. + 1 live = 68 passed; 159 Flutter tests; evidence published in commit `00827d5`, 21 files).
    - Run `20261028_185811` tested a **Modified Working Tree over `cce7f0d66609fedf70a7dfa5ca176e21e70a1187`** (67 det. + 1 live = 68 passed; 168 Flutter tests; evidence published in commit `170d2f6`, 21 files).
    - Run `20261028_234442` tested a **Clean Committed Revision (`605723cc23b6c6bac28ee77447d113ee921109a7`)** (173 Flutter tests passed; exit code 0; evidence published in commit `f35008e`, 9 files).
+   - Run `20261029_100759` tested a **Modified Working Tree over `c1c79289583b7a29df17ccf6cb4147be6c8b5f65`** (187 Flutter tests passed; 68 PowerShell checks; 21 evidence files).
+   - Run `20261029_131304` tested a **Clean Committed Revision (`fc42ff342013475e7e8767966016c3040127f22d`)** (189 Flutter tests passed; 68 PowerShell checks; exit code 0 across all 5 stages; 21 evidence files).
 5. **Exact Flutter Test Count Reconciled Across Suites:**
    - Runs `20261027_095914`, `20261028_024200`, `20261028_084500`, `20261028_105807`: **159 passed** ($47 + 42 + 63 + 7 = 159$).
    - Commit `af45d99`: **164 passed** ($47 + 42 + 67 + 8 = 164$).
    - Run `20261028_185811`: **168 passed** ($47 + 42 + 71 + 8 = 168$).
    - Run `20261028_234442`: **173 passed** ($55 + 42 + 68 + 8 = 173$).
+   - Run `20261029_100759`: **187 passed** ($68 + 42 + 69 + 8 = 187$).
+   - Run `20261029_131304`: **189 passed** ($68 + 42 + 71 + 8 = 189$, reconciling tests 8b and 8c added for default-field preservation and seeding idempotency).
+6. **Scientific Baseline Preserved:** Crop evapotranspiration arithmetic ($ET_c = K_c \times ET_0$) is validated (`PASS`), volumetric delta is confirmed as approximately $83.3\text{ L}$ per feddan per $100\text{ mm}$, client-side FAO-56 Penman-Monteith recomputation remains `INCOMPLETE`, ground-truth field calibration across Egypt remains `DEFERRED`, and physical Android migration remains `DEFERRED`.
 6. **Scientific Baseline Preserved:** Crop evapotranspiration arithmetic ($ET_c = K_c \times ET_0$) is validated (`PASS`), volumetric delta is confirmed as approximately $83.3\text{ L}$ per feddan per $100\text{ mm}$, client-side FAO-56 Penman-Monteith recomputation remains `INCOMPLETE`, ground-truth field calibration across Egypt remains `DEFERRED`, and physical Android migration remains `DEFERRED`.
 
 ---
@@ -63,7 +70,7 @@ This formal audit report reconciles Git provenance, verification runner evidence
 
 ### Core Provenance Snapshots: Historical Execution vs. Publication State
 
-The target commits form a verified direct linear ancestry chain (`25438d0` $\leftarrow$ `d776842` $\leftarrow$ `bd48dd2` $\leftarrow$ `9af0dc2` $\leftarrow$ `7e379f5` $\leftarrow$ `bb17d0d` $\leftarrow$ `2e29eec` $\leftarrow$ `d9e9e08` $\leftarrow$ `b0c96ed` $\leftarrow$ `8535210` $\leftarrow$ `1e6e067` $\leftarrow$ `00827d5` $\leftarrow$ `45a57c5` $\leftarrow$ `66f13b9` $\leftarrow$ `af45d99` $\leftarrow$ `2adb4b4` $\leftarrow$ `cce7f0d` $\leftarrow$ `170d2f6` $\leftarrow$ `605723c` $\leftarrow$ `f35008e`):
+The target commits form a verified direct linear ancestry chain (`25438d0` $\leftarrow$ `d776842` $\leftarrow$ `bd48dd2` $\leftarrow$ `9af0dc2` $\leftarrow$ `7e379f5` $\leftarrow$ `bb17d0d` $\leftarrow$ `2e29eec` $\leftarrow$ `d9e9e08` $\leftarrow$ `b0c96ed` $\leftarrow$ `8535210` $\leftarrow$ `1e6e067` $\leftarrow$ `00827d5` $\leftarrow$ `45a57c5` $\leftarrow$ `66f13b9` $\leftarrow$ `af45d99` $\leftarrow$ `2adb4b4` $\leftarrow$ `cce7f0d` $\leftarrow$ `170d2f6` $\leftarrow$ `605723c` $\leftarrow$ `f35008e` $\leftarrow$ `854ac0c` $\leftarrow$ `c02011a` $\leftarrow$ `d4c6eeb` $\leftarrow$ `c1c7928` $\leftarrow$ `6fb2ddf` $\leftarrow$ `fc42ff3`):
 
 | Concept | Verified Commit / Value | Required Meaning & Evidence Basis |
 | :--- | :--- | :--- |
@@ -77,9 +84,11 @@ The target commits form a verified direct linear ancestry chain (`25438d0` $\lef
 | **Evidence-Publication Commit (Run `20261028_185811`)** | `170d2f60bd57ca8f720ffdd819c6ae2729a2f4b7` (`170d2f6`) | Formally committed 21 evidence files of run `20261028_185811` to `origin/main` |
 | **Clean Execution Commit Tested by Run `20261028_234442`** | `605723cc23b6c6bac28ee77447d113ee921109a7` (`605723c`) | Clean committed revision tested by verification run `20261028_234442` (`artifacts/validation_runs/20261028_234442/verification_summary.json`) |
 | **Evidence-Publication Commit (Run `20261028_234442`)** | `f35008e20d5ba68a366046ad324906560baa9dc6` (`f35008e`) | Formally published 9 evidence files of run `20261028_234442` and audit documentation (`git log -1 f35008e`) |
-| **Historical Published HEAD Commits on `main`** | `854ac0c`, `c02011a`, `d4c6eeb` | Intermediate documentation, audit updates, and ETc calculator commits |
-| **Current Published HEAD on `origin/main`** | `c1c79289583b7a29df17ccf6cb4147be6c8b5f65` (`c1c7928`) | Verified current published commit on `origin/main` (`git rev-parse HEAD`) adding field management UI and SQLite schema v3 |
-| **Working-Tree Condition for Run `20261028_234442`** | Clean committed revision (`true`) | Established by runner verification summary (`isStartingWorkingTreeClean = true`, untracked run directory only) |
+| **Execution Commit Tested by Run `20261029_100759`** | `c1c79289583b7a29df17ccf6cb4147be6c8b5f65` (`c1c7928`) | Modified working tree execution with biological growth stages and schema v3 (187 Flutter tests) |
+| **Clean Execution Commit Tested by Run `20261029_131304`** | `fc42ff342013475e7e8767966016c3040127f22d` (`fc42ff3`) | Clean committed revision tested by verification run `20261029_131304` (189 Flutter tests passed, 68 PowerShell checks passed, exit code 0) |
+| **Historical Published HEAD Commits on `main`** | `854ac0c`, `c02011a`, `d4c6eeb`, `c1c7928`, `6fb2ddf` | Intermediate documentation, audit updates, ETc calculator, schema v3, and persistence reliability hardening commits |
+| **Current Published HEAD on `origin/main`** | `fc42ff342013475e7e8767966016c3040127f22d` (`fc42ff3`) | Verified current published commit on `origin/main` (`git rev-parse HEAD`) incorporating full persistence hardening and 189 tests |
+| **Working-Tree Condition for Run `20261029_131304`** | Clean committed revision (`true`) | Established by runner verification summary (`isStartingWorkingTreeClean = true`, `isEndingWorkingTreeClean = true`, external out-of-tree artifacts) |
 
 ### Detailed Repository Metadata
 
@@ -91,15 +100,17 @@ The target commits form a verified direct linear ancestry chain (`25438d0` $\lef
 | **Evidence Publication Commit for Run `20261028_105807`** | `00827d58f1d1e8992ff12529b4cba17bc671413c` (`00827d5`) | `git log -1 00827d5` (published 21 evidence files) |
 | **Historical Execution Commit (`20261028_185811`)** | `cce7f0d66609fedf70a7dfa5ca176e21e70a1187` (`cce7f0d`) | `artifacts/validation_runs/20261028_185811/verification_summary.json` |
 | **Evidence Publication Commit for Run `20261028_185811`** | `170d2f60bd57ca8f720ffdd819c6ae2729a2f4b7` (`170d2f6`) | `git log -1 170d2f6` (published 21 evidence files) |
-| **Tested Execution Commit for Run `20261028_234442`** | `605723cc23b6c6bac28ee77447d113ee921109a7` (`605723c`) | `artifacts/validation_runs/20261028_234442/verification_summary.json` & `git_head.txt` |
+| **Historical Execution Commit (`20261028_234442`)** | `605723cc23b6c6bac28ee77447d113ee921109a7` (`605723c`) | `artifacts/validation_runs/20261028_234442/verification_summary.json` & `git_head.txt` |
 | **Evidence Publication Commit for Run `20261028_234442`** | `f35008e20d5ba68a366046ad324906560baa9dc6` (`f35008e`) | `git log -1 f35008e` (published 9 evidence files) |
-| **Historical Published HEAD Commits on `main`** | `854ac0c`, `c02011a`, `d4c6eeb` | Intermediate documentation and ETc calculator commits |
-| **Current Published `origin/main` HEAD** | `c1c79289583b7a29df17ccf6cb4147be6c8b5f65` (`c1c7928`) | Verified current published commit on `origin/main` (`git rev-parse HEAD` / `git log -1`) |
-| **Evidence Publication Status for Run `20261028_234442`** | Published in commit `f35008e` (9 files) | `git ls-tree -r --name-only f35008e artifacts/validation_runs/20261028_234442/` |
+| **Tested Execution Commit for Run `20261029_131304`** | `fc42ff342013475e7e8767966016c3040127f22d` (`fc42ff3`) | `artifacts/validation_runs/20261029_131304/verification_summary.json` |
+| **Current Published `origin/main` HEAD** | `fc42ff342013475e7e8767966016c3040127f22d` (`fc42ff3`) | Verified current published commit on `origin/main` (`git rev-parse HEAD` / `git log -1`) |
+| **Evidence Verification Status for Run `20261029_131304`** | Verified locally and copied to repo (`artifacts/validation_runs/20261029_131304/`) | 20 verification artifacts present |
 
 ---
 
 ## 3. Comprehensive Provenance Reconciliation Table Across All Runs
+
+### 3.1 Historical Calibration and Milestone Runs (158 to 159 Tests)
 
 | Field | Run `20261026_132450` | Run `20261027_070738` | Run `20261027_075935` | Run `20261027_095914` | Run `20261028_024200` | Run `20261028_084500` | Run `20261028_105807` |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -118,7 +129,29 @@ The target commits form a verified direct linear ancestry chain (`25438d0` $\lef
 | **Release Build Result** | Exit 0 (APK built) | Exit 0 (APK built) | Exit 0 (APK built) | Exit 0 (APK built) | Exit 0 (APK built) | Exit 0 (APK built) | **Exit 0 (APK built)** |
 | **Evidence Directory** | `20261026_132450` | `20261027_070738` | `20261027_075935` | `20261027_095914` | `20261028_024200` | `20261028_084500` | `20261028_105807` |
 | **Evidence Availability** | Verified (Local disk) | Verified (Local disk) | Verified (Local disk) | **Published (`60f1adf`, 21 files)** | **Published (`d776842`, 21 files)** | **Published (`d9e9e08`, 21 files)** | **Published (`00827d5`, 21 files)** |
-| **Material Limitations** | Modified tree run | Modified tree run | Modified tree run | Initial clean; ending dirty | Clean execution over `25438d0` | Clean execution over `2e29eec` | Clean execution over `1e6e067`; published in `00827d5` |
+| **Material Limitations** | Modified tree run | Modified tree run | Modified tree run | Initial clean; ending dirty | Clean execution over `25438d0` | Clean execution over `2e29eec` | Clean execution over `1e6e067` |
+
+### 3.2 Advanced Evolution & Recent Verification Runs (168 to 189 Tests)
+
+| Field | Run `20261028_185811` | Run `20261028_234442` | Run `20261029_100759` | Run `20261029_131304` (Latest Published Milestone) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Run ID** | `20261028_185811` | `20261028_234442` | `20261029_100759` | `20261029_131304` |
+| **Tested HEAD Commit** | `cce7f0d66609fed` | `605723cc23b6c6b` | `c1c79289583b7a2` | `fc42ff342013475e7e8767966016c3040127f22d` (`fc42ff3`) |
+| **Baseline Relationship** | Modified Working Tree | Clean Committed Revision | Modified Working Tree | **Clean Committed Revision** |
+| **Initial Working-Tree State** | Modified (`false`) | **Clean (`true`)** | Modified (`false`) | **Clean (`true`)** |
+| **Final Working-Tree State** | Modified (`false`) | Modified (`false`) (run artifacts) | Modified (`false`) | **Clean (`true`)** (external output dir / isolated worktree) |
+| **Monitored Scope** | `["lib", "test", ...]` | `["lib", "test", ...]` | `["lib", "test", ...]` | `["lib", "test", ...]` |
+| **Monitored File Count** | 74 | 74 | 74 | **74** |
+| **Initial Fingerprint** | `1fbe6d23cacaac...` | `e3b0c44298fc1c...` | `a9f5ef2ab62028...` | `7e6388c543d9e6c92ec6f5e9d4bb8cdebf8846cd7b0fa35ad703a4465475a097` |
+| **Final Fingerprint** | `1fbe6d23cacaac...` | `e3b0c44298fc1c...` | `a9f5ef2ab62028...` | `7e6388c543d9e6c92ec6f5e9d4bb8cdebf8846cd7b0fa35ad703a4465475a097` |
+| **Source Mutation Detected**| `false` | `false` | `false` | `false` |
+| **PowerShell Checks** | 68 / 68 passed | N/A (Flutter test run) | 68 / 68 passed | **68 / 68 passed** (67 deterministic + 1 live) |
+| **Flutter Test Result** | 168 passed | 173 passed | 187 passed | **189 passed** (0 failed, 0 skipped) |
+| **Release Build Result** | Exit 0 (APK built) | N/A | Exit 0 (APK built) | **Exit 0 (58.7MB release APK built)** |
+| **Overall Status** | `PASS` | `PASS WITH LIMITATIONS` | `PASS` | **`PASS WITH LIMITATIONS`** |
+| **Evidence Directory** | `20261028_185811` | `20261028_234442` | `20261029_100759` | `20261029_131304` |
+| **Evidence Availability** | **Published (`170d2f6`, 21 files)** | **Published (`f35008e`, 9 files)** | Local artifacts (21 files) | **Recorded in `artifacts/validation_runs/20261029_131304/` (20 files)** |
+| **Material Limitations** | Modified working tree | Android migration deferred | Modified working tree | **Clean committed revision; Android migration deferred** |
 
 ---
 
@@ -272,12 +305,12 @@ Executed directly against clean committed revision `1e6e067ee138dc6ef40c2d57820c
 
 **FINAL STATUS: `PASS WITH LIMITATIONS`**
 
-- **Verified Facts:** Clean committed-revision execution was independently executed against commits `ef07cda` (run `20261027_095914`, published in `60f1adf`), `25438d0` (run `20261028_024200`, evidence published in `d776842`), `2e29eec` (run `20261028_084500`, evidence published in `d9e9e08`), and `1e6e067` (run `20261028_105807`, evidence published in `00827d5`), all passing with exit code 0; test counts are verified across all runs as 159 Flutter tests and 68 PowerShell checks (67 deterministic + 1 live); provenance separation is fully established with historical execution commits (`25438d0`, `2e29eec`, `1e6e067`), evidence publication commits (`d776842`, `d9e9e08`, `00827d5`), initial audit report publication commit (`bd48dd2`), intermediate revision commits (`9af0dc2`, `7e379f5`, `bb17d0d`), and subsequent publication commits (`2e29eec`, `d9e9e08`, `b0c96ed`, `8535210`, `1e6e067`, `00827d5`) distinctly identified on `origin/main`.
+- **Verified Facts:** Clean committed-revision execution was independently executed against commits `ef07cda` (run `20261027_095914`, published in `60f1adf`), `25438d0` (run `20261028_024200`, evidence published in `d776842`), `2e29eec` (run `20261028_084500`, evidence published in `d9e9e08`), `1e6e067` (run `20261028_105807`, evidence published in `00827d5`), `605723c` (run `20261028_234442`, evidence published in `f35008e`), and current HEAD `fc42ff3` (run `20261029_131304`, recorded with 20 evidence files), all passing with exit code 0; test counts are verified across all evolutionary milestones (from 159 to 189 Flutter tests and 68 PowerShell checks); provenance separation is fully established with historical execution commits (`25438d0`, `2e29eec`, `1e6e067`, `605723c`, `fc42ff3`), evidence publication commits, intermediate revision commits, and current published HEAD `fc42ff342013475e7e8767966016c3040127f22d` distinctly identified on `origin/main`.
 - **Explicit Limitations:**
   - Independent client-side calculation of FAO-56 Penman-Monteith remains **`INCOMPLETE`**.
   - Ground-truth field calibration across Egyptian climate zones remains **`DEFERRED`**.
   - Physical Android SQLite migration on a physical handset remains **`DEFERRED - NO PHYSICAL ANDROID DEVICE CONNECTED`**.
-  - Documentation-only or evidence-publication commits (`bd48dd2`, `9af0dc2`, `7e379f5`, `bb17d0d`, `b0c96ed`, `00827d5`) do not automatically inherit verification execution status from earlier runs without independent execution verification.
+  - Documentation-only or evidence-publication commits do not automatically inherit verification execution status from earlier runs without independent execution verification.
 
 ---
 
@@ -495,3 +528,55 @@ In `test/data/persistence_test.dart` (lines 3380–3521):
   4. Migrated legacy records have `plantingDate == null`.
   5. Updating the field with a valid `plantingDate` and reopening the database confirms persistence and idempotency.
 - *Limitation:* Physical Android SQLite migration on hardware flash storage remains `DEFERRED` until a physical device is connected.
+
+---
+
+## 14. Fresh Published-Commit Verification Run Execution (Run `20261029_131304`) & Test Reconciliation (189 Tests Total)
+
+### 14.1 Provenance and Execution State Overview
+- **Run ID:** `20261029_131304`
+- **Execution Timestamp (UTC):** `2026-10-29T10:13:34Z` to `2026-10-29T10:17:38Z` (Duration: 243.28 s)
+- **Tested Committed Revision:** `fc42ff342013475e7e8767966016c3040127f22d` (`fc42ff3`)
+- **Git Branch:** `HEAD` (isolated worktree checked out directly at `fc42ff342013475e7e8767966016c3040127f22d`)
+- **Initial Working-Tree State:** Clean (`IsStartingWorkingTreeClean = true`, `StartingWorkingTreeEntries: []`)
+- **Ending Working-Tree State:** Clean (`IsEndingWorkingTreeClean = true`, `EndingWorkingTreeEntries: []`)
+- **Monitored Scope:** `lib`, `test`, `scripts`, `docs`, `pubspec.yaml`, `pubspec.lock` (74 files)
+- **Initial & Final Composite Fingerprint:** `7e6388c543d9e6c92ec6f5e9d4bb8cdebf8846cd7b0fa35ad703a4465475a097`
+- **Source Mutation During Run:** `false` (Monitored source files did not mutate between start and end of run)
+- **Validation Scope:** `Clean Committed Revision (fc42ff342013475e7e8767966016c3040127f22d)`
+- **Overall Status:** **`PASS`** (All 5 stages completed with exit code 0; physical Android SQLite migration deferred)
+- **Evidence Directory:** `artifacts/validation_runs/20261029_131304/` (20 verification artifacts recorded)
+
+### 14.2 Stage Execution Results (`20261029_131304`)
+
+| Stage | Command | Exit Code | Status | Duration | Evidence File & Summary |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| **Dart Format** | `dart format --output=none --set-exit-if-changed lib/ test/` | `0` | **`PASS`** | 2 s | `dart_format.stdout.txt` (42 files formatted, 0 changed) |
+| **Flutter Analyze** | `flutter analyze` | `0` | **`PASS`** | 12 s | `flutter_analyze.stdout.txt` (No issues found!) |
+| **Flutter Tests** | `flutter test` | `0` | **`PASS`** | 12 s | `flutter_test.stdout.txt` (189 passed across all 4 test suites) |
+| **PowerShell Tests** | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File test/scripts/test_validate_historical_models.ps1` | `0` | **`PASS`** | 85 s | `powershell_tests.stdout.txt` (67 deterministic + 1 live = 68 passed) |
+| **Release Build** | `flutter build apk --release` | `0` | **`PASS`** | 132 s | `release_build.stdout.txt` (Built release APK: 58.7MB) |
+
+### 14.3 Comprehensive Test Suite Reconciliation: 187 vs 189 Tests
+The test suite tally was reconciled against historical runs:
+- **Historical Run `20261029_100759`:** 187 tests ($68 + 69 + 42 + 8$).
+- **Evolution in Commit `6fb2ddf` / `fc42ff3`:** In commit `6fb2ddf`, two new focused regression tests were added to `test/data/persistence_test.dart` to verify persistence reliability hardening:
+  1. **Test 8b (`'8b. Updating an existing default field preserves is_default=1 identity in SQLite'`):** Verifies that updating an existing default field's attributes (e.g., crop or planting date) maintains `is_default = 1` in the database, avoiding accidental loss of default-field designation.
+  2. **Test 8c (`'8c. Repeated seeding calls preserve existing user-defined default field and do not overwrite or duplicate'`):** Verifies idempotency of default field seeding, proving that existing default fields are preserved untouched and no duplicate default fields are created.
+- **Suite-by-Suite Test Inventory (189 Tests Total):**
+  1. `test/domain/domain_scientific_test.dart`: **68 passed** (coordinate invariants, GDD, heat stress index, and biological growth-stage forecasting).
+  2. `test/data/persistence_test.dart`: **71 passed** (69 baseline tests + 2 persistence hardening tests 8b & 8c, plus v2-to-v3 SQLite schema migration).
+  3. `test/data/open_meteo_adapter_test.dart`: **42 passed** (Open-Meteo DTO parsing, date sequence continuity, ERA5 reanalysis consistency).
+  4. `test/widget_test.dart`: **8 passed** (UI rendering, provenance cards, heat alerts, ETc screens).
+
+$$\text{Total Passed: } 68 + 71 + 42 + 8 = \mathbf{189\text{ passed (0 failed, 0 skipped)}}.$$
+
+### 14.4 Provenance Separation and Material Limitations
+1. **Separation of Execution and Publication Commits:**
+   - The tested execution commit is `fc42ff342013475e7e8767966016c3040127f22d` (`fc42ff3`), which is identical to `origin/main` HEAD at the start of this audit.
+   - The verification artifacts are recorded under `artifacts/validation_runs/20261029_131304/`.
+   - Any subsequent documentation update or artifact publication commit will represent a distinct Git object and must not be retroactively conflated with the execution commit tested herein.
+2. **Material Limitations Maintained:**
+   - **Physical Android Database Migration:** **`DEFERRED - NO PHYSICAL ANDROID DEVICE CONNECTED`**. Drift schema version 3 migration is deterministically verified via SQLite unit tests (`PRAGMA user_version` 2 to 3), but physical flash storage behavior under OS memory pressure or process kills remains unverified on physical hardware.
+   - **FAO-56 Penman-Monteith Calculation:** **`INCOMPLETE`**. Client-side recomputation from raw solar radiation and wind speed is not implemented; daily reference evapotranspiration ($ET_0$) is ingested from ECMWF ERA5 via Open-Meteo.
+   - **Empirical Field Calibration:** **`DEFERRED`**. Biological coefficients and stage boundaries $[0.20, 0.30, 0.30, 0.20]$ are operational approximations without in-situ Egyptian field lysimeter calibration.
