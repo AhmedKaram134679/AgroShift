@@ -20,6 +20,78 @@ class OpenMeteoAdapter {
     DateTime? expectedEndDate,
     int? expectedCount,
   }) {
+    // 0. Enforce explicit daily unit contracts before accessing measurement arrays
+    const requiredUnits = <String, String>{
+      'temperature_2m_max': '°C',
+      'temperature_2m_min': '°C',
+      'et0_fao_evapotranspiration': 'mm',
+      'precipitation_sum': 'mm',
+    };
+
+    final dailyUnits = dto.dailyUnits;
+
+    for (final entry in requiredUnits.entries) {
+      final variableName = entry.key;
+      final expectedUnit = entry.value;
+
+      if (!dailyUnits.containsKey(variableName)) {
+        return FailureResult(
+          ParsingFailure(
+            userMessageAr:
+                'استجابة بيانات الأرصاد الجوية تفتقر إلى وحدة قياس مصرح بها للمتغير ($variableName).',
+            technicalMessage:
+                'Missing unit declaration for required variable "$variableName". Expected unit "$expectedUnit", but key was not present in dailyUnits.',
+          ),
+        );
+      }
+
+      final declaredUnit = dailyUnits[variableName];
+
+      if (declaredUnit == null) {
+        return FailureResult(
+          ParsingFailure(
+            userMessageAr:
+                'استجابة بيانات الأرصاد الجوية تحتوي على وحدة قياس فارغة (null) للمتغير ($variableName).',
+            technicalMessage:
+                'Unit declaration for required variable "$variableName" is null. Expected unit "$expectedUnit".',
+          ),
+        );
+      }
+
+      if (declaredUnit is! String) {
+        return FailureResult(
+          ParsingFailure(
+            userMessageAr:
+                'استجابة بيانات الأرصاد الجوية تحتوي على وحدة قياس غير صالحة وليست نصاً للمتغير ($variableName).',
+            technicalMessage:
+                'Unit declaration for required variable "$variableName" is not a string (actual: $declaredUnit of type ${declaredUnit.runtimeType}). Expected unit "$expectedUnit".',
+          ),
+        );
+      }
+
+      if (declaredUnit.trim().isEmpty) {
+        return FailureResult(
+          ParsingFailure(
+            userMessageAr:
+                'استجابة بيانات الأرصاد الجوية تحتوي على وحدة قياس فارغة للمتغير ($variableName).',
+            technicalMessage:
+                'Unit declaration for required variable "$variableName" is empty or whitespace-only. Expected unit "$expectedUnit".',
+          ),
+        );
+      }
+
+      if (declaredUnit != expectedUnit) {
+        return FailureResult(
+          ParsingFailure(
+            userMessageAr:
+                'استجابة بيانات الأرصاد الجوية تحتوي على وحدة قياس غير متوافقة للمتغير ($variableName): "$declaredUnit". الوحدة المطلوبة هي "$expectedUnit".',
+            technicalMessage:
+                'Incompatible unit declaration for variable "$variableName": declared "$declaredUnit", but expected "$expectedUnit".',
+          ),
+        );
+      }
+    }
+
     final daily = dto.daily;
     final times = daily['time'] as List<dynamic>?;
     final tMaxList = daily['temperature_2m_max'] as List<dynamic>?;

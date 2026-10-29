@@ -46,6 +46,13 @@ void main() {
     activeCropId: 'wheat',
   );
 
+  const mockDailyUnits = <String, dynamic>{
+    'temperature_2m_max': '°C',
+    'temperature_2m_min': '°C',
+    'et0_fao_evapotranspiration': 'mm',
+    'precipitation_sum': 'mm',
+  };
+
   group('FarmField Persistence Tests', () {
     test('1. A created farm field can be retrieved after re-instantiating repository', () async {
       final saveRes = await fieldRepo.saveField(testField);
@@ -1022,7 +1029,7 @@ void main() {
                   'generationtime_ms': 0.12,
                   'utc_offset_seconds': 7200,
                   'timezone': 'Africa/Cairo',
-                  'daily_units': {},
+                  'daily_units': mockDailyUnits,
                   'daily': {
                     'time': ['2026-06-01', '2026-06-02'],
                     'temperature_2m_max': [34.0, 35.0],
@@ -2365,7 +2372,7 @@ void main() {
                       'generationtime_ms': 0.1,
                       'utc_offset_seconds': 10800,
                       'timezone': 'Africa/Cairo',
-                      'daily_units': {},
+                      'daily_units': mockDailyUnits,
                       'daily': {
                         'time': [
                           '2026-06-15',
@@ -2650,7 +2657,7 @@ void main() {
                     'generationtime_ms': 0.1,
                     'utc_offset_seconds': 10800,
                     'timezone': 'Africa/Cairo',
-                    'daily_units': {},
+                    'daily_units': mockDailyUnits,
                     'daily': {
                       'time': [
                         '2026-06-15',
@@ -2743,7 +2750,7 @@ void main() {
                       'generationtime_ms': 0.1,
                       'utc_offset_seconds': 10800,
                       'timezone': 'Africa/Cairo',
-                      'daily_units': {},
+                      'daily_units': mockDailyUnits,
                       'daily': {
                         'time': [
                           '2026-06-15',
@@ -2835,7 +2842,7 @@ void main() {
                     'generationtime_ms': 0.1,
                     'utc_offset_seconds': 10800,
                     'timezone': 'Africa/Cairo',
-                    'daily_units': {},
+                    'daily_units': mockDailyUnits,
                     'daily': {
                       'time': ['2026-05-01', '2026-05-02'],
                       'temperature_2m_max': [30.0, 31.0],
@@ -2897,7 +2904,7 @@ void main() {
                       'generationtime_ms': 0.1,
                       'utc_offset_seconds': 10800,
                       'timezone': 'Africa/Cairo',
-                      'daily_units': {},
+                      'daily_units': mockDailyUnits,
                       'daily': {
                         'time': ['2026-05-01', '2026-05-02'],
                         'temperature_2m_max': [30.0, 31.0],
@@ -2963,7 +2970,7 @@ void main() {
                       'generationtime_ms': 0.1,
                       'utc_offset_seconds': 10800,
                       'timezone': 'Africa/Cairo',
-                      'daily_units': {},
+                      'daily_units': mockDailyUnits,
                       'daily': {
                         'time': ['2026-05-01', '2026-05-02'],
                         'temperature_2m_max': [30.0, 31.0],
@@ -3038,7 +3045,7 @@ void main() {
                       'generationtime_ms': 0.1,
                       'utc_offset_seconds': 10800,
                       'timezone': 'Africa/Cairo',
-                      'daily_units': {},
+                      'daily_units': mockDailyUnits,
                       'daily': {
                         'time': ['2026-05-01', '2026-05-02'],
                         'temperature_2m_max': [30.0, 31.0],
@@ -3104,7 +3111,7 @@ void main() {
                       'generationtime_ms': 0.1,
                       'utc_offset_seconds': 10800,
                       'timezone': 'Africa/Cairo',
-                      'daily_units': {},
+                      'daily_units': mockDailyUnits,
                       'daily': {
                         'time': ['2026-05-01'],
                         'temperature_2m_max': [30.0],
@@ -3182,7 +3189,7 @@ void main() {
                     'generationtime_ms': 0.1,
                     'utc_offset_seconds': 10800,
                     'timezone': 'Africa/Cairo',
-                    'daily_units': {},
+                    'daily_units': mockDailyUnits,
                     'daily': {
                       'time': [],
                       'temperature_2m_max': [],
@@ -3292,7 +3299,7 @@ void main() {
                     'generationtime_ms': 0.1,
                     'utc_offset_seconds': 10800,
                     'timezone': 'Africa/Cairo',
-                    'daily_units': {},
+                    'daily_units': mockDailyUnits,
                     'daily': {
                       // Returns 6 days instead of requested 7
                       'time': [
@@ -3373,7 +3380,7 @@ void main() {
                     'generationtime_ms': 0.1,
                     'utc_offset_seconds': 10800,
                     'timezone': 'Africa/Cairo',
-                    'daily_units': {},
+                    'daily_units': mockDailyUnits,
                     'daily': {
                       'time': [
                         '2026-06-15',

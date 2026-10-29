@@ -13,6 +13,13 @@ void main() {
       governorateName: 'الدقهلية',
     );
 
+    const validDailyUnits = <String, dynamic>{
+      'temperature_2m_max': '°C',
+      'temperature_2m_min': '°C',
+      'et0_fao_evapotranspiration': 'mm',
+      'precipitation_sum': 'mm',
+    };
+
     test('Successfully converts valid DTO to DailyAgroRecord list', () {
       final dto = OpenMeteoDailyResponseDto(
         latitude: 31.05,
@@ -57,7 +64,7 @@ void main() {
         generationTimeMs: 1.2,
         utcOffsetSeconds: 10800,
         timezone: 'Africa/Cairo',
-        dailyUnits: {},
+        dailyUnits: validDailyUnits,
         daily: {
           'time': ['2026-06-01', '2026-06-02', '2026-06-03', '2026-06-04'],
           'temperature_2m_max': [
@@ -94,7 +101,7 @@ void main() {
           generationTimeMs: 1.2,
           utcOffsetSeconds: 10800,
           timezone: 'Africa/Cairo',
-          dailyUnits: {},
+          dailyUnits: validDailyUnits,
           daily: {
             'time': ['2026-06-01', '2026-06-02', '2026-06-03', '2026-06-04'],
             'temperature_2m_max': [34.0, 33.0, 35.0, 35.0],
@@ -130,7 +137,7 @@ void main() {
         generationTimeMs: 1.2,
         utcOffsetSeconds: 10800,
         timezone: 'Africa/Cairo',
-        dailyUnits: {},
+        dailyUnits: validDailyUnits,
         daily: {
           'time': ['2026-06-01', '2026-06-02', '2026-06-03', '2026-06-04'],
           'temperature_2m_max': [34.0, 33.0, 35.0, 35.0],
@@ -174,7 +181,7 @@ void main() {
           generationTimeMs: 1.2,
           utcOffsetSeconds: 10800,
           timezone: 'Africa/Cairo',
-          dailyUnits: {},
+          dailyUnits: validDailyUnits,
           daily: {
             'time': times,
             'temperature_2m_max': tMaxList,
@@ -209,7 +216,7 @@ void main() {
           generationTimeMs: 1.2,
           utcOffsetSeconds: 10800,
           timezone: 'Africa/Cairo',
-          dailyUnits: {},
+          dailyUnits: validDailyUnits,
           daily: {
             'time': ['2026-06-01'],
             'temperature_2m_max': [20.0],
@@ -276,7 +283,7 @@ void main() {
         generationTimeMs: 1.2,
         utcOffsetSeconds: 10800,
         timezone: 'Africa/Cairo',
-        dailyUnits: {},
+        dailyUnits: validDailyUnits,
         daily: {
           'time': times,
           'temperature_2m_max': tMaxList,
@@ -326,7 +333,7 @@ void main() {
         generationTimeMs: 1.0,
         utcOffsetSeconds: 7200,
         timezone: 'Africa/Cairo',
-        dailyUnits: {},
+        dailyUnits: validDailyUnits,
         daily: {
           'time': ['2026-05-01', '2026-05-02', '2026-05-03'],
           'temperature_2m_max': [30.0, 31.0, 32.0],
@@ -356,7 +363,7 @@ void main() {
         generationTimeMs: 1.0,
         utcOffsetSeconds: 7200,
         timezone: 'Africa/Cairo',
-        dailyUnits: {},
+        dailyUnits: validDailyUnits,
         daily: {
           'time': ['2026-05-01', '2026-05-02', '2026-05-02'], // duplicate
           'temperature_2m_max': [30.0, 31.0, 32.0],
@@ -387,7 +394,7 @@ void main() {
         generationTimeMs: 1.0,
         utcOffsetSeconds: 7200,
         timezone: 'Africa/Cairo',
-        dailyUnits: {},
+        dailyUnits: validDailyUnits,
         daily: {
           'time': ['2026-05-02', '2026-05-01'], // descending
           'temperature_2m_max': [31.0, 30.0],
@@ -418,7 +425,7 @@ void main() {
         generationTimeMs: 1.0,
         utcOffsetSeconds: 7200,
         timezone: 'Africa/Cairo',
-        dailyUnits: {},
+        dailyUnits: validDailyUnits,
         daily: {
           'time': ['2026-05-01', '2026-05-03'], // missing 2026-05-02
           'temperature_2m_max': [30.0, 32.0],
@@ -451,7 +458,7 @@ void main() {
         generationTimeMs: 1.0,
         utcOffsetSeconds: 7200,
         timezone: 'Africa/Cairo',
-        dailyUnits: {},
+        dailyUnits: validDailyUnits,
         daily: {
           'time': ['2026/05/01', '2026-05-02'], // non-conforming format
           'temperature_2m_max': [30.0, 31.0],
@@ -484,7 +491,7 @@ void main() {
         generationTimeMs: 1.0,
         utcOffsetSeconds: 7200,
         timezone: 'Africa/Cairo',
-        dailyUnits: {},
+        dailyUnits: validDailyUnits,
         daily: {
           'time': ['2026-05-01', '2026-05-02'],
           'temperature_2m_max': [30.0, 31.0],
@@ -520,7 +527,7 @@ void main() {
         generationTimeMs: 1.0,
         utcOffsetSeconds: 7200,
         timezone: 'Africa/Cairo',
-        dailyUnits: {},
+        dailyUnits: validDailyUnits,
         daily: {
           'time': ['2026-05-01', '2026-05-02'],
           'temperature_2m_max': [30.0], // only 1 element
@@ -563,7 +570,7 @@ void main() {
           generationTimeMs: 1.0,
           utcOffsetSeconds: 10800,
           timezone: 'Africa/Cairo',
-          dailyUnits: {},
+          dailyUnits: validDailyUnits,
           daily: {
             'time': days,
             'temperature_2m_max': List.filled(len, 35.0),
@@ -657,7 +664,7 @@ void main() {
           generationTimeMs: 1.0,
           utcOffsetSeconds: 10800,
           timezone: 'Africa/Cairo',
-          dailyUnits: {},
+          dailyUnits: validDailyUnits,
           daily: {
             'time': [],
             'temperature_2m_max': [],
@@ -688,7 +695,7 @@ void main() {
           generationTimeMs: 1.0,
           utcOffsetSeconds: 10800,
           timezone: 'Africa/Cairo',
-          dailyUnits: {},
+          dailyUnits: validDailyUnits,
           daily: {
             'time': ['2026-06-01'],
             'temperature_2m_max': [30.0],
@@ -718,7 +725,7 @@ void main() {
           generationTimeMs: 1.0,
           utcOffsetSeconds: 10800,
           timezone: 'Africa/Cairo',
-          dailyUnits: {},
+          dailyUnits: validDailyUnits,
           daily: {
             'time': ['2026-06-01'],
             // temperature_2m_max missing entirely
@@ -748,7 +755,7 @@ void main() {
           generationTimeMs: 1.0,
           utcOffsetSeconds: 10800,
           timezone: 'Africa/Cairo',
-          dailyUnits: {},
+          dailyUnits: validDailyUnits,
           daily: {
             'time': ['2026-06-01'],
             'temperature_2m_max': [30.0],
@@ -778,7 +785,7 @@ void main() {
           generationTimeMs: 1.0,
           utcOffsetSeconds: 10800,
           timezone: 'Africa/Cairo',
-          dailyUnits: {},
+          dailyUnits: validDailyUnits,
           daily: {
             'time': ['2026-06-01'],
             'temperature_2m_max': [30.0],
@@ -808,7 +815,7 @@ void main() {
           generationTimeMs: 1.0,
           utcOffsetSeconds: 10800,
           timezone: 'Africa/Cairo',
-          dailyUnits: {},
+          dailyUnits: validDailyUnits,
           daily: {
             'time': ['2026-06-01', '2026-06-02'],
             'temperature_2m_max': [30.0, 31.0],
@@ -838,7 +845,7 @@ void main() {
           generationTimeMs: 1.0,
           utcOffsetSeconds: 10800,
           timezone: 'Africa/Cairo',
-          dailyUnits: {},
+          dailyUnits: validDailyUnits,
           daily: {
             'time': ['2026-06-01', '2026-06-02'],
             'temperature_2m_max': [30.0, 31.0],
@@ -879,7 +886,7 @@ void main() {
             generationTimeMs: 1.0,
             utcOffsetSeconds: 10800,
             timezone: 'Africa/Cairo',
-            dailyUnits: {},
+            dailyUnits: validDailyUnits,
             daily: {
               'time': days,
               'temperature_2m_max': List.filled(10, 30.0),
@@ -1016,7 +1023,7 @@ void main() {
             generationTimeMs: 1.0,
             utcOffsetSeconds: 10800,
             timezone: 'Africa/Cairo',
-            dailyUnits: {},
+            dailyUnits: validDailyUnits,
             daily: {
               'time': times,
               'temperature_2m_max': tMaxList,
@@ -1093,7 +1100,7 @@ void main() {
             generationTimeMs: 1.0,
             utcOffsetSeconds: 10800,
             timezone: 'Africa/Cairo',
-            dailyUnits: {},
+            dailyUnits: validDailyUnits,
             daily: {
               'time': times,
               'temperature_2m_max': tMaxList,
@@ -1133,7 +1140,7 @@ void main() {
             generationTimeMs: 1.0,
             utcOffsetSeconds: 10800,
             timezone: 'Africa/Cairo',
-            dailyUnits: {},
+            dailyUnits: validDailyUnits,
             daily: {
               'time': times,
               'temperature_2m_max': [32.0],
@@ -1193,7 +1200,7 @@ void main() {
             generationTimeMs: 1.0,
             utcOffsetSeconds: 10800,
             timezone: 'Africa/Cairo',
-            dailyUnits: {},
+            dailyUnits: validDailyUnits,
             daily: {
               'time': times,
               'temperature_2m_max': tMaxList,
@@ -1253,7 +1260,7 @@ void main() {
             generationTimeMs: 1.0,
             utcOffsetSeconds: 10800,
             timezone: 'Africa/Cairo',
-            dailyUnits: {},
+            dailyUnits: validDailyUnits,
             daily: {
               'time': times,
               'temperature_2m_max': tMaxList,
@@ -1298,7 +1305,7 @@ void main() {
             generationTimeMs: 1.0,
             utcOffsetSeconds: 10800,
             timezone: 'Africa/Cairo',
-            dailyUnits: {},
+            dailyUnits: validDailyUnits,
             daily: {
               'time': baseTimes,
               'temperature_2m_max': baseTmax,
@@ -1327,7 +1334,7 @@ void main() {
             generationTimeMs: 1.0,
             utcOffsetSeconds: 10800,
             timezone: 'Africa/Cairo',
-            dailyUnits: {},
+            dailyUnits: validDailyUnits,
             daily: {
               'time': times10,
               'temperature_2m_max': tMax10,
@@ -1444,6 +1451,394 @@ void main() {
           final failure = res.failureOrNull as PhysicalRangeFailure;
           expect(failure.variableName, equals('et0'));
         });
+      });
+    });
+
+    group('Phase 2.1.x.8: Daily Units Contract Enforcement Tests', () {
+      OpenMeteoDailyResponseDto makeDtoWithUnits(
+        Map<String, dynamic> units, {
+        Map<String, dynamic>? daily,
+      }) {
+        return OpenMeteoDailyResponseDto(
+          latitude: 31.05,
+          longitude: 31.20,
+          generationTimeMs: 1.0,
+          utcOffsetSeconds: 10800,
+          timezone: 'Africa/Cairo',
+          elevation: 10.0,
+          dailyUnits: units,
+          daily:
+              daily ??
+              {
+                'time': ['2026-06-01', '2026-06-02'],
+                'temperature_2m_max': [34.0, 35.0],
+                'temperature_2m_min': [22.0, 23.0],
+                'et0_fao_evapotranspiration': [6.0, 6.2],
+                'precipitation_sum': [0.0, 1.5],
+              },
+        );
+      }
+
+      test(
+        'B. Valid-unit declarations accept DTO and preserve records and values',
+        () {
+          final dto = makeDtoWithUnits(validDailyUnits);
+          final res = OpenMeteoAdapter.toDomainRecords(
+            dto: dto,
+            requestedCoordinate: coord,
+            datasetLabel: 'Test Valid Units',
+          );
+
+          expect(res.isSuccess, isTrue);
+          final records = res.dataOrNull!;
+          expect(records.length, equals(2));
+          expect(records[0].maxTemperatureC, equals(34.0));
+          expect(records[0].minTemperatureC, equals(22.0));
+          expect(records[0].referenceEt0Mm, equals(6.0));
+          expect(records[0].precipitationMm, equals(0.0));
+          expect(records[1].maxTemperatureC, equals(35.0));
+          expect(records[1].precipitationMm, equals(1.5));
+        },
+      );
+
+      test('C1. Empty dailyUnits map is rejected with ParsingFailure identifying missing unit', () {
+        final dto = makeDtoWithUnits({});
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'Test Missing Units',
+        );
+
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<ParsingFailure>());
+        final fail = res.failureOrNull as ParsingFailure;
+        expect(fail.technicalMessage, contains('Missing unit declaration'));
+        expect(fail.technicalMessage, contains('temperature_2m_max'));
+        expect(fail.technicalMessage, contains('°C'));
+        expect(fail.userMessageAr, contains('تفتقر إلى وحدة قياس مصرح بها'));
+      });
+
+      const requiredVars = [
+        ('temperature_2m_max', '°C'),
+        ('temperature_2m_min', '°C'),
+        ('et0_fao_evapotranspiration', 'mm'),
+        ('precipitation_sum', 'mm'),
+      ];
+
+      for (final (variable, expectedUnit) in requiredVars) {
+        test(
+          'C2. Omitting unit for required variable "$variable" is rejected with diagnostic ParsingFailure',
+          () {
+            final units = Map<String, dynamic>.from(validDailyUnits)
+              ..remove(variable);
+            final dto = makeDtoWithUnits(units);
+            final res = OpenMeteoAdapter.toDomainRecords(
+              dto: dto,
+              requestedCoordinate: coord,
+              datasetLabel: 'Test Missing Variable Unit',
+            );
+
+            expect(res.isFailure, isTrue);
+            expect(res.failureOrNull, isA<ParsingFailure>());
+            final fail = res.failureOrNull as ParsingFailure;
+            expect(
+              fail.technicalMessage,
+              contains(
+                'Missing unit declaration for required variable "$variable"',
+              ),
+            );
+            expect(
+              fail.technicalMessage,
+              contains('Expected unit "$expectedUnit"'),
+            );
+            expect(fail.userMessageAr, contains(variable));
+          },
+        );
+      }
+
+      final incompatibleCases = [
+        ('temperature_2m_max', '°F', '°C'),
+        ('temperature_2m_min', 'K', '°C'),
+        ('et0_fao_evapotranspiration', 'in', 'mm'),
+        ('et0_fao_evapotranspiration', 'mm/day', 'mm'),
+        ('precipitation_sum', 'inch', 'mm'),
+        ('precipitation_sum', 'cm', 'mm'),
+      ];
+
+      for (final (variable, declaredUnit, expectedUnit) in incompatibleCases) {
+        test(
+          'D. Incompatible unit "$declaredUnit" for "$variable" is rejected (expected "$expectedUnit")',
+          () {
+            final units = Map<String, dynamic>.from(validDailyUnits)
+              ..[variable] = declaredUnit;
+            final dto = makeDtoWithUnits(units);
+            final res = OpenMeteoAdapter.toDomainRecords(
+              dto: dto,
+              requestedCoordinate: coord,
+              datasetLabel: 'Test Incompatible Unit',
+            );
+
+            expect(res.isFailure, isTrue);
+            expect(res.failureOrNull, isA<ParsingFailure>());
+            final fail = res.failureOrNull as ParsingFailure;
+            expect(
+              fail.technicalMessage,
+              contains(
+                'Incompatible unit declaration for variable "$variable"',
+              ),
+            );
+            expect(fail.technicalMessage, contains('declared "$declaredUnit"'));
+            expect(fail.technicalMessage, contains('expected "$expectedUnit"'));
+            expect(fail.userMessageAr, contains('غير متوافقة'));
+          },
+        );
+      }
+
+      test(
+        'E1. Unit mapped to null is rejected with diagnostic ParsingFailure',
+        () {
+          final units = Map<String, dynamic>.from(validDailyUnits)
+            ..['temperature_2m_max'] = null;
+          final dto = makeDtoWithUnits(units);
+          final res = OpenMeteoAdapter.toDomainRecords(
+            dto: dto,
+            requestedCoordinate: coord,
+            datasetLabel: 'Test Null Unit',
+          );
+
+          expect(res.isFailure, isTrue);
+          expect(res.failureOrNull, isA<ParsingFailure>());
+          final fail = res.failureOrNull as ParsingFailure;
+          expect(
+            fail.technicalMessage,
+            contains(
+              'Unit declaration for required variable "temperature_2m_max" is null',
+            ),
+          );
+          expect(fail.technicalMessage, contains('Expected unit "°C"'));
+          expect(fail.userMessageAr, contains('فارغة (null)'));
+        },
+      );
+
+      test('E2. Unit mapped to non-string value is rejected with diagnostic ParsingFailure', () {
+        final units = Map<String, dynamic>.from(validDailyUnits)
+          ..['precipitation_sum'] = 42;
+        final dto = makeDtoWithUnits(units);
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'Test Non-String Unit',
+        );
+
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<ParsingFailure>());
+        final fail = res.failureOrNull as ParsingFailure;
+        expect(fail.technicalMessage, contains('is not a string'));
+        expect(fail.technicalMessage, contains('precipitation_sum'));
+        expect(fail.userMessageAr, contains('غير صالحة وليست نصاً'));
+      });
+
+      test(
+        'E3. Empty unit string is rejected with diagnostic ParsingFailure',
+        () {
+          final units = Map<String, dynamic>.from(validDailyUnits)
+            ..['et0_fao_evapotranspiration'] = '';
+          final dto = makeDtoWithUnits(units);
+          final res = OpenMeteoAdapter.toDomainRecords(
+            dto: dto,
+            requestedCoordinate: coord,
+            datasetLabel: 'Test Empty Unit',
+          );
+
+          expect(res.isFailure, isTrue);
+          expect(res.failureOrNull, isA<ParsingFailure>());
+          final fail = res.failureOrNull as ParsingFailure;
+          expect(fail.technicalMessage, contains('empty or whitespace-only'));
+          expect(fail.technicalMessage, contains('et0_fao_evapotranspiration'));
+        },
+      );
+
+      test('E4. Whitespace-only unit string is rejected with diagnostic ParsingFailure', () {
+        final units = Map<String, dynamic>.from(validDailyUnits)
+          ..['temperature_2m_min'] = '   ';
+        final dto = makeDtoWithUnits(units);
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'Test Whitespace Unit',
+        );
+
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<ParsingFailure>());
+        final fail = res.failureOrNull as ParsingFailure;
+        expect(fail.technicalMessage, contains('empty or whitespace-only'));
+        expect(fail.technicalMessage, contains('temperature_2m_min'));
+      });
+
+      test('E5. Unit with trailing whitespace (e.g. "°C ") is rejected without silent trimming', () {
+        final units = Map<String, dynamic>.from(validDailyUnits)
+          ..['temperature_2m_max'] = '°C ';
+        final dto = makeDtoWithUnits(units);
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'Test Untrimmed Unit',
+        );
+
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<ParsingFailure>());
+        final fail = res.failureOrNull as ParsingFailure;
+        expect(
+          fail.technicalMessage,
+          contains(
+            'Incompatible unit declaration for variable "temperature_2m_max"',
+          ),
+        );
+        expect(fail.technicalMessage, contains('declared "°C "'));
+      });
+
+      test('F1. Validation precedence: Missing unit is rejected even when numeric values are valid', () {
+        // Daily values are perfectly valid, but units are empty
+        final dto = makeDtoWithUnits({});
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'Test Precedence with Valid Numbers',
+        );
+
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<ParsingFailure>());
+        expect(
+          res.failureOrNull!.technicalMessage,
+          contains('Missing unit declaration'),
+        );
+      });
+
+      test('F2. Validation precedence: Missing unit fails BEFORE measurement array checks', () {
+        // Daily array has mismatched lengths or empty arrays, but units are missing
+        final dto = makeDtoWithUnits(
+          {},
+          daily: {
+            'time': [],
+            'temperature_2m_max': [],
+            'temperature_2m_min': [],
+            'et0_fao_evapotranspiration': [],
+            'precipitation_sum': [],
+          },
+        );
+
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'Test Precedence Before Array Check',
+        );
+
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<ParsingFailure>());
+        // Confirms it failed on unit contract, not on empty array
+        expect(
+          res.failureOrNull!.technicalMessage,
+          contains('Missing unit declaration'),
+        );
+        expect(res.failureOrNull!.technicalMessage, isNot(contains('empty')));
+      });
+
+      test('G1. JSON deserialization: Absent daily_units key in JSON is rejected by adapter', () {
+        final json = <String, dynamic>{
+          'latitude': 31.05,
+          'longitude': 31.20,
+          'generationtime_ms': 1.0,
+          'utc_offset_seconds': 10800,
+          'timezone': 'Africa/Cairo',
+          // daily_units omitted
+          'daily': {
+            'time': ['2026-06-01'],
+            'temperature_2m_max': [34.0],
+            'temperature_2m_min': [22.0],
+            'et0_fao_evapotranspiration': [6.0],
+            'precipitation_sum': [0.0],
+          },
+        };
+
+        final dto = OpenMeteoDailyResponseDto.fromJson(json);
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'JSON Missing Units',
+        );
+
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<ParsingFailure>());
+        expect(
+          res.failureOrNull!.technicalMessage,
+          contains('Missing unit declaration'),
+        );
+      });
+
+      test('G2. JSON deserialization: Null daily_units in JSON is rejected by adapter', () {
+        final json = <String, dynamic>{
+          'latitude': 31.05,
+          'longitude': 31.20,
+          'generationtime_ms': 1.0,
+          'utc_offset_seconds': 10800,
+          'timezone': 'Africa/Cairo',
+          'daily_units': null,
+          'daily': {
+            'time': ['2026-06-01'],
+            'temperature_2m_max': [34.0],
+            'temperature_2m_min': [22.0],
+            'et0_fao_evapotranspiration': [6.0],
+            'precipitation_sum': [0.0],
+          },
+        };
+
+        final dto = OpenMeteoDailyResponseDto.fromJson(json);
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'JSON Null Units',
+        );
+
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<ParsingFailure>());
+        expect(
+          res.failureOrNull!.technicalMessage,
+          contains('Missing unit declaration'),
+        );
+      });
+
+      test('G3. JSON deserialization: Valid daily_units in JSON is accepted by adapter', () {
+        final json = <String, dynamic>{
+          'latitude': 31.05,
+          'longitude': 31.20,
+          'generationtime_ms': 1.0,
+          'utc_offset_seconds': 10800,
+          'timezone': 'Africa/Cairo',
+          'daily_units': {
+            'temperature_2m_max': '°C',
+            'temperature_2m_min': '°C',
+            'et0_fao_evapotranspiration': 'mm',
+            'precipitation_sum': 'mm',
+          },
+          'daily': {
+            'time': ['2026-06-01'],
+            'temperature_2m_max': [34.0],
+            'temperature_2m_min': [22.0],
+            'et0_fao_evapotranspiration': [6.0],
+            'precipitation_sum': [0.0],
+          },
+        };
+
+        final dto = OpenMeteoDailyResponseDto.fromJson(json);
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'JSON Valid Units',
+        );
+
+        expect(res.isSuccess, isTrue);
+        expect(res.dataOrNull!.length, equals(1));
+        expect(res.dataOrNull![0].maxTemperatureC, equals(34.0));
       });
     });
   });
