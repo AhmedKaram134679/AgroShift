@@ -1,0 +1,84 @@
+{
+  "purpose": "Independent daily FAO-56 ET0 diagnostic comparison",
+  "period": [
+    "2025-01-01",
+    "2025-12-31"
+  ],
+  "source": "https://archive-api.open-meteo.com/v1/archive",
+  "model": "era5",
+  "timezone": "Africa/Cairo",
+  "method": "FAO-56 daily Penman-Monteith using Tmax/Tmin, mean dew point, 10m wind converted to 2m, daily shortwave radiation and grid elevation",
+  "limitations": [
+    "Daily aggregates can differ from an ET0 series computed from hourly inputs.",
+    "Reanalysis grid data are estimates, not local station ground truth.",
+    "The script validates units and date continuity before calculating comparisons."
+  ],
+  "sites": {
+    "minya": {
+      "coordinates": {
+        "latitude": 28.11,
+        "longitude": 30.75
+      },
+      "api_grid_elevation_m": 46.0,
+      "model": "era5",
+      "timezone": "Africa/Cairo",
+      "period": [
+        "2025-01-01",
+        "2025-12-31"
+      ],
+      "returned_days": 365,
+      "paired_days": 365,
+      "days_with_missing_required_inputs": 0,
+      "daily_units": {
+        "time": "iso8601",
+        "temperature_2m_max": "°C",
+        "temperature_2m_min": "°C",
+        "dew_point_2m_mean": "°C",
+        "wind_speed_10m_mean": "m/s",
+        "shortwave_radiation_sum": "MJ/m²",
+        "et0_fao_evapotranspiration": "mm",
+        "precipitation_sum": "mm"
+      },
+      "comparison": {
+        "paired_days": 365,
+        "mae_mm_day": 0.21047603435930912,
+        "bias_independent_minus_api_mm_day": -0.14695513902777027,
+        "rmse_mm_day": 0.2572374859477224
+      },
+      "interpretation": "Daily-aggregate FAO-56 estimate versus API ET0. Differences are expected because the independent calculation uses daily aggregates and cannot exactly reproduce an hourly model pipeline. This is a diagnostic comparison, not ground truth."
+    },
+    "kafr_el_sheikh": {
+      "coordinates": {
+        "latitude": 31.11,
+        "longitude": 30.94
+      },
+      "api_grid_elevation_m": 8.0,
+      "model": "era5",
+      "timezone": "Africa/Cairo",
+      "period": [
+        "2025-01-01",
+        "2025-12-31"
+      ],
+      "returned_days": 365,
+      "paired_days": 365,
+      "days_with_missing_required_inputs": 0,
+      "daily_units": {
+        "time": "iso8601",
+        "temperature_2m_max": "°C",
+        "temperature_2m_min": "°C",
+        "dew_point_2m_mean": "°C",
+        "wind_speed_10m_mean": "m/s",
+        "shortwave_radiation_sum": "MJ/m²",
+        "et0_fao_evapotranspiration": "mm",
+        "precipitation_sum": "mm"
+      },
+      "comparison": {
+        "paired_days": 365,
+        "mae_mm_day": 0.1668155678108559,
+        "bias_independent_minus_api_mm_day": -0.075453080194402,
+        "rmse_mm_day": 0.21901336012243613
+      },
+      "interpretation": "Daily-aggregate FAO-56 estimate versus API ET0. Differences are expected because the independent calculation uses daily aggregates and cannot exactly reproduce an hourly model pipeline. This is a diagnostic comparison, not ground truth."
+    }
+  }
+}
