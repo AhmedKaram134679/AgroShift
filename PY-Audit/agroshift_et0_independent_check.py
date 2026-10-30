@@ -169,15 +169,48 @@ def fao56_daily_et0(
 
 
 def metrics(values: list[tuple[float, float]]) -> dict[str, float | int | None]:
+    """Calculate summary diagnostic metrics comparing independent daily FAO-56 to API ET0.
+    
+    Mean absolute relative difference is computed as:
+        mean(|independent - api| / api * 100)
+    where the API reference ET0 serves as the denominator. Denominators that are
+    zero, negative, or non-finite are guarded against and excluded explicitly to
+    prevent division-by-zero or undefined arithmetic.
+    """
     if not values:
-        return {"paired_days": 0, "mae_mm_day": None, "bias_independent_minus_api_mm_day": None,
-                "rmse_mm_day": None}
+        return {
+            "paired_days": 0,
+            "mean_api_et0_mm_day": None,
+            "mean_independent_et0_mm_day": None,
+            "mae_mm_day": None,
+            "bias_independent_minus_api_mm_day": None,
+            "rmse_mm_day": None,
+            "mean_absolute_relative_difference_percent": None,
+        }
     differences = [independent - api for independent, api in values]
+    api_values = [api for _, api in values]
+    independent_values = [independent for independent, _ in values]
+
+    # Explicitly guard denominator (must be finite and > 0.0)
+    valid_rel_diffs = [
+        abs(independent - api) / api * 100.0
+        for independent, api in values
+        if api is not None and math.isfinite(api) and api > 0.0
+    ]
+    mean_rel_diff = (
+        sum(valid_rel_diffs) / len(valid_rel_diffs)
+        if valid_rel_diffs
+        else None
+    )
+
     return {
         "paired_days": len(values),
+        "mean_api_et0_mm_day": sum(api_values) / len(api_values),
+        "mean_independent_et0_mm_day": sum(independent_values) / len(independent_values),
         "mae_mm_day": sum(abs(x) for x in differences) / len(differences),
         "bias_independent_minus_api_mm_day": sum(differences) / len(differences),
         "rmse_mm_day": math.sqrt(sum(x * x for x in differences) / len(differences)),
+        "mean_absolute_relative_difference_percent": mean_rel_diff,
     }
 
 

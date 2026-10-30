@@ -34,6 +34,37 @@ class FarmField {
 
   /// Validates core physical invariants of the farm field parcel.
   Result<FarmField, Failure> validate() {
+    if (id.trim().isEmpty) {
+      return FailureResult(
+        PhysicalRangeFailure(
+          userMessageAr: 'معرف الحقل لا يمكن أن يكون فارغاً.',
+          technicalMessage: 'Field id cannot be empty or whitespace-only.',
+          variableName: 'id',
+          actualValue: id,
+        ),
+      );
+    }
+    if (nameAr.trim().isEmpty) {
+      return FailureResult(
+        PhysicalRangeFailure(
+          userMessageAr: 'اسم الحقل بالعربية لا يمكن أن يكون فارغاً.',
+          technicalMessage: 'Field nameAr cannot be empty or whitespace-only.',
+          variableName: 'nameAr',
+          actualValue: nameAr,
+        ),
+      );
+    }
+    if (governorateAr.trim().isEmpty) {
+      return FailureResult(
+        PhysicalRangeFailure(
+          userMessageAr: 'اسم المحافظة بالعربية لا يمكن أن يكون فارغاً.',
+          technicalMessage:
+              'Field governorateAr cannot be empty or whitespace-only.',
+          variableName: 'governorateAr',
+          actualValue: governorateAr,
+        ),
+      );
+    }
     final coordVal = coordinate.validate();
     if (coordVal.isFailure) {
       return FailureResult(coordVal.failureOrNull!);

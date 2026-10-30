@@ -208,7 +208,7 @@ void main() {
       },
     );
 
-    test('FarmField.validate validates both coordinates and areaInFeddan', () {
+    test('FarmField.validate validates coordinates, areaInFeddan, and non-empty strings', () {
       const validField = FarmField(
         id: 'field_val_test',
         nameAr: 'حقل اختبار الصلاحية',
@@ -219,6 +219,58 @@ void main() {
       );
       expect(validField.validate().isSuccess, isTrue);
 
+      // Empty and whitespace-only field ID
+      for (final badId in ['', '   ', '\t\n']) {
+        final f = FarmField(
+          id: badId,
+          nameAr: 'حقل اختبار',
+          governorateAr: 'كفر الشيخ',
+          coordinate: const Coordinate(latitude: 31.10, longitude: 30.95),
+          areaInFeddan: 5.0,
+          soilType: SoilType.clay,
+        );
+        final res = f.validate();
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<PhysicalRangeFailure>());
+        final fail = res.failureOrNull as PhysicalRangeFailure;
+        expect(fail.variableName, equals('id'));
+      }
+
+      // Empty and whitespace-only nameAr
+      for (final badName in ['', '   ', '\n']) {
+        final f = FarmField(
+          id: 'field_val_test',
+          nameAr: badName,
+          governorateAr: 'كفر الشيخ',
+          coordinate: const Coordinate(latitude: 31.10, longitude: 30.95),
+          areaInFeddan: 5.0,
+          soilType: SoilType.clay,
+        );
+        final res = f.validate();
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<PhysicalRangeFailure>());
+        final fail = res.failureOrNull as PhysicalRangeFailure;
+        expect(fail.variableName, equals('nameAr'));
+      }
+
+      // Empty and whitespace-only governorateAr
+      for (final badGov in ['', '   ', '\t']) {
+        final f = FarmField(
+          id: 'field_val_test',
+          nameAr: 'حقل اختبار',
+          governorateAr: badGov,
+          coordinate: const Coordinate(latitude: 31.10, longitude: 30.95),
+          areaInFeddan: 5.0,
+          soilType: SoilType.clay,
+        );
+        final res = f.validate();
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<PhysicalRangeFailure>());
+        final fail = res.failureOrNull as PhysicalRangeFailure;
+        expect(fail.variableName, equals('governorateAr'));
+      }
+
+      // Existing invalid coordinate behavior remains unchanged
       const invalidCoordField = FarmField(
         id: 'field_val_test',
         nameAr: 'حقل اختبار',
@@ -232,6 +284,7 @@ void main() {
         isA<CoordinateOutOfBoundsFailure>(),
       );
 
+      // Existing zero and negative area behavior remains unchanged
       const zeroAreaField = FarmField(
         id: 'field_val_test',
         nameAr: 'حقل اختبار',

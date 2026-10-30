@@ -507,6 +507,151 @@ void main() {
       expect(updatedRow.createdAt, equals(insertedRow.createdAt));
     });
 
+    test('8_string_1. Pre-write validation rejects empty and whitespace-only field IDs and does not create database row', () async {
+      for (final badId in ['', '   ', '\t\n']) {
+        final field = FarmField(
+          id: badId,
+          nameAr: 'حقل بمعرف فارغ',
+          governorateAr: 'كفر الشيخ',
+          coordinate: const Coordinate(latitude: 31.10, longitude: 30.95),
+          areaInFeddan: 5.0,
+          soilType: SoilType.clay,
+        );
+
+        final res = await fieldRepo.saveField(field);
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<PhysicalRangeFailure>());
+        final failure = res.failureOrNull as PhysicalRangeFailure;
+        expect(failure.variableName, equals('id'));
+
+        final count = await (db.select(
+          db.farmFieldsTable,
+        )..where((t) => t.nameAr.equals('حقل بمعرف فارغ'))).get();
+        expect(
+          count,
+          isEmpty,
+          reason: 'Empty ID must not create any database row',
+        );
+      }
+    });
+
+    test('8_string_2. Pre-write validation rejects empty and whitespace-only Arabic field names and does not create database row', () async {
+      for (final badName in ['', '   ', ' \t ']) {
+        final field = FarmField(
+          id: 'field_empty_name_${badName.hashCode}',
+          nameAr: badName,
+          governorateAr: 'الغربية',
+          coordinate: const Coordinate(latitude: 30.80, longitude: 31.00),
+          areaInFeddan: 4.0,
+          soilType: SoilType.clay,
+        );
+
+        final res = await fieldRepo.saveField(field);
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<PhysicalRangeFailure>());
+        final failure = res.failureOrNull as PhysicalRangeFailure;
+        expect(failure.variableName, equals('nameAr'));
+
+        final row = await (db.select(
+          db.farmFieldsTable,
+        )..where((t) => t.id.equals(field.id))).getSingleOrNull();
+        expect(
+          row,
+          isNull,
+          reason: 'Empty nameAr must not create a database row',
+        );
+      }
+    });
+
+    test('8_string_3. Pre-write validation rejects empty and whitespace-only governorate names and does not create database row', () async {
+      for (final badGov in ['', '   ', '\n']) {
+        final field = FarmField(
+          id: 'field_empty_gov_${badGov.hashCode}',
+          nameAr: 'حقل بدون محافظة',
+          governorateAr: badGov,
+          coordinate: const Coordinate(latitude: 28.50, longitude: 30.80),
+          areaInFeddan: 6.0,
+          soilType: SoilType.clayLoam,
+        );
+
+        final res = await fieldRepo.saveField(field);
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<PhysicalRangeFailure>());
+        final failure = res.failureOrNull as PhysicalRangeFailure;
+        expect(failure.variableName, equals('governorateAr'));
+
+        final row = await (db.select(
+          db.farmFieldsTable,
+        )..where((t) => t.id.equals(field.id))).getSingleOrNull();
+        expect(
+          row,
+          isNull,
+          reason: 'Empty governorateAr must not create a database row',
+        );
+      }
+    });
+
+    test('8_string_4. Pre-write validation rejects invalid update with empty/whitespace strings and preserves existing valid database row untouched', () async {
+      const initialField = FarmField(
+        id: 'field_string_update_guard',
+        nameAr: 'حقل أصلي سليم',
+        governorateAr: 'المنيا',
+        coordinate: Coordinate(latitude: 28.50, longitude: 30.80),
+        areaInFeddan: 10.0,
+        soilType: SoilType.clayLoam,
+      );
+
+      final initialSave = await fieldRepo.saveField(initialField);
+      expect(initialSave.isSuccess, isTrue);
+
+      final initialRow = await (db.select(
+        db.farmFieldsTable,
+      )..where((t) => t.id.equals('field_string_update_guard'))).getSingle();
+
+      // 1. Attempt update with empty name
+      final badNameUpdate = FarmField(
+        id: 'field_string_update_guard',
+        nameAr: '   ',
+        governorateAr: 'المنيا',
+        coordinate: const Coordinate(latitude: 28.50, longitude: 30.80),
+        areaInFeddan: 10.0,
+        soilType: SoilType.clayLoam,
+      );
+      final badNameRes = await fieldRepo.saveField(badNameUpdate);
+      expect(badNameRes.isFailure, isTrue);
+      expect(
+        (badNameRes.failureOrNull as PhysicalRangeFailure).variableName,
+        equals('nameAr'),
+      );
+
+      // 2. Attempt update with empty governorate
+      final badGovUpdate = FarmField(
+        id: 'field_string_update_guard',
+        nameAr: 'حقل أصلي سليم',
+        governorateAr: '',
+        coordinate: const Coordinate(latitude: 28.50, longitude: 30.80),
+        areaInFeddan: 10.0,
+        soilType: SoilType.clayLoam,
+      );
+      final badGovRes = await fieldRepo.saveField(badGovUpdate);
+      expect(badGovRes.isFailure, isTrue);
+      expect(
+        (badGovRes.failureOrNull as PhysicalRangeFailure).variableName,
+        equals('governorateAr'),
+      );
+
+      // 3. Verify original database row remains completely unchanged
+      final rowAfter = await (db.select(
+        db.farmFieldsTable,
+      )..where((t) => t.id.equals('field_string_update_guard'))).getSingle();
+
+      expect(rowAfter.nameAr, equals('حقل أصلي سليم'));
+      expect(rowAfter.governorateAr, equals('المنيا'));
+      expect(rowAfter.areaInFeddan, equals(10.0));
+      expect(rowAfter.createdAt, equals(initialRow.createdAt));
+      expect(rowAfter.updatedAt, equals(initialRow.updatedAt));
+    });
+
     test('8b. Default-field identity is preserved during updates and seeding failures propagate', () async {
       // 1. Saving a new ordinary field without specifying isDefault persists false
       const ordinaryField = FarmField(

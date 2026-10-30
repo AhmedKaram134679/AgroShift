@@ -41,9 +41,12 @@
       },
       "comparison": {
         "paired_days": 365,
+        "mean_api_et0_mm_day": 6.247150684931507,
+        "mean_independent_et0_mm_day": 6.100195545903736,
         "mae_mm_day": 0.21047603435930912,
         "bias_independent_minus_api_mm_day": -0.14695513902777027,
-        "rmse_mm_day": 0.2572374859477224
+        "rmse_mm_day": 0.2572374859477224,
+        "mean_absolute_relative_difference_percent": 4.47076061557199
       },
       "interpretation": "Daily-aggregate FAO-56 estimate versus API ET0. Differences are expected because the independent calculation uses daily aggregates and cannot exactly reproduce an hourly model pipeline. This is a diagnostic comparison, not ground truth."
     },
@@ -74,9 +77,12 @@
       },
       "comparison": {
         "paired_days": 365,
+        "mean_api_et0_mm_day": 4.686301369863013,
+        "mean_independent_et0_mm_day": 4.610848289668612,
         "mae_mm_day": 0.1668155678108559,
         "bias_independent_minus_api_mm_day": -0.075453080194402,
-        "rmse_mm_day": 0.21901336012243613
+        "rmse_mm_day": 0.21901336012243613,
+        "mean_absolute_relative_difference_percent": 4.374106192368337
       },
       "interpretation": "Daily-aggregate FAO-56 estimate versus API ET0. Differences are expected because the independent calculation uses daily aggregates and cannot exactly reproduce an hourly model pipeline. This is a diagnostic comparison, not ground truth."
     }
