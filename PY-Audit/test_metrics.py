@@ -7,6 +7,7 @@ Verifies:
 4. Behavior when API values are negative (excluded from relative difference).
 5. Behavior with mixtures of valid and invalid denominators.
 6. Behavior with non-finite values (NaN, +Inf, -Inf in both positions raise ValueError).
+7. Behavior with boolean inputs (True, False in both positions raise ValueError).
 """
 
 from __future__ import annotations
@@ -135,6 +136,30 @@ class MetricsCalculationTests(unittest.TestCase):
             metrics([(None, 3.0)])  # type: ignore[arg-type]
         with self.assertRaises(ValueError):
             metrics([(3.0, "string")])  # type: ignore[arg-type]
+
+    def test_boolean_independent_true_raises_value_error(self) -> None:
+        """True as the independent ET0 value must raise ValueError."""
+        with self.assertRaises(ValueError) as ctx:
+            metrics([(True, 3.0)])  # type: ignore[arg-type]
+        self.assertIn("independent", str(ctx.exception).lower())
+
+    def test_boolean_independent_false_raises_value_error(self) -> None:
+        """False as the independent ET0 value must raise ValueError."""
+        with self.assertRaises(ValueError) as ctx:
+            metrics([(False, 3.0)])  # type: ignore[arg-type]
+        self.assertIn("independent", str(ctx.exception).lower())
+
+    def test_boolean_api_true_raises_value_error(self) -> None:
+        """True as the API ET0 value must raise ValueError."""
+        with self.assertRaises(ValueError) as ctx:
+            metrics([(3.0, True)])  # type: ignore[arg-type]
+        self.assertIn("api", str(ctx.exception).lower())
+
+    def test_boolean_api_false_raises_value_error(self) -> None:
+        """False as the API ET0 value must raise ValueError."""
+        with self.assertRaises(ValueError) as ctx:
+            metrics([(3.0, False)])  # type: ignore[arg-type]
+        self.assertIn("api", str(ctx.exception).lower())
 
 
 if __name__ == "__main__":

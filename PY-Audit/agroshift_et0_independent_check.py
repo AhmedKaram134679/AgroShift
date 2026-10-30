@@ -178,8 +178,8 @@ def metrics(values: list[tuple[float, float]]) -> dict[str, float | int | None]:
     prevent division-by-zero or undefined arithmetic.
 
     All input observation pairs must contain finite numeric values. Any non-finite value
-    (NaN, positive infinity, negative infinity) raises a ValueError to prevent silent
-    contamination of summary diagnostic metrics.
+    (NaN, positive infinity, negative infinity) or non-numeric value (including booleans)
+    raises a ValueError to prevent silent contamination of summary diagnostic metrics.
     """
     if not values:
         return {
@@ -193,9 +193,9 @@ def metrics(values: list[tuple[float, float]]) -> dict[str, float | int | None]:
         }
 
     for independent, api in values:
-        if not (isinstance(independent, (int, float)) and math.isfinite(independent)):
+        if isinstance(independent, bool) or not (isinstance(independent, (int, float)) and math.isfinite(independent)):
             raise ValueError(f"Non-finite or non-numeric independent ET0 value encountered: {independent!r}")
-        if not (isinstance(api, (int, float)) and math.isfinite(api)):
+        if isinstance(api, bool) or not (isinstance(api, (int, float)) and math.isfinite(api)):
             raise ValueError(f"Non-finite or non-numeric API ET0 value encountered: {api!r}")
 
     differences = [independent - api for independent, api in values]
