@@ -176,6 +176,10 @@ def metrics(values: list[tuple[float, float]]) -> dict[str, float | int | None]:
     where the API reference ET0 serves as the denominator. Denominators that are
     zero, negative, or non-finite are guarded against and excluded explicitly to
     prevent division-by-zero or undefined arithmetic.
+
+    All input observation pairs must contain finite numeric values. Any non-finite value
+    (NaN, positive infinity, negative infinity) raises a ValueError to prevent silent
+    contamination of summary diagnostic metrics.
     """
     if not values:
         return {
@@ -187,6 +191,13 @@ def metrics(values: list[tuple[float, float]]) -> dict[str, float | int | None]:
             "rmse_mm_day": None,
             "mean_absolute_relative_difference_percent": None,
         }
+
+    for independent, api in values:
+        if not (isinstance(independent, (int, float)) and math.isfinite(independent)):
+            raise ValueError(f"Non-finite or non-numeric independent ET0 value encountered: {independent!r}")
+        if not (isinstance(api, (int, float)) and math.isfinite(api)):
+            raise ValueError(f"Non-finite or non-numeric API ET0 value encountered: {api!r}")
+
     differences = [independent - api for independent, api in values]
     api_values = [api for _, api in values]
     independent_values = [independent for independent, _ in values]
@@ -195,7 +206,7 @@ def metrics(values: list[tuple[float, float]]) -> dict[str, float | int | None]:
     valid_rel_diffs = [
         abs(independent - api) / api * 100.0
         for independent, api in values
-        if api is not None and math.isfinite(api) and api > 0.0
+        if api > 0.0
     ]
     mean_rel_diff = (
         sum(valid_rel_diffs) / len(valid_rel_diffs)
