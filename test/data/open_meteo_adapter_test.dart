@@ -2252,5 +2252,284 @@ void main() {
         expect(records[2].precipitationMm, equals(0.0));
       });
     });
+
+    group('Phase 7: ET0 Source-to-Application Data Integrity Tests', () {
+      test('1. Valid source ET0 values from 2025 benchmark reach DailyAgroRecord unchanged', () {
+        final times = [
+          '2025-06-01',
+          '2025-06-02',
+          '2025-06-03',
+          '2025-06-04',
+          '2025-06-05',
+        ];
+        final benchmarkEt0 = [2.71, 11.40, 1.86, 8.03, 11.07];
+
+        final dto = OpenMeteoDailyResponseDto(
+          latitude: 31.05,
+          longitude: 31.20,
+          generationTimeMs: 1.0,
+          utcOffsetSeconds: 10800,
+          timezone: 'Africa/Cairo',
+          dailyUnits: validDailyUnits,
+          daily: {
+            'time': times,
+            'temperature_2m_max': [20.5, 40.2, 22.1, 40.3, 38.0],
+            'temperature_2m_min': [10.6, 25.7, 13.0, 20.4, 24.0],
+            'et0_fao_evapotranspiration': benchmarkEt0,
+            'precipitation_sum': [0.0, 0.0, 0.0, 0.0, 0.0],
+          },
+        );
+
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'Benchmark ET0 Passthrough',
+        );
+
+        expect(res.isSuccess, isTrue);
+        final records = res.dataOrNull!;
+        expect(records.length, equals(5));
+        for (var i = 0; i < 5; i++) {
+          expect(records[i].referenceEt0Mm, equals(benchmarkEt0[i]));
+          expect(records[i].referenceEt0Mm, isA<double>());
+        }
+      });
+
+      test('2. Source ET0 of 0.0 strictly remains 0.0 and is not converted to null', () {
+        final dto = OpenMeteoDailyResponseDto(
+          latitude: 31.05,
+          longitude: 31.20,
+          generationTimeMs: 1.0,
+          utcOffsetSeconds: 10800,
+          timezone: 'Africa/Cairo',
+          dailyUnits: validDailyUnits,
+          daily: {
+            'time': ['2026-06-01', '2026-06-02'],
+            'temperature_2m_max': [34.0, 35.0],
+            'temperature_2m_min': [22.0, 23.0],
+            'et0_fao_evapotranspiration': [0.0, 5.5],
+            'precipitation_sum': [0.0, 0.0],
+          },
+        );
+
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'ET0 Zero Preserved',
+        );
+
+        expect(res.isSuccess, isTrue);
+        final records = res.dataOrNull!;
+        expect(records.length, equals(2));
+        expect(records[0].referenceEt0Mm, equals(0.0));
+        expect(records[0].referenceEt0Mm, isNotNull);
+        expect(records[1].referenceEt0Mm, equals(5.5));
+      });
+
+      test('3. Missing source ET0 (null) remains null when missingness <= 10% threshold', () {
+        final times = List.generate(
+          10,
+          (i) => '2026-06-${(i + 1).toString().padLeft(2, '0')}',
+        );
+        final dto = OpenMeteoDailyResponseDto(
+          latitude: 31.05,
+          longitude: 31.20,
+          generationTimeMs: 1.0,
+          utcOffsetSeconds: 10800,
+          timezone: 'Africa/Cairo',
+          dailyUnits: validDailyUnits,
+          daily: {
+            'time': times,
+            'temperature_2m_max': List.generate(10, (_) => 34.0),
+            'temperature_2m_min': List.generate(10, (_) => 22.0),
+            'et0_fao_evapotranspiration': List.generate(
+              10,
+              (i) => i == 0 ? null : 6.0,
+            ),
+            'precipitation_sum': List.generate(10, (_) => 0.0),
+          },
+        );
+
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'ET0 Null Preserved',
+        );
+
+        expect(res.isSuccess, isTrue);
+        final records = res.dataOrNull!;
+        expect(records.length, equals(10));
+        expect(records[0].referenceEt0Mm, isNull);
+        expect(records[1].referenceEt0Mm, equals(6.0));
+      });
+
+      test('4. Negative ET0 (< 0.0) is rejected with PhysicalRangeFailure', () {
+        final dto = OpenMeteoDailyResponseDto(
+          latitude: 31.05,
+          longitude: 31.20,
+          generationTimeMs: 1.0,
+          utcOffsetSeconds: 10800,
+          timezone: 'Africa/Cairo',
+          dailyUnits: validDailyUnits,
+          daily: {
+            'time': ['2026-06-01', '2026-06-02'],
+            'temperature_2m_max': [34.0, 35.0],
+            'temperature_2m_min': [22.0, 23.0],
+            'et0_fao_evapotranspiration': [-0.5, 6.0],
+            'precipitation_sum': [0.0, 0.0],
+          },
+        );
+
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'Negative ET0',
+        );
+
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<PhysicalRangeFailure>());
+        final failure = res.failureOrNull as PhysicalRangeFailure;
+        expect(failure.variableName, equals('et0'));
+        expect(failure.actualValue, equals(-0.5));
+      });
+
+      test('5. Excessive ET0 (> 25.0 mm/day) is rejected with PhysicalRangeFailure', () {
+        final dto = OpenMeteoDailyResponseDto(
+          latitude: 31.05,
+          longitude: 31.20,
+          generationTimeMs: 1.0,
+          utcOffsetSeconds: 10800,
+          timezone: 'Africa/Cairo',
+          dailyUnits: validDailyUnits,
+          daily: {
+            'time': ['2026-06-01', '2026-06-02'],
+            'temperature_2m_max': [34.0, 35.0],
+            'temperature_2m_min': [22.0, 23.0],
+            'et0_fao_evapotranspiration': [25.5, 6.0],
+            'precipitation_sum': [0.0, 0.0],
+          },
+        );
+
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'Excessive ET0',
+        );
+
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<PhysicalRangeFailure>());
+        final failure = res.failureOrNull as PhysicalRangeFailure;
+        expect(failure.variableName, equals('et0'));
+        expect(failure.actualValue, equals(25.5));
+      });
+
+      test('6. Non-numeric ET0 (String) is rejected with ParsingFailure', () {
+        final dto = OpenMeteoDailyResponseDto(
+          latitude: 31.05,
+          longitude: 31.20,
+          generationTimeMs: 1.0,
+          utcOffsetSeconds: 10800,
+          timezone: 'Africa/Cairo',
+          dailyUnits: validDailyUnits,
+          daily: {
+            'time': ['2026-06-01', '2026-06-02'],
+            'temperature_2m_max': [34.0, 35.0],
+            'temperature_2m_min': [22.0, 23.0],
+            'et0_fao_evapotranspiration': ['6.5', 6.0],
+            'precipitation_sum': [0.0, 0.0],
+          },
+        );
+
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'String in ET0',
+        );
+
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<ParsingFailure>());
+        final failure = res.failureOrNull as ParsingFailure;
+        expect(
+          failure.technicalMessage,
+          contains('et0_fao_evapotranspiration'),
+        );
+        expect(failure.technicalMessage, contains('index 0'));
+        expect(failure.technicalMessage, contains('String'));
+      });
+
+      test(
+        '7. Boolean ET0 (true or false) is rejected with ParsingFailure',
+        () {
+          final dto = OpenMeteoDailyResponseDto(
+            latitude: 31.05,
+            longitude: 31.20,
+            generationTimeMs: 1.0,
+            utcOffsetSeconds: 10800,
+            timezone: 'Africa/Cairo',
+            dailyUnits: validDailyUnits,
+            daily: {
+              'time': ['2026-06-01', '2026-06-02'],
+              'temperature_2m_max': [34.0, 35.0],
+              'temperature_2m_min': [22.0, 23.0],
+              'et0_fao_evapotranspiration': [true, 6.0],
+              'precipitation_sum': [0.0, 0.0],
+            },
+          );
+
+          final res = OpenMeteoAdapter.toDomainRecords(
+            dto: dto,
+            requestedCoordinate: coord,
+            datasetLabel: 'Bool in ET0',
+          );
+
+          expect(res.isFailure, isTrue);
+          expect(res.failureOrNull, isA<ParsingFailure>());
+          final failure = res.failureOrNull as ParsingFailure;
+          expect(
+            failure.technicalMessage,
+            contains('et0_fao_evapotranspiration'),
+          );
+          expect(failure.technicalMessage, contains('index 0'));
+          expect(failure.technicalMessage, contains('bool'));
+        },
+      );
+
+      test('8. Missing ET0 exceeding 10% threshold produces InsufficientEvidenceFailure', () {
+        final times = List.generate(
+          10,
+          (i) => '2026-06-${(i + 1).toString().padLeft(2, '0')}',
+        );
+        final dto = OpenMeteoDailyResponseDto(
+          latitude: 31.05,
+          longitude: 31.20,
+          generationTimeMs: 1.0,
+          utcOffsetSeconds: 10800,
+          timezone: 'Africa/Cairo',
+          dailyUnits: validDailyUnits,
+          daily: {
+            'time': times,
+            'temperature_2m_max': List.generate(10, (_) => 34.0),
+            'temperature_2m_min': List.generate(10, (_) => 22.0),
+            'et0_fao_evapotranspiration': List.generate(
+              10,
+              (i) => i < 2 ? null : 6.0,
+            ),
+            'precipitation_sum': List.generate(10, (_) => 0.0),
+          },
+        );
+
+        final res = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'Excessive Missing ET0',
+        );
+
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<InsufficientEvidenceFailure>());
+        final failure = res.failureOrNull as InsufficientEvidenceFailure;
+        expect(failure.variableName, equals('et0'));
+        expect(failure.missingRatio, equals(0.2));
+      });
+    });
   });
 }
