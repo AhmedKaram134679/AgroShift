@@ -2696,31 +2696,61 @@ void main() {
     test('16. Missing calendar date in sequence is distinct from a missing ET0 observation', () {
       final plantingDate = DateTime.utc(2024, 11, 1);
 
-      // Case A: Missing calendar date (a gap in forecastDates: 2024-11-11 is omitted, jumping from Nov 10 to Nov 12)
-      // Array length = 2, totalRequestedDays = 2
-      final gapDates = [
+      // Case A: Two forecast dates spanning a three-calendar-day interval (Nov 10, Nov 12; Nov 11 omitted), totalRequestedDays = 2
+      final gapDates2 = [
         DateTime.utc(2024, 11, 10), // age = 9 days -> Kc = 0.40
         DateTime.utc(2024, 11, 12), // age = 11 days -> Kc = 0.40
       ];
-      final gapEt0 = [4.0, 6.0];
+      final gapEt02 = [4.0, 6.0];
 
-      final resGap = EtcCalculator.calculateForecastEtcValidated(
+      final resGap2 = EtcCalculator.calculateForecastEtcValidated(
         crop: wheat,
         plantingDate: plantingDate,
-        forecastDates: gapDates,
-        dailyEt0Series: gapEt0,
+        forecastDates: gapDates2,
+        dailyEt0Series: gapEt02,
         totalRequestedDays: 2,
       );
 
-      expect(resGap.isSuccess, isTrue);
-      final gapData = resGap.dataOrNull!;
-      // The calculator pairs index 0 with gapDates[0] and index 1 with gapDates[1] without checking calendar continuity
-      expect(gapData.dailyKcSeries.length, equals(2));
-      expect(gapData.dailyEtcMmSeries.length, equals(2));
-      expect(gapData.dailyEtcMmSeries[0], closeTo(1.60, 1e-9));
-      expect(gapData.dailyEtcMmSeries[1], closeTo(2.40, 1e-9));
+      expect(resGap2.isSuccess, isTrue);
+      final gapData2 = resGap2.dataOrNull!;
+      expect(gapData2.dailyKcSeries.length, equals(2));
+      expect(gapData2.dailyEtcMmSeries.length, equals(2));
+      expect(gapData2.dailyEtcMmSeries[0], closeTo(1.60, 1e-9));
+      expect(gapData2.dailyEtcMmSeries[1], closeTo(2.40, 1e-9));
 
-      // Case B: Continuous calendar dates with missing ET0 observation (null)
+      // Case B: Three forecast dates with a genuine calendar gap between consecutive entries (Nov 10, Nov 12, Nov 13; Nov 11 omitted), totalRequestedDays = 3
+      final gapDates3 = [
+        DateTime.utc(2024, 11, 10), // age = 9 days -> Kc = 0.40
+        DateTime.utc(2024, 11, 12), // age = 11 days -> Kc = 0.40 (gap: Nov 11 missing)
+        DateTime.utc(2024, 11, 13), // age = 12 days -> Kc = 0.40
+      ];
+      final gapEt03 = [4.0, 5.0, 6.0]; // Three valid ET0 observations
+
+      final resGap3 = EtcCalculator.calculateForecastEtcValidated(
+        crop: wheat,
+        plantingDate: plantingDate,
+        forecastDates: gapDates3,
+        dailyEt0Series: gapEt03,
+        totalRequestedDays: 3,
+      );
+
+      expect(resGap3.isSuccess, isTrue);
+      final gapData3 = resGap3.dataOrNull!;
+      // Confirms existing implementation contract:
+      // The calculator operates pointwise on parallel arrays and does not verify calendar-day continuity (Δt = 1 day)
+      expect(gapData3.dailyKcSeries.length, equals(3));
+      expect(gapData3.dailyEtcMmSeries.length, equals(3));
+      expect(gapData3.dailyKcSeries[0], closeTo(0.40, 1e-9));
+      expect(gapData3.dailyKcSeries[1], closeTo(0.40, 1e-9));
+      expect(gapData3.dailyKcSeries[2], closeTo(0.40, 1e-9));
+
+      expect(gapData3.dailyEtcMmSeries[0], closeTo(1.60, 1e-9)); // 4.0 * 0.40
+      expect(gapData3.dailyEtcMmSeries[1], closeTo(2.00, 1e-9)); // 5.0 * 0.40
+      expect(gapData3.dailyEtcMmSeries[2], closeTo(2.40, 1e-9)); // 6.0 * 0.40
+      expect(gapData3.totalEtcMm, closeTo(6.00, 1e-9));
+      expect(gapData3.totalVolumeM3PerFeddan, closeTo(25.20, 1e-9));
+
+      // Case C: Continuous calendar dates with missing ET0 observation (null)
       // Array length = 3, day 2 ET0 is null
       final continuousDates = [
         DateTime.utc(2024, 11, 10),
@@ -2815,10 +2845,97 @@ void main() {
       expect(dataFullDates.dailyEtcMmSeries[9], isNull);
     });
 
+    test('19. Length mismatch isolation: 9 dates with 10 ET0 vs 10 dates with 9 ET0 both truncate to 9 elements', () {
+      final plantingDate = DateTime.utc(2024, 11, 1);
+
+      // Case A: 9 forecast dates, 10 ET0 observations, totalRequestedDays = 10
+      // 1 missing date out of 10 = 10% <= 10% tolerance -> Passes missingness validation
+      final forecastDates9 = List.generate(
+        9,
+        (i) => DateTime.utc(2024, 11, 11 + i), // Ages 10..18 days -> Kc = 0.40
+      );
+      final et0Series10 = List.filled(10, 5.0); // 10 valid observations
+
+      final resCaseA = EtcCalculator.calculateForecastEtcValidated(
+        crop: wheat,
+        plantingDate: plantingDate,
+        forecastDates: forecastDates9,
+        dailyEt0Series: et0Series10,
+        totalRequestedDays: 10,
+      );
+
+      expect(resCaseA.isSuccess, isTrue);
+      final dataCaseA = resCaseA.dataOrNull!;
+      // Confirms date-series length is the limiting constraint:
+      // Loop terminates at index 9 because forecastDates has length 9.
+      // The 10th ET0 observation is not consumed and no 10th element is padded.
+      expect(dataCaseA.dailyKcSeries.length, equals(9));
+      expect(dataCaseA.dailyEtcMmSeries.length, equals(9));
+      for (var i = 0; i < 9; i++) {
+        expect(dataCaseA.dailyKcSeries[i], closeTo(0.40, 1e-9));
+        expect(dataCaseA.dailyEtcMmSeries[i], closeTo(2.00, 1e-9)); // 5.0 * 0.40
+      }
+      expect(dataCaseA.totalEtcMm, closeTo(18.00, 1e-9)); // 9 * 2.00
+      expect(dataCaseA.totalVolumeM3PerFeddan, closeTo(75.60, 1e-9)); // 18.00 * 4.2
+
+      // Case B: 10 forecast dates, 9 ET0 observations, totalRequestedDays = 10
+      // 1 missing ET0 observation out of 10 = 10% <= 10% tolerance -> Passes missingness validation
+      final forecastDates10 = List.generate(
+        10,
+        (i) => DateTime.utc(2024, 11, 11 + i), // Ages 10..19 days -> Kc = 0.40
+      );
+      final et0Series9 = List.filled(9, 5.0); // 9 valid observations
+
+      final resCaseB = EtcCalculator.calculateForecastEtcValidated(
+        crop: wheat,
+        plantingDate: plantingDate,
+        forecastDates: forecastDates10,
+        dailyEt0Series: et0Series9,
+        totalRequestedDays: 10,
+      );
+
+      expect(resCaseB.isSuccess, isTrue);
+      final dataCaseB = resCaseB.dataOrNull!;
+      // Confirms ET0-series length is the limiting constraint:
+      // Loop terminates at index 9 because dailyEt0Series has length 9.
+      // The 10th forecast date is not evaluated for Kc and no 10th element is padded.
+      expect(dataCaseB.dailyKcSeries.length, equals(9));
+      expect(dataCaseB.dailyEtcMmSeries.length, equals(9));
+      for (var i = 0; i < 9; i++) {
+        expect(dataCaseB.dailyKcSeries[i], closeTo(0.40, 1e-9));
+        expect(dataCaseB.dailyEtcMmSeries[i], closeTo(2.00, 1e-9)); // 5.0 * 0.40
+      }
+      expect(dataCaseB.totalEtcMm, closeTo(18.00, 1e-9)); // 9 * 2.00
+      expect(dataCaseB.totalVolumeM3PerFeddan, closeTo(75.60, 1e-9)); // 18.00 * 4.2
+
+      // Asymmetric > 10% missingness failures:
+      // 8 dates with 10 ET0 (20% missing dates > 10% tolerance) fails closed
+      final resShortDatesFail = EtcCalculator.calculateForecastEtcValidated(
+        crop: wheat,
+        plantingDate: plantingDate,
+        forecastDates: forecastDates9.take(8).toList(),
+        dailyEt0Series: et0Series10,
+        totalRequestedDays: 10,
+      );
+      expect(resShortDatesFail.isFailure, isTrue);
+      expect(resShortDatesFail.failureOrNull, isA<InsufficientEvidenceFailure>());
+
+      // 10 dates with 8 ET0 (20% missing ET0 > 10% tolerance) fails closed
+      final resShortEt0Fail = EtcCalculator.calculateForecastEtcValidated(
+        crop: wheat,
+        plantingDate: plantingDate,
+        forecastDates: forecastDates10,
+        dailyEt0Series: et0Series9.take(8).toList(),
+        totalRequestedDays: 10,
+      );
+      expect(resShortEt0Fail.isFailure, isTrue);
+      expect(resShortEt0Fail.failureOrNull, isA<InsufficientEvidenceFailure>());
+    });
+
     // =========================================================================
     // Test D — Crossing Crop-Growth-Stage Boundaries
     // =========================================================================
-    test('19. Forecast crossing Initial-to-Development boundary matches independent numerical oracle', () {
+    test('20. Forecast crossing Initial-to-Development boundary matches independent numerical oracle', () {
       // Wheat: typicalDurationDays = 150, kcIni = 0.40, kcMid = 1.15, kcEnd = 0.35
       // Initial stage: [0.0, 0.20] -> ages 0 to 30 days (0.20 * 150 = 30) -> Kc = 0.40
       // Development stage: (0.20, 0.50] -> ages 31 to 75 days -> Kc = 0.40 + 2.5 * ((age - 30) / 150)
@@ -2869,7 +2986,7 @@ void main() {
       expect(data.totalVolumeM3PerFeddan, closeTo(expectedVolume, 1e-9));
     });
 
-    test('20. Forecast crossing Development-to-Mid-Season boundary matches independent numerical oracle', () {
+    test('21. Forecast crossing Development-to-Mid-Season boundary matches independent numerical oracle', () {
       // Development stage: (0.20, 0.50] -> ages 31 to 75 days -> Kc = 0.40 + 2.5 * ((age - 30) / 150)
       // Mid-season stage: (0.50, 0.80] -> ages 76 to 120 days -> Kc = kcMid = 1.15
       final plantingDate = DateTime.utc(2024, 11, 1);
@@ -2921,7 +3038,7 @@ void main() {
       expect(data.totalVolumeM3PerFeddan, closeTo(expectedVolume, 1e-9));
     });
 
-    test('21. Forecast crossing Mid-Season-to-Late-Season boundary matches independent numerical oracle', () {
+    test('22. Forecast crossing Mid-Season-to-Late-Season boundary matches independent numerical oracle', () {
       // Mid-season stage: (0.50, 0.80] -> ages 76 to 120 days -> Kc = kcMid = 1.15
       // Late-season stage: (0.80, 1.00] -> ages 121 to 150 days -> Kc = 1.15 - 4.0 * ((age - 120) / 150)
       final plantingDate = DateTime.utc(2024, 11, 1);
