@@ -1248,6 +1248,214 @@ void main() {
       }
     },
   );
+
+  testWidgets(
+    'EnvironmentalAnalysisScreen temperature chart: all Tmax readings missing renders safely with null spots and valid Tmin',
+    (WidgetTester tester) async {
+      final testDb = constructTestDb();
+      addTearDown(() => testDb.close());
+
+      final prov = DataSourceProvenance(
+        providerName: 'Open-Meteo Weather API',
+        datasetName: 'ERA5 Reanalysis Archive',
+        requestedLatitude: 31.27,
+        requestedLongitude: 30.79,
+        gridLatitude: 31.25,
+        gridLongitude: 30.75,
+        acquisitionTimestamp: DateTime.utc(2025, 1, 1),
+        expectedPeriodDays: 5,
+      );
+
+      final distinctTminValues = [11.0, 13.5, 12.0, 15.0, 14.5];
+
+      // 5-day series where every record has maxTemperatureC == null,
+      // and each record has a distinct valid minTemperatureC.
+      final records = List.generate(5, (i) {
+        return DailyAgroRecord(
+          date: DateTime.utc(2025, 1, 1 + i),
+          maxTemperatureC: null,
+          minTemperatureC: distinctTminValues[i],
+          precipitationMm: 0.0,
+          referenceEt0Mm: 3.5,
+          provenance: prov,
+        );
+      });
+
+      final activeField = FarmField(
+        id: 'field_test_all_tmax_null',
+        nameAr: 'حقل اختبار غياب العظمى بالكامل',
+        governorateAr: 'كفر الشيخ',
+        coordinate: const Coordinate(
+          latitude: 31.27,
+          longitude: 30.79,
+          governorateName: 'كفر الشيخ',
+        ),
+        areaInFeddan: 5.0,
+        soilType: SoilType.clay,
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDatabaseProvider.overrideWithValue(testDb),
+            selectedFieldProvider.overrideWith(
+              () => _StaticFieldNotifier(activeField),
+            ),
+            fieldHistorical30DaysProvider.overrideWith(
+              (ref) async => Success(records),
+            ),
+          ],
+          child: MaterialApp(
+            theme: AgroTheme.lightTheme,
+            locale: const Locale('ar', 'EG'),
+            supportedLocales: const [Locale('ar', 'EG'), Locale('en', 'US')],
+            localizationsDelegates: const [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            home: const Directionality(
+              textDirection: TextDirection.rtl,
+              child: EnvironmentalAnalysisScreen(),
+            ),
+          ),
+        ),
+      );
+
+      // Verify the screen builds and renders without throwing an exception
+      await tester.pumpAndSettle();
+
+      // Verify the LineChart widget is present
+      expect(find.byType(LineChart), findsOneWidget);
+
+      final lineChart = tester.widget<LineChart>(find.byType(LineChart));
+      final tMaxBar = lineChart.data.lineBarsData[0];
+      final tMinBar = lineChart.data.lineBarsData[1];
+
+      // Verify Tmax series has exactly 5 spots and every single spot is a null spot (no fabricated values)
+      expect(tMaxBar.spots.length, 5);
+      expect(tMaxBar.spots.every((s) => s.isNull()), isTrue);
+      expect(tMaxBar.spots.any((s) => s.isNotNull()), isFalse);
+
+      // Verify Tmin series retains all original distinct values at correct chronological indices
+      expect(tMinBar.spots.length, 5);
+      for (int i = 0; i < 5; i++) {
+        expect(tMinBar.spots[i].isNotNull(), isTrue);
+        expect(tMinBar.spots[i].x, i.toDouble());
+        expect(tMinBar.spots[i].y, distinctTminValues[i]);
+      }
+
+      // Verify disclosure that temperature data is incomplete
+      expect(
+        find.textContaining('بيانات درجات الحرارة غير مكتملة'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'EnvironmentalAnalysisScreen temperature chart: all Tmin readings missing renders safely with null spots and valid Tmax',
+    (WidgetTester tester) async {
+      final testDb = constructTestDb();
+      addTearDown(() => testDb.close());
+
+      final prov = DataSourceProvenance(
+        providerName: 'Open-Meteo Weather API',
+        datasetName: 'ERA5 Reanalysis Archive',
+        requestedLatitude: 31.27,
+        requestedLongitude: 30.79,
+        gridLatitude: 31.25,
+        gridLongitude: 30.75,
+        acquisitionTimestamp: DateTime.utc(2025, 1, 1),
+        expectedPeriodDays: 5,
+      );
+
+      final distinctTmaxValues = [21.0, 24.5, 22.0, 26.5, 25.0];
+
+      // 5-day series where every record has minTemperatureC == null,
+      // and each record has a distinct valid maxTemperatureC.
+      final records = List.generate(5, (i) {
+        return DailyAgroRecord(
+          date: DateTime.utc(2025, 1, 1 + i),
+          maxTemperatureC: distinctTmaxValues[i],
+          minTemperatureC: null,
+          precipitationMm: 0.0,
+          referenceEt0Mm: 3.5,
+          provenance: prov,
+        );
+      });
+
+      final activeField = FarmField(
+        id: 'field_test_all_tmin_null',
+        nameAr: 'حقل اختبار غياب الصغرى بالكامل',
+        governorateAr: 'كفر الشيخ',
+        coordinate: const Coordinate(
+          latitude: 31.27,
+          longitude: 30.79,
+          governorateName: 'كفر الشيخ',
+        ),
+        areaInFeddan: 5.0,
+        soilType: SoilType.clay,
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDatabaseProvider.overrideWithValue(testDb),
+            selectedFieldProvider.overrideWith(
+              () => _StaticFieldNotifier(activeField),
+            ),
+            fieldHistorical30DaysProvider.overrideWith(
+              (ref) async => Success(records),
+            ),
+          ],
+          child: MaterialApp(
+            theme: AgroTheme.lightTheme,
+            locale: const Locale('ar', 'EG'),
+            supportedLocales: const [Locale('ar', 'EG'), Locale('en', 'US')],
+            localizationsDelegates: const [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            home: const Directionality(
+              textDirection: TextDirection.rtl,
+              child: EnvironmentalAnalysisScreen(),
+            ),
+          ),
+        ),
+      );
+
+      // Verify the screen builds and renders without throwing an exception
+      await tester.pumpAndSettle();
+
+      // Verify the LineChart widget is present
+      expect(find.byType(LineChart), findsOneWidget);
+
+      final lineChart = tester.widget<LineChart>(find.byType(LineChart));
+      final tMaxBar = lineChart.data.lineBarsData[0];
+      final tMinBar = lineChart.data.lineBarsData[1];
+
+      // Verify Tmin series has exactly 5 spots and every single spot is a null spot (no fabricated values)
+      expect(tMinBar.spots.length, 5);
+      expect(tMinBar.spots.every((s) => s.isNull()), isTrue);
+      expect(tMinBar.spots.any((s) => s.isNotNull()), isFalse);
+
+      // Verify Tmax series retains all original distinct values at correct chronological indices
+      expect(tMaxBar.spots.length, 5);
+      for (int i = 0; i < 5; i++) {
+        expect(tMaxBar.spots[i].isNotNull(), isTrue);
+        expect(tMaxBar.spots[i].x, i.toDouble());
+        expect(tMaxBar.spots[i].y, distinctTmaxValues[i]);
+      }
+
+      // Verify disclosure that temperature data is incomplete
+      expect(
+        find.textContaining('بيانات درجات الحرارة غير مكتملة'),
+        findsOneWidget,
+      );
+    },
+  );
 }
 
 class _NullSelectedFieldNotifier extends SelectedFieldNotifier {
