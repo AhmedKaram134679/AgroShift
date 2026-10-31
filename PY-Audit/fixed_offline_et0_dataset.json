@@ -54,12 +54,13 @@
         "ra_mj_m2_day": 21.813097,
         "rso_mj_m2_day": 16.379891,
         "rs_rso_ratio": 0.824792,
-        "rns_mj_m2_day": 10.402700,
+        "rns_mj_m2_day": 10.4027,
         "rnl_mj_m2_day": 5.002525,
         "rn_mj_m2_day": 5.400175,
-        "rad_term": 0.249500,
-        "aero_term": 0.258147,
-        "denom": 0.218924
+        "rad_term": 0.24950041,
+        "aero_term": 0.25814702,
+        "numerator": 0.50764744,
+        "denom": 0.21892371
       },
       "expected_fao56_daily_et0_mm": 2.3188326543597824
     },
@@ -79,26 +80,27 @@
         "shortwave_radiation_sum": 26.56,
         "precipitation_sum": 0.0
       },
-      "open_meteo_et0_mm": 11.40,
+      "open_meteo_et0_mm": 11.4,
       "expected_intermediates": {
         "day_of_year": 98,
         "p_kpa": 100.757431,
         "gamma_kpa_c": 0.067004,
         "delta_kpa_c": 0.281451,
         "tmean_c": 32.95,
-        "es_kpa": 5.378440,
+        "es_kpa": 5.37844,
         "ea_kpa": 0.715805,
         "vpd_kpa": 4.662635,
         "u2_m_s": 4.368034,
         "ra_mj_m2_day": 36.166021,
         "rso_mj_m2_day": 27.157788,
         "rs_rso_ratio": 0.977988,
-        "rns_mj_m2_day": 20.451200,
-        "rnl_mj_m2_day": 9.285540,
-        "rn_mj_m2_day": 11.165660,
-        "rad_term": 1.282176,
-        "aero_term": 4.014285,
-        "denom": 0.447964
+        "rns_mj_m2_day": 20.4512,
+        "rnl_mj_m2_day": 9.28554,
+        "rn_mj_m2_day": 11.16566,
+        "rad_term": 1.28217591,
+        "aero_term": 4.01428519,
+        "numerator": 5.29646111,
+        "denom": 0.44796416
       },
       "expected_fao56_daily_et0_mm": 11.82340361506013
     },
@@ -116,28 +118,29 @@
         "dew_point_2m_mean": 12.5,
         "wind_speed_10m_mean": 1.46,
         "shortwave_radiation_sum": 9.88,
-        "precipitation_sum": 0.0
+        "precipitation_sum": 0.6
       },
       "open_meteo_et0_mm": 1.86,
       "expected_intermediates": {
         "day_of_year": 348,
         "p_kpa": 101.205471,
         "gamma_kpa_c": 0.067302,
-        "delta_kpa_c": 0.126590,
+        "delta_kpa_c": 0.12659,
         "tmean_c": 17.55,
-        "es_kpa": 2.078930,
+        "es_kpa": 2.07893,
         "ea_kpa": 1.449481,
         "vpd_kpa": 0.629449,
         "u2_m_s": 1.092009,
         "ra_mj_m2_day": 19.086047,
         "rso_mj_m2_day": 14.317589,
-        "rs_rso_ratio": 0.690060,
-        "rns_mj_m2_day": 7.607600,
+        "rs_rso_ratio": 0.69006,
+        "rns_mj_m2_day": 7.6076,
         "rnl_mj_m2_day": 3.496892,
         "rn_mj_m2_day": 4.110708,
-        "rad_term": 0.212313,
-        "aero_term": 0.143296,
-        "denom": 0.218880
+        "rad_term": 0.21231324,
+        "aero_term": 0.14329593,
+        "numerator": 0.35560917,
+        "denom": 0.21887984
       },
       "expected_fao56_daily_et0_mm": 1.624677545585732
     },
@@ -171,12 +174,13 @@
         "ra_mj_m2_day": 39.710593,
         "rso_mj_m2_day": 29.789298,
         "rs_rso_ratio": 0.878503,
-        "rns_mj_m2_day": 20.150900,
+        "rns_mj_m2_day": 20.1509,
         "rnl_mj_m2_day": 6.416439,
         "rn_mj_m2_day": 13.734461,
-        "rad_term": 1.387702,
-        "aero_term": 1.836486,
-        "denom": 0.371937
+        "rad_term": 1.38770155,
+        "aero_term": 1.83648559,
+        "numerator": 3.22418714,
+        "denom": 0.3719367
       },
       "expected_fao56_daily_et0_mm": 8.668644841098619
     },
@@ -207,18 +211,18 @@
         "ea_kpa": 1.567747,
         "vpd_kpa": 3.254919,
         "u2_m_s": 5.789141,
-        "ra_mj_m2_day": 40.130880,
-        "rso_mj_m2_day": 30.135080,
-        "rs_rso_ratio": 0.932800,
-        "rns_mj_m2_day": 21.644700,
+        "ra_mj_m2_day": 40.13088,
+        "rso_mj_m2_day": 30.13508,
+        "rs_rso_ratio": 0.9328,
+        "rns_mj_m2_day": 21.6447,
         "rnl_mj_m2_day": 6.315607,
         "rn_mj_m2_day": 15.329093,
-        "rad_term": 1.611482,
-        "aero_term": 3.736007,
-        "denom": 0.456549
+        "rad_term": 1.61148182,
+        "aero_term": 3.73600734,
+        "numerator": 5.34748916,
+        "denom": 0.45654866
       },
       "expected_fao56_daily_et0_mm": 11.712857008379698
     }
   ]
 }
-
