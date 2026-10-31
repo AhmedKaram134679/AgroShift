@@ -41,6 +41,11 @@
       },
       "comparison": {
         "paired_days": 365,
+        "total_pairs": 365,
+        "valid_pairs_count": 365,
+        "mard_pairs_count": 365,
+        "mard_excluded_count": 0,
+        "mard_exclusion_reason": null,
         "mean_api_et0_mm_day": 6.247150684931507,
         "mean_independent_et0_mm_day": 6.100195545903736,
         "mae_mm_day": 0.21047603435930912,
@@ -77,6 +82,11 @@
       },
       "comparison": {
         "paired_days": 365,
+        "total_pairs": 365,
+        "valid_pairs_count": 365,
+        "mard_pairs_count": 365,
+        "mard_excluded_count": 0,
+        "mard_exclusion_reason": null,
         "mean_api_et0_mm_day": 4.686301369863013,
         "mean_independent_et0_mm_day": 4.610848289668612,
         "mae_mm_day": 0.1668155678108559,

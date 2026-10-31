@@ -1,7 +1,7 @@
 {
   "metadata": {
     "description": "Fixed representative offline dataset for FAO-56 Penman-Monteith ET0 regression testing",
-    "provenance": "Extracted from verified 2025 ERA5 reanalysis comparison dataset (daily_comparison.csv)",
+    "provenance": "Extracted from published 2025 ERA5 reanalysis comparison dataset (daily_comparison.csv)",
     "source_model": "era5",
     "timezone": "Africa/Cairo",
     "units": {

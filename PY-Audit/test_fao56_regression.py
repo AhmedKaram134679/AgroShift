@@ -39,7 +39,7 @@ DATA_PATH = Path(__file__).resolve().parent / "fixed_offline_et0_dataset.json"
 
 
 class FAO56ScientificRegressionTests(unittest.TestCase):
-    """Test suite ensuring reproducible, network-independent verification of FAO-56 daily ET0."""
+    """Test suite ensuring reproducible, offline regression consistency of FAO-56 daily ET0."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -168,7 +168,7 @@ class FAO56ScientificRegressionTests(unittest.TestCase):
                 self.assertAlmostEqual(et0, c["expected_fao56_daily_et0_mm"], places=6)
 
     def test_final_fao56_daily_et0_regression(self) -> None:
-        """Verify the final daily ET0 estimate matches the independently verified values to 1e-6 mm/day."""
+        """Verify the final daily ET0 calculation matches the benchmark dataset snapshot values to 1e-6 mm/day."""
         for c in self.dataset["cases"]:
             case_id = c["id"]
             inp = c["inputs"]
@@ -195,10 +195,10 @@ class FAO56ScientificRegressionTests(unittest.TestCase):
                 )
 
     def test_benchmark_subset_metrics_reconciliation(self) -> None:
-        """Verify five-case comparison metrics (MAE, MBE, RMSE, MARD) against independently computed constants.
+        """Verify five-case comparison metrics (MAE, MBE, RMSE, MARD) against precomputed arithmetic reference values.
 
         Difference convention: difference = independent_et0 - open_meteo_et0
-        Expected five-case metrics derived independently from the published pairs:
+        Reference five-case metrics calculated directly from the published benchmark pairs:
           - Pair 1: (2.318833, 2.71)  -> diff = -0.391167 mm/day, rel = 14.43422%
           - Pair 2: (11.823404, 11.40) -> diff = +0.423404 mm/day, rel = 3.71407%
           - Pair 3: (1.624678, 1.86)  -> diff = -0.235322 mm/day, rel = 12.65175%
