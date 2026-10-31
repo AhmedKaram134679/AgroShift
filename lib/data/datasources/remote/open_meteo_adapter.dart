@@ -311,9 +311,49 @@ class OpenMeteoAdapter {
       final rawEt0 = et0List[i];
       final rawP = pList[i];
 
-      final bool isTempMissing = rawTmax == null || rawTmin == null;
-      final bool isEt0Missing = rawEt0 == null;
-      final bool isPrecipMissing = rawP == null;
+      final tMaxResult = _parseNullableMeasurement(
+        rawTmax,
+        fieldName: 'temperature_2m_max',
+        index: i,
+      );
+      if (tMaxResult.isFailure) {
+        return FailureResult(tMaxResult.failureOrNull!);
+      }
+      final double? tMax = tMaxResult.dataOrNull;
+
+      final tMinResult = _parseNullableMeasurement(
+        rawTmin,
+        fieldName: 'temperature_2m_min',
+        index: i,
+      );
+      if (tMinResult.isFailure) {
+        return FailureResult(tMinResult.failureOrNull!);
+      }
+      final double? tMin = tMinResult.dataOrNull;
+
+      final et0Result = _parseNullableMeasurement(
+        rawEt0,
+        fieldName: 'et0_fao_evapotranspiration',
+        index: i,
+      );
+      if (et0Result.isFailure) {
+        return FailureResult(et0Result.failureOrNull!);
+      }
+      final double? et0 = et0Result.dataOrNull;
+
+      final pResult = _parseNullableMeasurement(
+        rawP,
+        fieldName: 'precipitation_sum',
+        index: i,
+      );
+      if (pResult.isFailure) {
+        return FailureResult(pResult.failureOrNull!);
+      }
+      final double? p = pResult.dataOrNull;
+
+      final bool isTempMissing = tMax == null || tMin == null;
+      final bool isEt0Missing = et0 == null;
+      final bool isPrecipMissing = p == null;
 
       if (isTempMissing) {
         missingTempCount++;
@@ -324,11 +364,6 @@ class OpenMeteoAdapter {
       if (isPrecipMissing) {
         missingPrecipCount++;
       }
-
-      final double? tMax = rawTmax != null ? (rawTmax as num).toDouble() : null;
-      final double? tMin = rawTmin != null ? (rawTmin as num).toDouble() : null;
-      final double? et0 = rawEt0 != null ? (rawEt0 as num).toDouble() : null;
-      final double? p = rawP != null ? (rawP as num).toDouble() : null;
 
       // Scientific Range Validation: only validate temperatures when present
       if (tMax != null && tMin != null) {
@@ -415,5 +450,27 @@ class OpenMeteoAdapter {
     // 2. Variable-specific missingness threshold checks (> 10%)
     // Each individual variable has passed the 10% tolerance threshold.
     return Success(records);
+  }
+
+  static Result<double?, ParsingFailure> _parseNullableMeasurement(
+    Object? rawValue, {
+    required String fieldName,
+    required int index,
+  }) {
+    if (rawValue == null) {
+      return const Success(null);
+    }
+    if (rawValue is! num) {
+      return FailureResult(
+        ParsingFailure(
+          userMessageAr:
+              'استجابة بيانات الأرصاد تحتوي على قيمة قياس غير صالحة للمتغير ($fieldName).',
+          technicalMessage:
+              'Invalid numeric measurement "$fieldName" at index $index: '
+              'expected a number or null, received ${rawValue.runtimeType} ($rawValue).',
+        ),
+      );
+    }
+    return Success(rawValue.toDouble());
   }
 }

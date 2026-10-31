@@ -55,6 +55,12 @@ class WeatherLocalDataSource {
             )
           : null;
 
+      if (normalizedExpectedStart != null &&
+          normalizedExpectedEnd != null &&
+          normalizedExpectedEnd.isBefore(normalizedExpectedStart)) {
+        return null;
+      }
+
       final expectedDays =
           (normalizedExpectedStart != null && normalizedExpectedEnd != null)
           ? normalizedExpectedEnd.difference(normalizedExpectedStart).inDays + 1
@@ -76,10 +82,15 @@ class WeatherLocalDataSource {
           row.recordDate.day,
         );
 
-        // 3. Reject duplicate or non-ascending record dates
+        // 3. Reject duplicate or non-ascending record dates and enforce contiguous days
         if (prevDate != null) {
           if (!recDate.isAfter(prevDate)) {
             return null; // Duplicate or out-of-order date
+          }
+          if (normalizedExpectedStart != null &&
+              normalizedExpectedEnd != null &&
+              recDate.difference(prevDate).inDays != 1) {
+            return null; // Missing day / gap in expected date sequence
           }
         }
         prevDate = recDate;
@@ -141,6 +152,30 @@ class WeatherLocalDataSource {
             provenance: provenance,
           ),
         );
+      }
+
+      // 6. Verify complete range coverage when an expected interval was specified
+      if (normalizedExpectedStart != null && normalizedExpectedEnd != null) {
+        if (expectedDays != null && records.length != expectedDays) {
+          return null; // Record count does not match expected calendar days
+        }
+        if (records.isEmpty) {
+          return null;
+        }
+        final firstDate = DateTime.utc(
+          records.first.date.year,
+          records.first.date.month,
+          records.first.date.day,
+        );
+        final lastDate = DateTime.utc(
+          records.last.date.year,
+          records.last.date.month,
+          records.last.date.day,
+        );
+        if (firstDate != normalizedExpectedStart ||
+            lastDate != normalizedExpectedEnd) {
+          return null; // Boundary dates do not match requested start and end dates
+        }
       }
 
       return CacheLookupResult(

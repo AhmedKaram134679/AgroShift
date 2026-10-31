@@ -998,6 +998,112 @@ void main() {
       },
     );
 
+    test('8b. CachePolicy rejects future-dated timestamps and respects exact TTL boundaries', () {
+      final now = DateTime(2026, 10, 24, 12, 0);
+
+      // 1. Future-dated timestamps must be rejected (not fresh)
+      final future1Sec = now.add(const Duration(seconds: 1));
+      final future1Hour = now.add(const Duration(hours: 1));
+      final future1Day = now.add(const Duration(days: 1));
+
+      expect(
+        CachePolicy.isFresh(cachedAt: future1Sec, isForecast: true, now: now),
+        isFalse,
+        reason: '1 second in the future must be rejected for forecast',
+      );
+      expect(
+        CachePolicy.isFresh(cachedAt: future1Sec, isForecast: false, now: now),
+        isFalse,
+        reason: '1 second in the future must be rejected for historical',
+      );
+      expect(
+        CachePolicy.isFresh(cachedAt: future1Hour, isForecast: true, now: now),
+        isFalse,
+      );
+      expect(
+        CachePolicy.isFresh(cachedAt: future1Day, isForecast: false, now: now),
+        isFalse,
+      );
+
+      // 2. Timestamp equal to current time must be fresh
+      expect(
+        CachePolicy.isFresh(cachedAt: now, isForecast: true, now: now),
+        isTrue,
+      );
+      expect(
+        CachePolicy.isFresh(cachedAt: now, isForecast: false, now: now),
+        isTrue,
+      );
+
+      // 3. Forecast TTL boundaries (6 hours)
+      final forecastJustInside = now.subtract(
+        const Duration(hours: 5, minutes: 59, seconds: 59),
+      );
+      final forecastExactBoundary = now.subtract(const Duration(hours: 6));
+      final forecastJustBeyond = now.subtract(
+        const Duration(hours: 6, seconds: 1),
+      );
+
+      expect(
+        CachePolicy.isFresh(
+          cachedAt: forecastJustInside,
+          isForecast: true,
+          now: now,
+        ),
+        isTrue,
+      );
+      expect(
+        CachePolicy.isFresh(
+          cachedAt: forecastExactBoundary,
+          isForecast: true,
+          now: now,
+        ),
+        isTrue,
+      );
+      expect(
+        CachePolicy.isFresh(
+          cachedAt: forecastJustBeyond,
+          isForecast: true,
+          now: now,
+        ),
+        isFalse,
+      );
+
+      // 4. Historical TTL boundaries (7 days)
+      final historicalJustInside = now.subtract(
+        const Duration(days: 6, hours: 23, minutes: 59),
+      );
+      final historicalExactBoundary = now.subtract(const Duration(days: 7));
+      final historicalJustBeyond = now.subtract(
+        const Duration(days: 7, seconds: 1),
+      );
+
+      expect(
+        CachePolicy.isFresh(
+          cachedAt: historicalJustInside,
+          isForecast: false,
+          now: now,
+        ),
+        isTrue,
+      );
+      expect(
+        CachePolicy.isFresh(
+          cachedAt: historicalExactBoundary,
+          isForecast: false,
+          now: now,
+        ),
+        isTrue,
+      );
+      expect(
+        CachePolicy.isFresh(
+          cachedAt: historicalJustBeyond,
+          isForecast: false,
+          now: now,
+        ),
+        isFalse,
+      );
+    });
+
     test('9. Database migration preserves existing records', () async {
       // Test schema creation & migration strategy execution
       await fieldRepo.saveField(testField);
@@ -2691,9 +2797,9 @@ void main() {
         expect(res, isNull);
       });
 
-      test('48. Persistent cache: valid records with permitted missing-temperature gaps remain acceptable', () async {
+      test('48. Persistent cache: incomplete historical range with missing middle day is rejected', () async {
         const cacheKey = 'hist_test_gap';
-        // May 1 and May 3 (May 2 omitted due to missing temperature filter)
+        // May 1 and May 3 (May 2 omitted - incomplete range)
         final records = [
           DailyAgroRecord(
             date: DateTime.utc(2026, 5, 1),
@@ -2724,8 +2830,7 @@ void main() {
           expectedStartDate: DateTime.utc(2026, 5, 1),
           expectedEndDate: DateTime.utc(2026, 5, 3),
         );
-        expect(res, isNotNull);
-        expect(res!.records.length, equals(2));
+        expect(res, isNull);
       });
 
       test('49. Persistent cache: inconsistent cachedAt metadata across rows fails integrity check', () async {
@@ -3387,6 +3492,351 @@ void main() {
           ),
           isFalse,
         );
+      });
+
+      test('58a. Historical date range completeness: complete five-day interval is accepted', () {
+        final repo = WeatherRepositoryImpl();
+        final start = DateTime.utc(2026, 1, 1);
+        final end = DateTime.utc(2026, 1, 5);
+        final records = List.generate(
+          5,
+          (i) => DailyAgroRecord(
+            date: DateTime.utc(2026, 1, 1 + i),
+            maxTemperatureC: 25.0,
+            minTemperatureC: 12.0,
+            precipitationMm: 0.0,
+            referenceEt0Mm: 3.5,
+            provenance: prov,
+          ),
+        );
+        expect(repo.isHistoricalValid(records, start, end), isTrue);
+      });
+
+      test('58b. Historical date range completeness: missing middle day is rejected', () {
+        final repo = WeatherRepositoryImpl();
+        final start = DateTime.utc(2026, 1, 1);
+        final end = DateTime.utc(2026, 1, 5);
+        // Jan 1, 2, 4, 5 (missing Jan 3)
+        final records =
+            [
+                  DateTime.utc(2026, 1, 1),
+                  DateTime.utc(2026, 1, 2),
+                  DateTime.utc(2026, 1, 4),
+                  DateTime.utc(2026, 1, 5),
+                ]
+                .map(
+                  (d) => DailyAgroRecord(
+                    date: d,
+                    maxTemperatureC: 25.0,
+                    minTemperatureC: 12.0,
+                    precipitationMm: 0.0,
+                    referenceEt0Mm: 3.5,
+                    provenance: prov,
+                  ),
+                )
+                .toList();
+        expect(repo.isHistoricalValid(records, start, end), isFalse);
+      });
+
+      test('58c. Historical date range completeness: missing first day is rejected', () {
+        final repo = WeatherRepositoryImpl();
+        final start = DateTime.utc(2026, 1, 1);
+        final end = DateTime.utc(2026, 1, 5);
+        // Jan 2, 3, 4, 5 (missing Jan 1)
+        final records =
+            [
+                  DateTime.utc(2026, 1, 2),
+                  DateTime.utc(2026, 1, 3),
+                  DateTime.utc(2026, 1, 4),
+                  DateTime.utc(2026, 1, 5),
+                ]
+                .map(
+                  (d) => DailyAgroRecord(
+                    date: d,
+                    maxTemperatureC: 25.0,
+                    minTemperatureC: 12.0,
+                    precipitationMm: 0.0,
+                    referenceEt0Mm: 3.5,
+                    provenance: prov,
+                  ),
+                )
+                .toList();
+        expect(repo.isHistoricalValid(records, start, end), isFalse);
+      });
+
+      test(
+        '58d. Historical date range completeness: missing last day is rejected',
+        () {
+          final repo = WeatherRepositoryImpl();
+          final start = DateTime.utc(2026, 1, 1);
+          final end = DateTime.utc(2026, 1, 5);
+          // Jan 1, 2, 3, 4 (missing Jan 5)
+          final records =
+              [
+                    DateTime.utc(2026, 1, 1),
+                    DateTime.utc(2026, 1, 2),
+                    DateTime.utc(2026, 1, 3),
+                    DateTime.utc(2026, 1, 4),
+                  ]
+                  .map(
+                    (d) => DailyAgroRecord(
+                      date: d,
+                      maxTemperatureC: 25.0,
+                      minTemperatureC: 12.0,
+                      precipitationMm: 0.0,
+                      referenceEt0Mm: 3.5,
+                      provenance: prov,
+                    ),
+                  )
+                  .toList();
+          expect(repo.isHistoricalValid(records, start, end), isFalse);
+        },
+      );
+
+      test('58e. Historical date range completeness: fewer records than expected is rejected', () {
+        final repo = WeatherRepositoryImpl();
+        final start = DateTime.utc(2026, 1, 1);
+        final end = DateTime.utc(2026, 1, 5);
+        final records =
+            [
+                  DateTime.utc(2026, 1, 1),
+                  DateTime.utc(2026, 1, 2),
+                  DateTime.utc(2026, 1, 3),
+                ]
+                .map(
+                  (d) => DailyAgroRecord(
+                    date: d,
+                    maxTemperatureC: 25.0,
+                    minTemperatureC: 12.0,
+                    precipitationMm: 0.0,
+                    referenceEt0Mm: 3.5,
+                    provenance: prov,
+                  ),
+                )
+                .toList();
+        expect(repo.isHistoricalValid(records, start, end), isFalse);
+      });
+
+      test('58f. Historical date range completeness: correct record count but skipped and duplicate date is rejected', () {
+        final repo = WeatherRepositoryImpl();
+        final start = DateTime.utc(2026, 1, 1);
+        final end = DateTime.utc(2026, 1, 5);
+        // Count = 5, but duplicate Jan 2 and missing Jan 3
+        final records =
+            [
+                  DateTime.utc(2026, 1, 1),
+                  DateTime.utc(2026, 1, 2),
+                  DateTime.utc(2026, 1, 2),
+                  DateTime.utc(2026, 1, 4),
+                  DateTime.utc(2026, 1, 5),
+                ]
+                .map(
+                  (d) => DailyAgroRecord(
+                    date: d,
+                    maxTemperatureC: 25.0,
+                    minTemperatureC: 12.0,
+                    precipitationMm: 0.0,
+                    referenceEt0Mm: 3.5,
+                    provenance: prov,
+                  ),
+                )
+                .toList();
+        expect(repo.isHistoricalValid(records, start, end), isFalse);
+      });
+
+      test('58g. Historical date range completeness: dates out of order is rejected', () {
+        final repo = WeatherRepositoryImpl();
+        final start = DateTime.utc(2026, 1, 1);
+        final end = DateTime.utc(2026, 1, 5);
+        // Jan 1, 3, 2, 4, 5
+        final records =
+            [
+                  DateTime.utc(2026, 1, 1),
+                  DateTime.utc(2026, 1, 3),
+                  DateTime.utc(2026, 1, 2),
+                  DateTime.utc(2026, 1, 4),
+                  DateTime.utc(2026, 1, 5),
+                ]
+                .map(
+                  (d) => DailyAgroRecord(
+                    date: d,
+                    maxTemperatureC: 25.0,
+                    minTemperatureC: 12.0,
+                    precipitationMm: 0.0,
+                    referenceEt0Mm: 3.5,
+                    provenance: prov,
+                  ),
+                )
+                .toList();
+        expect(repo.isHistoricalValid(records, start, end), isFalse);
+      });
+
+      test('58h. Historical date range completeness: record outside requested interval is rejected', () {
+        final repo = WeatherRepositoryImpl();
+        final start = DateTime.utc(2026, 1, 1);
+        final end = DateTime.utc(2026, 1, 5);
+        // Jan 1, 2, 3, 4, 6 (outside end date)
+        final records =
+            [
+                  DateTime.utc(2026, 1, 1),
+                  DateTime.utc(2026, 1, 2),
+                  DateTime.utc(2026, 1, 3),
+                  DateTime.utc(2026, 1, 4),
+                  DateTime.utc(2026, 1, 6),
+                ]
+                .map(
+                  (d) => DailyAgroRecord(
+                    date: d,
+                    maxTemperatureC: 25.0,
+                    minTemperatureC: 12.0,
+                    precipitationMm: 0.0,
+                    referenceEt0Mm: 3.5,
+                    provenance: prov,
+                  ),
+                )
+                .toList();
+        expect(repo.isHistoricalValid(records, start, end), isFalse);
+      });
+
+      test('58i. Historical date range completeness: empty interval result for non-empty requested range is rejected', () {
+        final repo = WeatherRepositoryImpl();
+        expect(
+          repo.isHistoricalValid(
+            [],
+            DateTime.utc(2026, 1, 1),
+            DateTime.utc(2026, 1, 5),
+          ),
+          isFalse,
+        );
+      });
+
+      test('58j. Historical date range completeness: valid dates with nullable measurements preserve null semantics and are accepted', () {
+        final repo = WeatherRepositoryImpl();
+        final start = DateTime.utc(2026, 1, 1);
+        final end = DateTime.utc(2026, 1, 5);
+        final records = List.generate(
+          5,
+          (i) => DailyAgroRecord(
+            date: DateTime.utc(2026, 1, 1 + i),
+            maxTemperatureC: 25.0,
+            minTemperatureC: 12.0,
+            precipitationMm: i == 2 ? null : 0.0, // Null precipitation on day 3
+            referenceEt0Mm: 3.5,
+            provenance: prov,
+          ),
+        );
+        expect(repo.isHistoricalValid(records, start, end), isTrue);
+        expect(records[2].precipitationMm, isNull);
+      });
+
+      test('58k. SQLite integration: incomplete historical cache triggers remote fetch fallback and recovery', () async {
+        int remoteCalls = 0;
+        final dio = Dio();
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              remoteCalls++;
+              handler.resolve(
+                Response(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: {
+                    'latitude': 31.1,
+                    'longitude': 30.95,
+                    'elevation': 6.0,
+                    'generationtime_ms': 0.1,
+                    'utc_offset_seconds': 10800,
+                    'timezone': 'Africa/Cairo',
+                    'daily_units': mockDailyUnits,
+                    'daily': {
+                      'time': [
+                        '2026-05-01',
+                        '2026-05-02',
+                        '2026-05-03',
+                        '2026-05-04',
+                        '2026-05-05',
+                      ],
+                      'temperature_2m_max': [30.0, 31.0, 32.0, 31.0, 30.0],
+                      'temperature_2m_min': [18.0, 19.0, 20.0, 19.0, 18.0],
+                      'et0_fao_evapotranspiration': [5.0, 5.1, 5.2, 5.1, 5.0],
+                      'precipitation_sum': [0.0, 0.0, 0.0, 0.0, 0.0],
+                    },
+                  },
+                ),
+              );
+            },
+          ),
+        );
+
+        final remoteSource = OpenMeteoRemoteDataSource(dio: dio);
+        // Fixed reference time: May 15, 2026 (eligible date is May 10, so May 1-5 is fully eligible)
+        final fixedNow = DateTime.utc(2026, 5, 15, 12, 0);
+        final repo = WeatherRepositoryImpl(
+          remoteDataSource: remoteSource,
+          localDataSource: weatherLocalSource,
+          referenceTimeProvider: () => fixedNow,
+        );
+
+        const coord = Coordinate(latitude: 31.10, longitude: 30.95);
+        const cacheKey = 'hist_openmeteo_era5_31.1_30.95_2026-05-01_2026-05-05';
+
+        // Pre-populate SQLite with an INCOMPLETE cache entry (missing May 3)
+        final incompleteRecords = [
+          DailyAgroRecord(
+            date: DateTime.utc(2026, 5, 1),
+            maxTemperatureC: 30.0,
+            minTemperatureC: 18.0,
+            precipitationMm: 0.0,
+            referenceEt0Mm: 5.0,
+            provenance: prov,
+          ),
+          DailyAgroRecord(
+            date: DateTime.utc(2026, 5, 2),
+            maxTemperatureC: 31.0,
+            minTemperatureC: 19.0,
+            precipitationMm: 0.0,
+            referenceEt0Mm: 5.1,
+            provenance: prov,
+          ),
+          DailyAgroRecord(
+            date: DateTime.utc(2026, 5, 4),
+            maxTemperatureC: 31.0,
+            minTemperatureC: 19.0,
+            precipitationMm: 0.0,
+            referenceEt0Mm: 5.1,
+            provenance: prov,
+          ),
+          DailyAgroRecord(
+            date: DateTime.utc(2026, 5, 5),
+            maxTemperatureC: 30.0,
+            minTemperatureC: 18.0,
+            precipitationMm: 0.0,
+            referenceEt0Mm: 5.0,
+            provenance: prov,
+          ),
+        ];
+
+        await weatherLocalSource.saveRecords(
+          cacheKey: cacheKey,
+          records: incompleteRecords,
+          cachedAt: fixedNow,
+        );
+
+        // Fetch May 1 to May 5: the incomplete cache must be bypassed, triggering a remote fetch
+        final result = await repo.getHistoricalDailyRecords(
+          coordinate: coord,
+          startDate: DateTime.utc(2026, 5, 1),
+          endDate: DateTime.utc(2026, 5, 5),
+        );
+
+        expect(result.isSuccess, isTrue);
+        expect(
+          remoteCalls,
+          equals(1),
+          reason: 'Incomplete cache must trigger remote fetch',
+        );
+        expect(result.dataOrNull!.length, equals(5));
+        expect(result.dataOrNull![2].date, equals(DateTime.utc(2026, 5, 3)));
       });
 
       test('59. 30-day Option A window produces exactly 30 days ending on latestEligible', () {

@@ -18,6 +18,9 @@ class CachePolicy {
     DateTime? now,
   }) {
     final currentTime = now ?? DateTime.now();
+    if (cachedAt.isAfter(currentTime)) {
+      return false;
+    }
     final ttl = isForecast ? forecastTtl : historicalTtl;
     return currentTime.difference(cachedAt) <= ttl;
   }

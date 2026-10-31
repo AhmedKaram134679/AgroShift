@@ -608,9 +608,9 @@ class WeatherRepositoryImpl implements IWeatherRepository {
     }
   }
 
-  /// Validates that historical records are non-empty, in strictly ascending chronological order,
-  /// have no duplicate dates, and fall within the requested date interval.
-  /// (Permits gaps between records resulting from missing-temperature filtering).
+  /// Validates that historical records form a complete, continuous, strictly ascending
+  /// daily sequence covering the exact requested date interval without gaps, duplicates,
+  /// or omissions.
   bool isHistoricalValid(
     List<DailyAgroRecord> records,
     DateTime startDate,
@@ -624,6 +624,30 @@ class WeatherRepositoryImpl implements IWeatherRepository {
       startDate.day,
     );
     final normEnd = DateTime.utc(endDate.year, endDate.month, endDate.day);
+
+    if (normEnd.isBefore(normStart)) {
+      return false;
+    }
+
+    final expectedDays = normEnd.difference(normStart).inDays + 1;
+    if (records.length != expectedDays) {
+      return false;
+    }
+
+    final firstDate = DateTime.utc(
+      records.first.date.year,
+      records.first.date.month,
+      records.first.date.day,
+    );
+    final lastDate = DateTime.utc(
+      records.last.date.year,
+      records.last.date.month,
+      records.last.date.day,
+    );
+    if (firstDate != normStart || lastDate != normEnd) {
+      return false;
+    }
+
     DateTime? prevDate;
 
     for (final r in records) {
@@ -634,6 +658,9 @@ class WeatherRepositoryImpl implements IWeatherRepository {
       if (prevDate != null) {
         if (!recDate.isAfter(prevDate)) {
           return false; // Duplicate or out-of-order date
+        }
+        if (recDate.difference(prevDate).inDays != 1) {
+          return false; // Missing day / gap in sequence
         }
       }
       prevDate = recDate;
