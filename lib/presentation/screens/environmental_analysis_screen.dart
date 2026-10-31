@@ -79,6 +79,27 @@ class EnvironmentalAnalysisScreen extends ConsumerWidget {
               }
 
               final dateFormat = DateFormat('MM/dd');
+              final expectedDays =
+                  records.first.provenance.expectedPeriodDays ?? records.length;
+              final availableTempDays = records
+                  .where(
+                    (r) =>
+                        r.maxTemperatureC != null && r.minTemperatureC != null,
+                  )
+                  .length;
+              final missingTempDays = expectedDays - availableTempDays;
+              final isTempComplete =
+                  availableTempDays == expectedDays &&
+                  records.length == expectedDays;
+
+              final availableEt0Days = records
+                  .where((r) => r.referenceEt0Mm != null)
+                  .length;
+              final missingEt0Days = expectedDays - availableEt0Days;
+              final isEt0Complete =
+                  availableEt0Days == expectedDays &&
+                  records.length == expectedDays;
+              final totalEt0 = _calculateTotalEt0(records);
 
               return ListView(
                 padding: const EdgeInsets.all(16.0),
@@ -209,6 +230,18 @@ class EnvironmentalAnalysisScreen extends ConsumerWidget {
                       ),
                     ],
                   ),
+                  if (!isTempComplete) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'تنبيه: بيانات درجات الحرارة غير مكتملة لكامل الفترة ($availableTempDays يوماً متوفراً بها درجات الحرارة من إجمالي $expectedDays يوماً مطلوبة'
+                      '${missingTempDays > 0 ? '، مع نقص في $missingTempDays أيام' : ''}). المسار المعروض يمثل الأيام المتوفرة فقط.',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: Color(0xFFC62828),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
 
                   const SizedBox(height: 20),
 
@@ -231,66 +264,41 @@ class EnvironmentalAnalysisScreen extends ConsumerWidget {
                             ],
                           ),
                           const SizedBox(height: 8),
-                          Builder(
-                            builder: (context) {
-                              final expectedDays =
-                                  records.first.provenance.expectedPeriodDays ??
-                                  records.length;
-                              final availableEt0Days = records
-                                  .where((r) => r.referenceEt0Mm != null)
-                                  .length;
-                              final missingTempDays = records
-                                  .where(
-                                    (r) =>
-                                        r.maxTemperatureC == null ||
-                                        r.minTemperatureC == null,
-                                  )
-                                  .length;
-                              final missingEt0Days =
-                                  expectedDays - availableEt0Days;
-                              final isComplete =
-                                  availableEt0Days == expectedDays &&
-                                  records.length == expectedDays;
-                              final totalEt0 = _calculateTotalEt0(records);
-
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    isComplete
-                                        ? 'إجمالي الفاقد البخري خلال $expectedDays يوماً: ${totalEt0.toStringAsFixed(1)} مم'
-                                        : 'مجموع جزئي للفاقد البخري ($availableEt0Days من أصل $expectedDays يوماً مطلوبة): ${totalEt0.toStringAsFixed(1)} مم',
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                isEt0Complete
+                                    ? 'إجمالي الفاقد البخري خلال $expectedDays يوماً: ${totalEt0.toStringAsFixed(1)} مم'
+                                    : 'مجموع جزئي للفاقد البخري ($availableEt0Days من أصل $expectedDays يوماً مطلوبة): ${totalEt0.toStringAsFixed(1)} مم',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              if (!isEt0Complete) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  'تنبيه: بيانات البخر نتح المرجعي (ET₀) غير مكتملة لكامل الفترة ($availableEt0Days يوماً متوفراً بها قراءات البخر من إجمالي $expectedDays يوماً مطلوبة'
+                                  '${missingEt0Days > 0 ? '، و $missingEt0Days أيام بدون قراءة ET₀' : ''}). المجموع المعروض يمثل الأيام المتوفرة فقط.',
+                                  style: const TextStyle(
+                                    fontSize: 11.5,
+                                    color: Color(0xFFC62828),
+                                    fontWeight: FontWeight.w600,
                                   ),
-                                  if (!isComplete) ...[
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'تنبيه: البيانات غير مكتملة لكامل الفترة المطلوبة ($availableEt0Days يوماً متوفراً بها قراءات البخر من إجمالي $expectedDays يوماً'
-                                      '${missingTempDays > 0 ? '، مع نقص درجات الحرارة في $missingTempDays أيام' : ''}'
-                                      '${missingEt0Days > 0 ? '، و $missingEt0Days أيام بدون قراءة ET₀' : ''}). المجموع المعروض يمثل الأيام المتوفرة فقط.',
-                                      style: const TextStyle(
-                                        fontSize: 11.5,
-                                        color: Color(0xFFC62828),
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    isComplete
-                                        ? 'المعادل الحجمي النظري للبخر المرجعي: ${(totalEt0 * 4.2).toStringAsFixed(0)} م³ / فدان'
-                                        : 'المعادل الحجمي النظري الجزئي (للأيام المتوفرة): ${(totalEt0 * 4.2).toStringAsFixed(0)} م³ / فدان',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: Color(0xFF0277BD),
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
+                                ),
+                              ],
+                              const SizedBox(height: 4),
+                              Text(
+                                isEt0Complete
+                                    ? 'المعادل الحجمي النظري للبخر المرجعي: ${(totalEt0 * 4.2).toStringAsFixed(0)} م³ / فدان'
+                                    : 'المعادل الحجمي النظري الجزئي (للأيام المتوفرة): ${(totalEt0 * 4.2).toStringAsFixed(0)} م³ / فدان',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF0277BD),
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 4),
                           const Text(

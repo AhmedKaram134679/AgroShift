@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:agro_shift/app/theme.dart';
 import 'package:agro_shift/presentation/main_navigation_shell.dart';
 import 'package:agro_shift/presentation/screens/field_management_screen.dart';
+import 'package:agro_shift/presentation/screens/environmental_analysis_screen.dart';
 import 'package:agro_shift/presentation/providers/agro_providers.dart';
 import 'package:agro_shift/domain/environment/repositories/i_weather_repository.dart';
 import 'package:agro_shift/domain/environment/models/coordinate.dart';
@@ -665,6 +666,187 @@ void main() {
       await tester.tap(find.text('إلغاء'));
       await tester.pumpAndSettle();
       expect(find.text('إضافة حقل زراعي جديد في مصر'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'EnvironmentalAnalysisScreen preserves ET0 completeness while disclosing missing temperature data',
+    (WidgetTester tester) async {
+      final testDb = constructTestDb();
+      addTearDown(() => testDb.close());
+
+      final prov = DataSourceProvenance(
+        providerName: 'Open-Meteo Weather API',
+        datasetName: 'ERA5 Reanalysis Archive',
+        requestedLatitude: 31.27,
+        requestedLongitude: 30.79,
+        gridLatitude: 31.25,
+        gridLongitude: 30.75,
+        acquisitionTimestamp: DateTime.utc(2025, 1, 1),
+        expectedPeriodDays: 5,
+      );
+
+      // 5-day series: every day has valid ET0 (3.0 mm/day).
+      // Day 3 (index 2) is missing Tmax (null).
+      final records = List.generate(5, (i) {
+        return DailyAgroRecord(
+          date: DateTime.utc(2025, 1, 1 + i),
+          maxTemperatureC: i == 2 ? null : 22.0,
+          minTemperatureC: 12.0,
+          precipitationMm: 0.0,
+          referenceEt0Mm: 3.0,
+          provenance: prov,
+        );
+      });
+
+      final activeField = FarmField(
+        id: 'field_test_analysis',
+        nameAr: 'حقل التحليل الاختباري',
+        governorateAr: 'كفر الشيخ',
+        coordinate: const Coordinate(
+          latitude: 31.27,
+          longitude: 30.79,
+          governorateName: 'كفر الشيخ',
+        ),
+        areaInFeddan: 5.0,
+        soilType: SoilType.clay,
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDatabaseProvider.overrideWithValue(testDb),
+            selectedFieldProvider.overrideWith(
+              () => _StaticFieldNotifier(activeField),
+            ),
+            fieldHistorical30DaysProvider.overrideWith(
+              (ref) async => Success(records),
+            ),
+          ],
+          child: MaterialApp(
+            theme: AgroTheme.lightTheme,
+            locale: const Locale('ar', 'EG'),
+            supportedLocales: const [Locale('ar', 'EG'), Locale('en', 'US')],
+            localizationsDelegates: const [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            home: const Directionality(
+              textDirection: TextDirection.rtl,
+              child: EnvironmentalAnalysisScreen(),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Assertion A — ET₀ completeness is preserved:
+      // The ET₀ summary must report complete ET₀ for all 5 days without claiming partial or missing ET₀.
+      expect(
+        find.textContaining('إجمالي الفاقد البخري خلال 5 يوماً: 15.0 مم'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('مجموع جزئي للفاقد البخري'),
+        findsNothing,
+      );
+      expect(
+        find.textContaining('بدون قراءة ET₀'),
+        findsNothing,
+      );
+
+      // Assertion B — Missing temperature data is disclosed:
+      // The UI must clearly disclose that temperature data is incomplete.
+      expect(
+        find.textContaining('بيانات درجات الحرارة غير مكتملة'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'EnvironmentalAnalysisScreen displays no warnings when both ET0 and temperature data are complete',
+    (WidgetTester tester) async {
+      final testDb = constructTestDb();
+      addTearDown(() => testDb.close());
+
+      final prov = DataSourceProvenance(
+        providerName: 'Open-Meteo Weather API',
+        datasetName: 'ERA5 Reanalysis Archive',
+        requestedLatitude: 31.27,
+        requestedLongitude: 30.79,
+        gridLatitude: 31.25,
+        gridLongitude: 30.75,
+        acquisitionTimestamp: DateTime.utc(2025, 1, 1),
+        expectedPeriodDays: 5,
+      );
+
+      // 5 complete days with all temperature and ET0 values present
+      final records = List.generate(5, (i) {
+        return DailyAgroRecord(
+          date: DateTime.utc(2025, 1, 1 + i),
+          maxTemperatureC: 22.0,
+          minTemperatureC: 12.0,
+          precipitationMm: 0.0,
+          referenceEt0Mm: 3.0,
+          provenance: prov,
+        );
+      });
+
+      final activeField = FarmField(
+        id: 'field_test_analysis_complete',
+        nameAr: 'حقل التحليل المكتمل',
+        governorateAr: 'كفر الشيخ',
+        coordinate: const Coordinate(
+          latitude: 31.27,
+          longitude: 30.79,
+          governorateName: 'كفر الشيخ',
+        ),
+        areaInFeddan: 5.0,
+        soilType: SoilType.clay,
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDatabaseProvider.overrideWithValue(testDb),
+            selectedFieldProvider.overrideWith(
+              () => _StaticFieldNotifier(activeField),
+            ),
+            fieldHistorical30DaysProvider.overrideWith(
+              (ref) async => Success(records),
+            ),
+          ],
+          child: MaterialApp(
+            theme: AgroTheme.lightTheme,
+            locale: const Locale('ar', 'EG'),
+            supportedLocales: const [Locale('ar', 'EG'), Locale('en', 'US')],
+            localizationsDelegates: const [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            home: const Directionality(
+              textDirection: TextDirection.rtl,
+              child: EnvironmentalAnalysisScreen(),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Complete ET0 displayed
+      expect(
+        find.textContaining('إجمالي الفاقد البخري خلال 5 يوماً: 15.0 مم'),
+        findsOneWidget,
+      );
+      // No warnings displayed
+      expect(find.textContaining('تنبيه:'), findsNothing);
+      expect(find.textContaining('بيانات درجات الحرارة غير مكتملة'), findsNothing);
+      expect(find.textContaining('بيانات البخر نتح المرجعي (ET₀) غير مكتملة'), findsNothing);
     },
   );
 }
