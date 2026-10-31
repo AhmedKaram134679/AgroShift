@@ -180,11 +180,12 @@ class EnvironmentalAnalysisScreen extends ConsumerWidget {
                               LineChartBarData(
                                 spots: [
                                   for (int i = 0; i < records.length; i++)
-                                    if (records[i].maxTemperatureC != null)
-                                      FlSpot(
-                                        i.toDouble(),
-                                        records[i].maxTemperatureC!,
-                                      ),
+                                    records[i].maxTemperatureC != null
+                                        ? FlSpot(
+                                            i.toDouble(),
+                                            records[i].maxTemperatureC!,
+                                          )
+                                        : FlSpot.nullSpot,
                                 ],
                                 isCurved: true,
                                 color: const Color(0xFFD32F2F),
@@ -195,11 +196,12 @@ class EnvironmentalAnalysisScreen extends ConsumerWidget {
                               LineChartBarData(
                                 spots: [
                                   for (int i = 0; i < records.length; i++)
-                                    if (records[i].minTemperatureC != null)
-                                      FlSpot(
-                                        i.toDouble(),
-                                        records[i].minTemperatureC!,
-                                      ),
+                                    records[i].minTemperatureC != null
+                                        ? FlSpot(
+                                            i.toDouble(),
+                                            records[i].minTemperatureC!,
+                                          )
+                                        : FlSpot.nullSpot,
                                 ],
                                 isCurved: true,
                                 color: const Color(0xFF1976D2),
