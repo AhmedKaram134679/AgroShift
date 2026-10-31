@@ -3839,6 +3839,226 @@ void main() {
         expect(result.dataOrNull![2].date, equals(DateTime.utc(2026, 5, 3)));
       });
 
+      test('58l. SQLite integration: historical cache missing first day triggers remote fetch fallback and recovery', () async {
+        int remoteCalls = 0;
+        final dio = Dio();
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              remoteCalls++;
+              handler.resolve(
+                Response(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: {
+                    'latitude': 31.1,
+                    'longitude': 30.95,
+                    'elevation': 6.0,
+                    'generationtime_ms': 0.1,
+                    'utc_offset_seconds': 10800,
+                    'timezone': 'Africa/Cairo',
+                    'daily_units': mockDailyUnits,
+                    'daily': {
+                      'time': [
+                        '2026-05-01',
+                        '2026-05-02',
+                        '2026-05-03',
+                        '2026-05-04',
+                        '2026-05-05',
+                      ],
+                      'temperature_2m_max': [30.0, 31.0, 32.0, 31.0, 30.0],
+                      'temperature_2m_min': [18.0, 19.0, 20.0, 19.0, 18.0],
+                      'et0_fao_evapotranspiration': [5.0, 5.1, 5.2, 5.1, 5.0],
+                      'precipitation_sum': [0.0, 0.0, 0.0, 0.0, 0.0],
+                    },
+                  },
+                ),
+              );
+            },
+          ),
+        );
+
+        final remoteSource = OpenMeteoRemoteDataSource(dio: dio);
+        final fixedNow = DateTime.utc(2026, 5, 15, 12, 0);
+        final repo = WeatherRepositoryImpl(
+          remoteDataSource: remoteSource,
+          localDataSource: weatherLocalSource,
+          referenceTimeProvider: () => fixedNow,
+        );
+
+        const coord = Coordinate(latitude: 31.10, longitude: 30.95);
+        const cacheKey = 'hist_openmeteo_era5_31.1_30.95_2026-05-01_2026-05-05';
+
+        // Pre-populate SQLite with incomplete cache: May 1 omitted (contains May 2 to May 5)
+        final incompleteRecords = [
+          DailyAgroRecord(
+            date: DateTime.utc(2026, 5, 2),
+            maxTemperatureC: 31.0,
+            minTemperatureC: 19.0,
+            precipitationMm: 0.0,
+            referenceEt0Mm: 5.1,
+            provenance: prov,
+          ),
+          DailyAgroRecord(
+            date: DateTime.utc(2026, 5, 3),
+            maxTemperatureC: 32.0,
+            minTemperatureC: 20.0,
+            precipitationMm: 0.0,
+            referenceEt0Mm: 5.2,
+            provenance: prov,
+          ),
+          DailyAgroRecord(
+            date: DateTime.utc(2026, 5, 4),
+            maxTemperatureC: 31.0,
+            minTemperatureC: 19.0,
+            precipitationMm: 0.0,
+            referenceEt0Mm: 5.1,
+            provenance: prov,
+          ),
+          DailyAgroRecord(
+            date: DateTime.utc(2026, 5, 5),
+            maxTemperatureC: 30.0,
+            minTemperatureC: 18.0,
+            precipitationMm: 0.0,
+            referenceEt0Mm: 5.0,
+            provenance: prov,
+          ),
+        ];
+
+        await weatherLocalSource.saveRecords(
+          cacheKey: cacheKey,
+          records: incompleteRecords,
+          cachedAt: fixedNow,
+        );
+
+        // Fetch May 1 to May 5: the incomplete cache must be rejected, triggering remote fetch
+        final result = await repo.getHistoricalDailyRecords(
+          coordinate: coord,
+          startDate: DateTime.utc(2026, 5, 1),
+          endDate: DateTime.utc(2026, 5, 5),
+        );
+
+        expect(result.isSuccess, isTrue);
+        expect(
+          remoteCalls,
+          equals(1),
+          reason: 'Cache missing first day must trigger remote fetch',
+        );
+        expect(result.dataOrNull!.length, equals(5));
+        expect(result.dataOrNull!.first.date, equals(DateTime.utc(2026, 5, 1)));
+        expect(result.dataOrNull!.last.date, equals(DateTime.utc(2026, 5, 5)));
+      });
+
+      test('58m. SQLite integration: historical cache missing last day triggers remote fetch fallback and recovery', () async {
+        int remoteCalls = 0;
+        final dio = Dio();
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              remoteCalls++;
+              handler.resolve(
+                Response(
+                  requestOptions: options,
+                  statusCode: 200,
+                  data: {
+                    'latitude': 31.1,
+                    'longitude': 30.95,
+                    'elevation': 6.0,
+                    'generationtime_ms': 0.1,
+                    'utc_offset_seconds': 10800,
+                    'timezone': 'Africa/Cairo',
+                    'daily_units': mockDailyUnits,
+                    'daily': {
+                      'time': [
+                        '2026-05-01',
+                        '2026-05-02',
+                        '2026-05-03',
+                        '2026-05-04',
+                        '2026-05-05',
+                      ],
+                      'temperature_2m_max': [30.0, 31.0, 32.0, 31.0, 30.0],
+                      'temperature_2m_min': [18.0, 19.0, 20.0, 19.0, 18.0],
+                      'et0_fao_evapotranspiration': [5.0, 5.1, 5.2, 5.1, 5.0],
+                      'precipitation_sum': [0.0, 0.0, 0.0, 0.0, 0.0],
+                    },
+                  },
+                ),
+              );
+            },
+          ),
+        );
+
+        final remoteSource = OpenMeteoRemoteDataSource(dio: dio);
+        final fixedNow = DateTime.utc(2026, 5, 15, 12, 0);
+        final repo = WeatherRepositoryImpl(
+          remoteDataSource: remoteSource,
+          localDataSource: weatherLocalSource,
+          referenceTimeProvider: () => fixedNow,
+        );
+
+        const coord = Coordinate(latitude: 31.10, longitude: 30.95);
+        const cacheKey = 'hist_openmeteo_era5_31.1_30.95_2026-05-01_2026-05-05';
+
+        // Pre-populate SQLite with incomplete cache: May 5 omitted (contains May 1 to May 4)
+        final incompleteRecords = [
+          DailyAgroRecord(
+            date: DateTime.utc(2026, 5, 1),
+            maxTemperatureC: 30.0,
+            minTemperatureC: 18.0,
+            precipitationMm: 0.0,
+            referenceEt0Mm: 5.0,
+            provenance: prov,
+          ),
+          DailyAgroRecord(
+            date: DateTime.utc(2026, 5, 2),
+            maxTemperatureC: 31.0,
+            minTemperatureC: 19.0,
+            precipitationMm: 0.0,
+            referenceEt0Mm: 5.1,
+            provenance: prov,
+          ),
+          DailyAgroRecord(
+            date: DateTime.utc(2026, 5, 3),
+            maxTemperatureC: 32.0,
+            minTemperatureC: 20.0,
+            precipitationMm: 0.0,
+            referenceEt0Mm: 5.2,
+            provenance: prov,
+          ),
+          DailyAgroRecord(
+            date: DateTime.utc(2026, 5, 4),
+            maxTemperatureC: 31.0,
+            minTemperatureC: 19.0,
+            precipitationMm: 0.0,
+            referenceEt0Mm: 5.1,
+            provenance: prov,
+          ),
+        ];
+
+        await weatherLocalSource.saveRecords(
+          cacheKey: cacheKey,
+          records: incompleteRecords,
+          cachedAt: fixedNow,
+        );
+
+        // Fetch May 1 to May 5: the incomplete cache must be rejected, triggering remote fetch
+        final result = await repo.getHistoricalDailyRecords(
+          coordinate: coord,
+          startDate: DateTime.utc(2026, 5, 1),
+          endDate: DateTime.utc(2026, 5, 5),
+        );
+
+        expect(result.isSuccess, isTrue);
+        expect(
+          remoteCalls,
+          equals(1),
+          reason: 'Cache missing last day must trigger remote fetch',
+        );
+        expect(result.dataOrNull!.length, equals(5));
+        expect(result.dataOrNull!.first.date, equals(DateTime.utc(2026, 5, 1)));
+        expect(result.dataOrNull!.last.date, equals(DateTime.utc(2026, 5, 5)));
+      });
+
       test('59. 30-day Option A window produces exactly 30 days ending on latestEligible', () {
         // Reference time in Cairo summer (UTC+3)
         final referenceSummer = DateTime.utc(2026, 7, 10, 10, 0); // 13:00 Cairo
