@@ -11,9 +11,10 @@ Scope and Provenance:
    modifications; they do not claim to replace external certified lysimeter observations
    or third-party numerical certification (which remains incomplete).
 3. Parameter Sensitivity and Mutation Simulation:
-   Evaluates parameter response under physically verified positive VPD and net radiation,
-   and tests that simulated corruptions of core physical constants and coefficients
-   in the reference formulation produce detectable numerical divergence from baseline.
+   Evaluates parameter response under positive VPD and net radiation calculated
+   from the selected benchmark case inputs, and tests that simulated corruptions of
+   core physical constants and coefficients in the reference formulation produce
+   detectable numerical divergence from baseline.
 """
 
 from __future__ import annotations
@@ -298,7 +299,7 @@ class FAO56ScientificRegressionTests(unittest.TestCase):
            - Mutant 3: Aerodynamic denominator constant changed from 0.34 to 0.20 (corrupts aerodynamic surface resistance).
            - Mutant 4: Radiation term multiplier changed from 0.408 (1/lambda) to 0.500.
            - Mutant 5: Atmospheric pressure factor in gamma changed from 0.000665 to 0.000500.
-        3. Assert that every mutation causes a statistically and physically significant divergence (> 0.01 mm/day).
+        3. Assert that every mutation causes a detectable numerical difference exceeding the configured threshold (> 0.01 mm/day).
         """
         case = self.dataset["cases"][0]  # minya_winter_min
         inp = case["inputs"]
