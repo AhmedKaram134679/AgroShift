@@ -30,6 +30,11 @@ class MetricsCalculationTests(unittest.TestCase):
         """An empty observation list must return paired_days=0 and None for all metrics."""
         result = metrics([])
         self.assertEqual(result["paired_days"], 0)
+        self.assertEqual(result["total_pairs"], 0)
+        self.assertEqual(result["valid_pairs_count"], 0)
+        self.assertEqual(result["mard_pairs_count"], 0)
+        self.assertEqual(result["mard_excluded_count"], 0)
+        self.assertIsNone(result["mard_exclusion_reason"])
         self.assertIsNone(result["mean_api_et0_mm_day"])
         self.assertIsNone(result["mean_independent_et0_mm_day"])
         self.assertIsNone(result["mae_mm_day"])
@@ -45,6 +50,11 @@ class MetricsCalculationTests(unittest.TestCase):
         result = metrics(pairs)
 
         self.assertEqual(result["paired_days"], 2)
+        self.assertEqual(result["total_pairs"], 2)
+        self.assertEqual(result["valid_pairs_count"], 2)
+        self.assertEqual(result["mard_pairs_count"], 2)
+        self.assertEqual(result["mard_excluded_count"], 0)
+        self.assertIsNone(result["mard_exclusion_reason"])
         self.assertAlmostEqual(result["mean_api_et0_mm_day"], 3.75, places=7)
         self.assertAlmostEqual(result["mean_independent_et0_mm_day"], 3.75, places=7)
         self.assertAlmostEqual(result["mae_mm_day"], 0.5, places=7)
@@ -58,6 +68,11 @@ class MetricsCalculationTests(unittest.TestCase):
         result = metrics(pairs)
 
         self.assertEqual(result["paired_days"], 1)
+        self.assertEqual(result["total_pairs"], 1)
+        self.assertEqual(result["valid_pairs_count"], 1)
+        self.assertEqual(result["mard_pairs_count"], 1)
+        self.assertEqual(result["mard_excluded_count"], 0)
+        self.assertIsNone(result["mard_exclusion_reason"])
         self.assertAlmostEqual(result["mean_api_et0_mm_day"], 5.25, places=7)
         self.assertAlmostEqual(result["mean_independent_et0_mm_day"], 5.25, places=7)
         self.assertAlmostEqual(result["mae_mm_day"], 0.0, places=7)
@@ -71,6 +86,12 @@ class MetricsCalculationTests(unittest.TestCase):
         result = metrics(pairs)
 
         self.assertEqual(result["paired_days"], 2)
+        self.assertEqual(result["total_pairs"], 2)
+        self.assertEqual(result["valid_pairs_count"], 2)
+        self.assertEqual(result["mard_pairs_count"], 0)
+        self.assertEqual(result["mard_excluded_count"], 2)
+        self.assertIsNotNone(result["mard_exclusion_reason"])
+        self.assertIn("api <= 0.0", str(result["mard_exclusion_reason"]))
         self.assertAlmostEqual(result["mean_api_et0_mm_day"], 0.0, places=7)
         self.assertAlmostEqual(result["mean_independent_et0_mm_day"], 3.5, places=7)
         self.assertAlmostEqual(result["mae_mm_day"], 3.5, places=7)
@@ -85,6 +106,12 @@ class MetricsCalculationTests(unittest.TestCase):
         result = metrics(pairs)
 
         self.assertEqual(result["paired_days"], 1)
+        self.assertEqual(result["total_pairs"], 1)
+        self.assertEqual(result["valid_pairs_count"], 1)
+        self.assertEqual(result["mard_pairs_count"], 0)
+        self.assertEqual(result["mard_excluded_count"], 1)
+        self.assertIsNotNone(result["mard_exclusion_reason"])
+        self.assertIn("api <= 0.0", str(result["mard_exclusion_reason"]))
         self.assertAlmostEqual(result["mean_api_et0_mm_day"], -1.0, places=7)
         self.assertAlmostEqual(result["mean_independent_et0_mm_day"], 2.0, places=7)
         self.assertAlmostEqual(result["mae_mm_day"], 3.0, places=7)
@@ -101,6 +128,11 @@ class MetricsCalculationTests(unittest.TestCase):
         result = metrics(pairs)
 
         self.assertEqual(result["paired_days"], 3)
+        self.assertEqual(result["total_pairs"], 3)
+        self.assertEqual(result["valid_pairs_count"], 3)
+        self.assertEqual(result["mard_pairs_count"], 1)
+        self.assertEqual(result["mard_excluded_count"], 2)
+        self.assertIsNotNone(result["mard_exclusion_reason"])
         self.assertAlmostEqual(result["mean_api_et0_mm_day"], 0.0, places=7)
         self.assertAlmostEqual(result["mean_independent_et0_mm_day"], 3.0, places=7)
         # differences: 2.0, 1.0, 6.0 -> MAE = 9.0 / 3 = 3.0
@@ -111,6 +143,28 @@ class MetricsCalculationTests(unittest.TestCase):
         self.assertAlmostEqual(result["rmse_mm_day"], math.sqrt(41.0 / 3.0), places=7)
         # Mean rel diff: only pair 2 is valid -> exactly 50.0%
         self.assertAlmostEqual(result["mean_absolute_relative_difference_percent"], 50.0, places=7)
+
+    def test_benchmark_positive_values_metrics_unchanged(self) -> None:
+        """Existing benchmark values with strictly positive API ET0 remain completely unchanged."""
+        pairs = [
+            (2.3188326543597824, 2.71),
+            (11.82340361506013, 11.40),
+            (1.624677545585732, 1.86),
+            (8.668644841098619, 8.03),
+            (11.712857008379698, 11.07),
+        ]
+        result = metrics(pairs)
+
+        self.assertEqual(result["total_pairs"], 5)
+        self.assertEqual(result["valid_pairs_count"], 5)
+        self.assertEqual(result["mard_pairs_count"], 5)
+        self.assertEqual(result["mard_excluded_count"], 0)
+        self.assertIsNone(result["mard_exclusion_reason"])
+
+        self.assertAlmostEqual(result["mae_mm_day"], 0.466279, places=5)
+        self.assertAlmostEqual(result["bias_independent_minus_api_mm_day"], 0.215683, places=5)
+        self.assertAlmostEqual(result["rmse_mm_day"], 0.491689, places=5)
+        self.assertAlmostEqual(result["mean_absolute_relative_difference_percent"], 8.912093, places=5)
 
     def test_non_finite_independent_values_raise_value_error(self) -> None:
         """NaN, +Inf, -Inf in the independent position must raise ValueError."""

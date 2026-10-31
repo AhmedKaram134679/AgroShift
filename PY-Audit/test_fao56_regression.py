@@ -1,13 +1,19 @@
 """Deterministic, offline scientific regression tests for FAO-56 Penman-Monteith ET0.
 
-Verifies:
-1. Schema, units, and numeric validity of the fixed offline benchmark dataset.
-2. Intermediate FAO-56 equations (pressure, psychrometric constant, slope delta, VPD, u2, Ra, Rso, Rns, Rnl, Rn, rad_term, aero_term, numerator, denominator).
-3. Final daily ET0 calculation against independently established expected values.
-4. Five-case comparison metrics reconciliation (MAE, MBE, RMSE, MARD) against independently computed constants.
-5. Input sensitivity response under physically verified positive VPD and net radiation.
-6. Formula mutation sensitivity detecting corruption of core physical constants and coefficients.
-7. Error handling for unphysical temperature inversions (Tmax < Tmin).
+Scope and Provenance:
+1. Equation/Methodology Reference:
+   The physical equations and empirical relationships follow FAO Irrigation and
+   Drainage Paper No. 56 (Allen, Pereira, Raes, & Smith, 1998, Chapter 3).
+2. Snapshot/Regression Consistency:
+   The reference observations in fixed_offline_et0_dataset.json are extracted
+   directly from the published 2025 ERA5 reanalysis audit dataset (daily_comparison.csv).
+   These tests establish computational stability and regression consistency across
+   modifications; they do not claim to replace external certified lysimeter observations
+   or third-party numerical certification (which remains incomplete).
+3. Parameter Sensitivity and Mutation Simulation:
+   Evaluates parameter response under physically verified positive VPD and net radiation,
+   and tests that simulated corruptions of core physical constants and coefficients
+   in the reference formulation produce detectable numerical divergence from baseline.
 """
 
 from __future__ import annotations
@@ -215,6 +221,11 @@ class FAO56ScientificRegressionTests(unittest.TestCase):
 
         res = metrics(pairs)
         self.assertEqual(res["paired_days"], 5, "Five cases must be paired in the subset")
+        self.assertEqual(res["total_pairs"], 5, "Total input pairs must equal 5")
+        self.assertEqual(res["valid_pairs_count"], 5, "All 5 pairs must be valid numeric pairs")
+        self.assertEqual(res["mard_pairs_count"], 5, "All 5 benchmark pairs have strictly positive API ET0 and must be included in MARD")
+        self.assertEqual(res["mard_excluded_count"], 0, "No pairs should be excluded in the positive-valued benchmark")
+        self.assertIsNone(res["mard_exclusion_reason"], "Exclusion reason must be None when no pairs are excluded")
 
         self.assertAlmostEqual(res["mae_mm_day"], EXPECTED_5CASE_MAE, places=5)
         self.assertAlmostEqual(res["bias_independent_minus_api_mm_day"], EXPECTED_5CASE_MBE, places=5)
@@ -228,7 +239,9 @@ class FAO56ScientificRegressionTests(unittest.TestCase):
         and net radiation is positive (Rn = 5.400 MJ/m2/day).
         - Under VPD > 0, increasing wind speed increases the aerodynamic evaporative transfer rate.
         - Under Rn > 0, increasing shortwave radiation increases available energy for vaporization.
-        Both input changes must monotonically increase reference ET0.
+        Both input changes must monotonically increase reference ET0 under these specific meteorological conditions.
+        (Note: this is an input parameter sensitivity test for these verified boundary conditions,
+        not a universal assertion for condensation or polar night conditions).
         """
         case = self.dataset["cases"][0]  # minya_winter_min
         inp = case["inputs"]
@@ -269,15 +282,23 @@ class FAO56ScientificRegressionTests(unittest.TestCase):
             "Higher solar radiation under positive Rn must increase radiative energy available for ET0",
         )
 
-    def test_formula_mutation_detection(self) -> None:
-        """Verify that mutating core physical constants and coefficients in FAO-56 is detected.
+    def test_parameter_mutation_simulation_detects_constant_corruption(self) -> None:
+        """Verify that simulated corruptions of core physical constants and coefficients are detected.
 
-        Tests mutated variants of the reference Penman-Monteith equation against baseline:
-        - Mutant 1: Grass albedo changed from 0.23 to 0.10 (corrupts net shortwave radiation).
-        - Mutant 2: Aerodynamic numerator constant changed from 900 to 800 (corrupts aerodynamic term).
-        - Mutant 3: Aerodynamic denominator constant changed from 0.34 to 0.20 (corrupts aerodynamic resistance).
-        - Mutant 4: Radiation term multiplier changed from 0.408 (1/lambda) to 0.500.
-        - Mutant 5: Atmospheric pressure factor in gamma changed from 0.000665 to 0.000500.
+        This is a parameter-sensitivity / mutation-simulation test. It uses a parameterized
+        simulation helper to verify that corrupting individual standard constants in the
+        FAO-56 formulation produces detectable deviation from the baseline ET0.
+
+        Verification Steps:
+        1. Assert that the helper in its UNMODIFIED baseline configuration matches the expected baseline
+           within 1e-7 mm/day. The test fails immediately if the simulation helper is inconsistent.
+        2. Evaluate each mutated variant altering only the intended parameter:
+           - Mutant 1: Grass albedo changed from 0.23 to 0.10 (corrupts net shortwave radiation).
+           - Mutant 2: Aerodynamic numerator constant changed from 900 to 800 (corrupts aerodynamic transfer term).
+           - Mutant 3: Aerodynamic denominator constant changed from 0.34 to 0.20 (corrupts aerodynamic surface resistance).
+           - Mutant 4: Radiation term multiplier changed from 0.408 (1/lambda) to 0.500.
+           - Mutant 5: Atmospheric pressure factor in gamma changed from 0.000665 to 0.000500.
+        3. Assert that every mutation causes a statistically and physically significant divergence (> 0.01 mm/day).
         """
         case = self.dataset["cases"][0]  # minya_winter_min
         inp = case["inputs"]
@@ -327,6 +348,16 @@ class FAO56ScientificRegressionTests(unittest.TestCase):
             denom = delta + gamma * (1.0 + aero_denom_const * u2)
             return num / denom
 
+        # Step 1: Verify the unmodified helper strictly matches the baseline expectation first
+        unmodified_helper_et0 = compute_mutated_et0()
+        self.assertAlmostEqual(
+            unmodified_helper_et0,
+            baseline_et0,
+            places=7,
+            msg="The simulation helper in its unmodified configuration must strictly match baseline ET0 before evaluating mutations.",
+        )
+
+        # Step 2: Evaluate individual parameter mutations
         mutants = {
             "albedo_corrupted_to_0.10": compute_mutated_et0(albedo=0.10),
             "aero_numerator_corrupted_to_800": compute_mutated_et0(aero_num_const=800.0),

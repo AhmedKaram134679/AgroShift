@@ -168,14 +168,18 @@ def fao56_daily_et0(
     return max(0.0, numerator / denominator)
 
 
-def metrics(values: list[tuple[float, float]]) -> dict[str, float | int | None]:
+def metrics(values: list[tuple[float, float]]) -> dict[str, float | int | str | None]:
     """Calculate summary diagnostic metrics comparing independent daily FAO-56 to API ET0.
     
-    Mean absolute relative difference is computed as:
+    Mean absolute relative difference (MARD) is computed as:
         mean(|independent - api| / api * 100)
     where the API reference ET0 serves as the denominator. Denominators that are
-    zero, negative, or non-finite are guarded against and excluded explicitly to
-    prevent division-by-zero or undefined arithmetic.
+    non-positive (api <= 0.0) or non-finite are guarded against and excluded explicitly
+    to prevent division-by-zero or undefined relative arithmetic.
+
+    The return dictionary unambiguously reports the total input pairs, the number of
+    valid pairs used for MAE, MBE, and RMSE, the count of pairs included in MARD,
+    the count of excluded pairs, and the explicit exclusion reason.
 
     All input observation pairs must contain finite numeric values. Any non-finite value
     (NaN, positive infinity, negative infinity) or non-numeric value (including booleans)
@@ -184,6 +188,11 @@ def metrics(values: list[tuple[float, float]]) -> dict[str, float | int | None]:
     if not values:
         return {
             "paired_days": 0,
+            "total_pairs": 0,
+            "valid_pairs_count": 0,
+            "mard_pairs_count": 0,
+            "mard_excluded_count": 0,
+            "mard_exclusion_reason": None,
             "mean_api_et0_mm_day": None,
             "mean_independent_et0_mm_day": None,
             "mae_mm_day": None,
@@ -202,20 +211,33 @@ def metrics(values: list[tuple[float, float]]) -> dict[str, float | int | None]:
     api_values = [api for _, api in values]
     independent_values = [independent for independent, _ in values]
 
-    # Explicitly guard denominator (must be finite and > 0.0)
+    # Explicitly guard denominator (must be strictly positive: api > 0.0)
     valid_rel_diffs = [
         abs(independent - api) / api * 100.0
         for independent, api in values
         if api > 0.0
     ]
+    mard_pairs_count = len(valid_rel_diffs)
+    mard_excluded_count = len(values) - mard_pairs_count
+    mard_exclusion_reason = (
+        "Non-positive API reference denominator (api <= 0.0)"
+        if mard_excluded_count > 0
+        else None
+    )
+
     mean_rel_diff = (
-        sum(valid_rel_diffs) / len(valid_rel_diffs)
-        if valid_rel_diffs
+        sum(valid_rel_diffs) / mard_pairs_count
+        if mard_pairs_count > 0
         else None
     )
 
     return {
         "paired_days": len(values),
+        "total_pairs": len(values),
+        "valid_pairs_count": len(values),
+        "mard_pairs_count": mard_pairs_count,
+        "mard_excluded_count": mard_excluded_count,
+        "mard_exclusion_reason": mard_exclusion_reason,
         "mean_api_et0_mm_day": sum(api_values) / len(api_values),
         "mean_independent_et0_mm_day": sum(independent_values) / len(independent_values),
         "mae_mm_day": sum(abs(x) for x in differences) / len(differences),
