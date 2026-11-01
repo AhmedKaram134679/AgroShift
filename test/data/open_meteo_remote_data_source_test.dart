@@ -354,39 +354,81 @@ void main() {
         expect(records[1].referenceEt0Mm, isNot(equals(0.0))); // Crucial: null is NOT zero
       });
 
-      test('Affirmative zero precipitation (0.0) is strictly distinct from missing data', () {
-        final dto = OpenMeteoDailyResponseDto(
-          latitude: testLatitude,
-          longitude: testLongitude,
-          generationTimeMs: 0.1,
-          utcOffsetSeconds: 10800,
-          timezone: 'Africa/Cairo',
-          dailyUnits: {
+      test('Affirmative zero precipitation (0.0) is preserved through transformation into domain record', () {
+        final json = <String, dynamic>{
+          'latitude': testLatitude,
+          'longitude': testLongitude,
+          'generationtime_ms': 0.15,
+          'utc_offset_seconds': 10800,
+          'timezone': 'Africa/Cairo',
+          'elevation': 12.0,
+          'daily_units': {
+            'time': 'iso8601',
             'temperature_2m_max': '°C',
             'temperature_2m_min': '°C',
             'et0_fao_evapotranspiration': 'mm',
             'precipitation_sum': 'mm',
           },
-          daily: {
-            'time': ['2024-06-01', '2024-06-02'],
-            'temperature_2m_max': [35.0, 36.0],
-            'temperature_2m_min': [21.0, 22.0],
-            'et0_fao_evapotranspiration': [6.5, 6.8],
-            'precipitation_sum': [0.0, null], // Day 1 = real 0.0, Day 2 = missing
+          'daily': {
+            'time': ['2024-06-01', '2024-06-02', '2024-06-03'],
+            'temperature_2m_max': [35.0, 36.0, 35.5],
+            'temperature_2m_min': [21.0, 22.0, 21.5],
+            'et0_fao_evapotranspiration': [6.5, 6.8, 6.7],
+            'precipitation_sum': [0.0, 0.0, 0.0],
           },
-        );
+        };
 
+        final dto = OpenMeteoDailyResponseDto.fromJson(json);
         final result = OpenMeteoAdapter.toDomainRecords(
           dto: dto,
           requestedCoordinate: coord,
           datasetLabel: 'ERA5 Test',
         );
 
-        // Day 2 has missing precipitation (1 of 2 = 50% missing, which exceeds 10% threshold)
-        expect(result.isFailure, isTrue);
-        expect(result.failureOrNull, isA<InsufficientEvidenceFailure>());
-        final fail = result.failureOrNull as InsufficientEvidenceFailure;
-        expect(fail.variableName, equals('precipitation'));
+        expect(result.isSuccess, isTrue);
+        final records = result.dataOrNull!;
+        expect(records.length, equals(3));
+        expect(records[0].precipitationMm, equals(0.0));
+        expect(records[0].precipitationMm, isNotNull);
+        expect(records[1].precipitationMm, equals(0.0));
+        expect(records[2].precipitationMm, equals(0.0));
+      });
+
+      test('Missing precipitation measurement is preserved as null and not coerced to 0.0', () {
+        final times = List.generate(10, (i) => '2024-06-${(i + 1).toString().padLeft(2, '0')}');
+        final json = <String, dynamic>{
+          'latitude': testLatitude,
+          'longitude': testLongitude,
+          'generationtime_ms': 0.1,
+          'utc_offset_seconds': 10800,
+          'timezone': 'Africa/Cairo',
+          'daily_units': {
+            'temperature_2m_max': '°C',
+            'temperature_2m_min': '°C',
+            'et0_fao_evapotranspiration': 'mm',
+            'precipitation_sum': 'mm',
+          },
+          'daily': {
+            'time': times,
+            'temperature_2m_max': List.filled(10, 35.0),
+            'temperature_2m_min': List.filled(10, 21.0),
+            'et0_fao_evapotranspiration': List.filled(10, 6.5),
+            'precipitation_sum': List.generate(10, (i) => i == 1 ? null : 0.0), // Day 2 is null (10% missingness <= 10%)
+          },
+        };
+
+        final dto = OpenMeteoDailyResponseDto.fromJson(json);
+        final result = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'ERA5 Test',
+        );
+
+        expect(result.isSuccess, isTrue);
+        final records = result.dataOrNull!;
+        expect(records[0].precipitationMm, equals(0.0));
+        expect(records[1].precipitationMm, isNull);
+        expect(records[1].precipitationMm, isNot(equals(0.0))); // Crucial: null is NOT zero
       });
     });
   });
