@@ -3094,5 +3094,70 @@ void main() {
       expect(data.totalEtcMm, closeTo(expectedTotalEtc, 1e-9));
       expect(data.totalVolumeM3PerFeddan, closeTo(expectedVolume, 1e-9));
     });
+
+    test('22. Forecast spanning year-end boundary maintains consecutive calendar continuity and crop age', () {
+      final plantingDate = DateTime.utc(2024, 11, 1);
+      // Crossing Dec 30, 2024 -> Dec 31, 2024 -> Jan 1, 2025 -> Jan 2, 2025
+      final forecastDates = [
+        DateTime.utc(2024, 12, 30), // Age 59
+        DateTime.utc(2024, 12, 31), // Age 60
+        DateTime.utc(2025, 1, 1),   // Age 61
+        DateTime.utc(2025, 1, 2),   // Age 62
+      ];
+      final et0Series = [5.0, 5.0, 5.0, 5.0];
+
+      final res = EtcCalculator.calculateForecastEtcValidated(
+        crop: wheat,
+        plantingDate: plantingDate,
+        forecastDates: forecastDates,
+        dailyEt0Series: et0Series,
+        totalRequestedDays: 4,
+      );
+
+      expect(res.isSuccess, isTrue);
+      final data = res.dataOrNull!;
+      expect(data.dailyKcSeries.length, equals(4));
+
+      // Day 0 (Age 59): fraction = 59/150 -> Kc = 0.40 + ((59/150 - 0.20) / 0.30) * 0.75 = 0.40 + 2.5 * (29/150) = 0.40 + 29/60 = 53/60 ≈ 0.8833333333
+      // Day 1 (Age 60): fraction = 60/150 = 0.40 -> Kc = 0.40 + 2.5 * (30/150) = 0.40 + 0.50 = 0.90
+      // Day 2 (Age 61): fraction = 61/150 -> Kc = 0.40 + 2.5 * (31/150) = 0.40 + 31/60 = 55/60 ≈ 0.9166666667
+      // Day 3 (Age 62): fraction = 62/150 -> Kc = 0.40 + 2.5 * (32/150) = 0.40 + 32/60 = 56/60 ≈ 0.9333333333
+      expect(data.dailyKcSeries[0], closeTo(53.0 / 60.0, 1e-9));
+      expect(data.dailyKcSeries[1], closeTo(0.90, 1e-9));
+      expect(data.dailyKcSeries[2], closeTo(55.0 / 60.0, 1e-9));
+      expect(data.dailyKcSeries[3], closeTo(56.0 / 60.0, 1e-9));
+      expect(data.dailyEtcMmSeries.every((v) => v != null), isTrue);
+    });
+
+    test('23. Forecast dates carrying mixed time-zone representations and non-midnight instants normalize without shifting calendar day', () {
+      final plantingDate = DateTime(2024, 11, 15, 14, 30); // Local time afternoon instant
+      // Consecutive calendar dates supplied with non-midnight timestamps and mixed UTC / local flags
+      final forecastDates = [
+        DateTime.utc(2024, 11, 20, 0, 0),       // UTC midnight
+        DateTime(2024, 11, 21, 23, 59),          // Local late evening
+        DateTime.utc(2024, 11, 22, 6, 15),       // UTC morning
+        DateTime(2024, 11, 23, 12, 0),           // Local midday
+      ];
+      final et0Series = [4.5, 4.5, 4.5, 4.5];
+
+      final res = EtcCalculator.calculateForecastEtcValidated(
+        crop: wheat,
+        plantingDate: plantingDate,
+        forecastDates: forecastDates,
+        dailyEt0Series: et0Series,
+        totalRequestedDays: 4,
+      );
+
+      // Normalization via year/month/day ensures strictly consecutive days without accidental day shifts
+      expect(res.isSuccess, isTrue);
+      final data = res.dataOrNull!;
+      expect(data.dailyKcSeries.length, equals(4));
+
+      // Planting calendar date = 2024-11-15.
+      // Forecast calendar dates = 2024-11-20 (age 5), 2024-11-21 (age 6), 2024-11-22 (age 7), 2024-11-23 (age 8).
+      // All ages <= 30 days (fraction <= 0.20) -> all must yield kcIni = 0.40.
+      expect(data.dailyKcSeries.every((kc) => kc == 0.40), isTrue);
+      expect(data.dailyEtcMmSeries.every((etc) => etc != null && (etc - 1.80).abs() < 1e-9), isTrue);
+    });
   });
 }
