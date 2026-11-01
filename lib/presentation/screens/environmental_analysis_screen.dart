@@ -106,7 +106,7 @@ class EnvironmentalAnalysisScreen extends ConsumerWidget {
                 children: [
                   // Title Header
                   Text(
-                    'مسار درجات الحرارة (الـ 30 يوماً الماضية)',
+                    'مسار درجات الحرارة (آخر $expectedDays يوماً تاريخية مؤهلة في الأرشيف)',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: const Color(0xFF1B5E20),

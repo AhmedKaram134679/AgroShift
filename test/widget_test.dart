@@ -1131,6 +1131,15 @@ void main() {
         find.textContaining('إجمالي الفاقد البخري خلال 5 يوماً: 15.0 مم'),
         findsOneWidget,
       );
+      // Historical period label correctly reflects eligible archive days, not misleading "past 30 days"
+      expect(
+        find.textContaining('مسار درجات الحرارة (آخر 5 يوماً تاريخية مؤهلة في الأرشيف)'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('الـ 30 يوماً الماضية'),
+        findsNothing,
+      );
       // No warnings displayed
       expect(find.textContaining('تنبيه:'), findsNothing);
       expect(find.textContaining('بيانات درجات الحرارة غير مكتملة'), findsNothing);

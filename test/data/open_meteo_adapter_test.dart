@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:agro_shift/data/datasources/remote/open_meteo_adapter.dart';
 import 'package:agro_shift/data/models/open_meteo_dto.dart';
@@ -2717,5 +2719,97 @@ void main() {
         });
       },
     );
+
+    group('Phase 7C: Historical ERA5 Raw Fixture Verification', () {
+      test(
+        'Loads docs/fixtures/historical_api/era5_raw.json and validates raw ET0, dates, units, and null-vs-zero semantics through OpenMeteoAdapter.toDomainRecords',
+        () {
+          final candidatePaths = [
+            'docs/fixtures/historical_api/era5_raw.json',
+            '../docs/fixtures/historical_api/era5_raw.json',
+          ];
+          final fixtureFile = candidatePaths
+              .map((p) => File(p))
+              .firstWhere(
+                (f) => f.existsSync(),
+                orElse: () => throw StateError(
+                  'Could not locate fixture at ${candidatePaths.join(" or ")}',
+                ),
+              );
+
+          final jsonContent = fixtureFile.readAsStringSync();
+          final rawMap = jsonDecode(jsonContent) as Map<String, dynamic>;
+
+          // 1. Verify raw units declaration in fixture
+          expect(rawMap.containsKey('daily_units'), isTrue);
+          final units = rawMap['daily_units'] as Map<String, dynamic>;
+          expect(units['time'], equals('iso8601'));
+          expect(units['temperature_2m_max'], equals('°C'));
+          expect(units['temperature_2m_min'], equals('°C'));
+          expect(units['et0_fao_evapotranspiration'], equals('mm'));
+          expect(units['precipitation_sum'], equals('mm'));
+
+          // 2. Parse DTO
+          final dto = OpenMeteoDailyResponseDto.fromJson(rawMap);
+          expect(dto.latitude, equals(31.0));
+          expect(dto.longitude, equals(31.0));
+          expect(dto.elevation, equals(6.0));
+          expect(dto.timezone, equals('Africa/Cairo'));
+          expect(dto.utcOffsetSeconds, equals(10800));
+
+          // 3. Transform via OpenMeteoAdapter
+          const requestedCoord = Coordinate(
+            latitude: 31.0,
+            longitude: 31.0,
+            governorateName: 'كفر الشيخ',
+          );
+          const datasetLabel = 'ERA5 Reanalysis Archive';
+
+          final result = OpenMeteoAdapter.toDomainRecords(
+            dto: dto,
+            requestedCoordinate: requestedCoord,
+            datasetLabel: datasetLabel,
+          );
+
+          expect(result.isSuccess, isTrue);
+          final records = result.dataOrNull!;
+          expect(records.length, equals(5));
+
+          // 4. Deterministic verification of dates, ET0, temperatures, and null-vs-zero semantics
+          final expectedDates = [
+            DateTime.utc(2024, 6, 1),
+            DateTime.utc(2024, 6, 2),
+            DateTime.utc(2024, 6, 3),
+            DateTime.utc(2024, 6, 4),
+            DateTime.utc(2024, 6, 5),
+          ];
+          final expectedTmax = [37.8, 35.2, 35.4, 36.6, 37.5];
+          final expectedTmin = [20.8, 21.3, 21.5, 21.4, 22.1];
+          final expectedEt0 = [7.89, 7.82, 7.76, 7.43, 7.59];
+
+          for (var i = 0; i < 5; i++) {
+            final record = records[i];
+            expect(record.date, equals(expectedDates[i]));
+            expect(record.maxTemperatureC, equals(expectedTmax[i]));
+            expect(record.minTemperatureC, equals(expectedTmin[i]));
+            expect(record.referenceEt0Mm, equals(expectedEt0[i]));
+
+            // Null-versus-zero semantics:
+            // Measured 0.00 mm precipitation must be preserved as non-null 0.0,
+            // strictly distinct from missing data.
+            expect(record.precipitationMm, isNotNull);
+            expect(record.precipitationMm, equals(0.0));
+
+            // Provenance integrity
+            expect(record.provenance.datasetName, equals('ERA5 Reanalysis Archive'));
+            expect(record.provenance.requestedLatitude, equals(31.0));
+            expect(record.provenance.requestedLongitude, equals(31.0));
+            expect(record.provenance.gridLatitude, equals(31.0));
+            expect(record.provenance.gridLongitude, equals(31.0));
+            expect(record.provenance.gridElevationMeters, equals(6.0));
+          }
+        },
+      );
+    });
   });
 }
