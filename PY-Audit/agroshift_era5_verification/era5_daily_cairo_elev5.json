@@ -1,0 +1,29 @@
+{
+  "latitude": 31.0,
+  "longitude": 31.0,
+  "generationtime_ms": 0.13399124145507812,
+  "utc_offset_seconds": 7200,
+  "timezone": "Africa/Cairo",
+  "timezone_abbreviation": "GMT+2",
+  "elevation": 5.0,
+  "daily_units": {
+    "time": "iso8601",
+    "et0_fao_evapotranspiration": "mm"
+  },
+  "daily": {
+    "time": [
+      "2024-06-01",
+      "2024-06-02",
+      "2024-06-03",
+      "2024-06-04",
+      "2024-06-05"
+    ],
+    "et0_fao_evapotranspiration": [
+      7.89,
+      7.75,
+      7.76,
+      7.43,
+      7.6
+    ]
+  }
+}

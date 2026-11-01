@@ -1,0 +1,29 @@
+{
+  "latitude": 31.0,
+  "longitude": 31.0,
+  "generationtime_ms": 0.13065338134765625,
+  "utc_offset_seconds": 10800,
+  "timezone": "GMT+0300",
+  "timezone_abbreviation": "GMT+3",
+  "elevation": 6.0,
+  "daily_units": {
+    "time": "iso8601",
+    "et0_fao_evapotranspiration": "mm"
+  },
+  "daily": {
+    "time": [
+      "2024-06-01",
+      "2024-06-02",
+      "2024-06-03",
+      "2024-06-04",
+      "2024-06-05"
+    ],
+    "et0_fao_evapotranspiration": [
+      7.89,
+      7.82,
+      7.76,
+      7.43,
+      7.59
+    ]
+  }
+}
