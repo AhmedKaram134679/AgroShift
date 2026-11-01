@@ -503,6 +503,293 @@ void main() {
     },
   );
 
+  test(
+    'fieldForecastProvider contract: invokes weather repository with exact selected field coordinates and days=7, preserving records and null semantics',
+    () async {
+      final testDb = constructTestDb();
+      addTearDown(() => testDb.close());
+
+      const distinctiveCoordinate = Coordinate(
+        latitude: 31.1234,
+        longitude: 30.5678,
+        governorateName: 'كفر الشيخ',
+      );
+
+      final distinctiveField = FarmField(
+        id: 'field_contract_test',
+        nameAr: 'حقل اختبار تعاقدي',
+        governorateAr: 'كفر الشيخ',
+        coordinate: distinctiveCoordinate,
+        areaInFeddan: 7.5,
+        soilType: SoilType.clay,
+        activeCropId: 'wheat',
+        plantingDate: DateTime.utc(2024, 1, 1),
+      );
+
+      final prov = DataSourceProvenance(
+        providerName: 'Open-Meteo Weather API',
+        datasetName: 'Contract Verification Dataset',
+        requestedLatitude: distinctiveCoordinate.latitude,
+        requestedLongitude: distinctiveCoordinate.longitude,
+        gridLatitude: 31.1250,
+        gridLongitude: 30.5750,
+        acquisitionTimestamp: DateTime.utc(2026, 11, 1, 12, 0),
+        expectedPeriodDays: 7,
+      );
+
+      final deterministicRecords = [
+        DailyAgroRecord(
+          date: DateTime.utc(2024, 6, 1),
+          maxTemperatureC: 30.0,
+          minTemperatureC: 18.0,
+          precipitationMm: 0.0,
+          referenceEt0Mm: 0.0, // Affirmative zero
+          provenance: prov,
+        ),
+        DailyAgroRecord(
+          date: DateTime.utc(2024, 6, 2),
+          maxTemperatureC: 31.0,
+          minTemperatureC: 19.0,
+          precipitationMm: 0.0,
+          referenceEt0Mm: 3.5,
+          provenance: prov,
+        ),
+        DailyAgroRecord(
+          date: DateTime.utc(2024, 6, 3),
+          maxTemperatureC: 32.0,
+          minTemperatureC: 20.0,
+          precipitationMm: 1.2,
+          referenceEt0Mm: null, // Missing observation
+          provenance: prov,
+        ),
+        DailyAgroRecord(
+          date: DateTime.utc(2024, 6, 4),
+          maxTemperatureC: 33.0,
+          minTemperatureC: 21.0,
+          precipitationMm: 0.0,
+          referenceEt0Mm: 4.8,
+          provenance: prov,
+        ),
+        DailyAgroRecord(
+          date: DateTime.utc(2024, 6, 5),
+          maxTemperatureC: 34.0,
+          minTemperatureC: 22.0,
+          precipitationMm: 0.0,
+          referenceEt0Mm: 5.2,
+          provenance: prov,
+        ),
+        DailyAgroRecord(
+          date: DateTime.utc(2024, 6, 6),
+          maxTemperatureC: 35.0,
+          minTemperatureC: 23.0,
+          precipitationMm: 0.0,
+          referenceEt0Mm: 6.1,
+          provenance: prov,
+        ),
+        DailyAgroRecord(
+          date: DateTime.utc(2024, 6, 7),
+          maxTemperatureC: 36.0,
+          minTemperatureC: 24.0,
+          precipitationMm: 0.0,
+          referenceEt0Mm: 7.0,
+          provenance: prov,
+        ),
+      ];
+
+      final capturingRepo = _CapturingWeatherRepository(deterministicRecords);
+
+      final container = ProviderContainer(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(testDb),
+          weatherRepositoryProvider.overrideWithValue(capturingRepo),
+          fieldListProvider.overrideWith(
+            () => _StaticFieldListNotifier([distinctiveField]),
+          ),
+          selectedFieldProvider.overrideWith(
+            () => _StaticFieldNotifier(distinctiveField),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      // Read fieldForecastProvider
+      final result = await container.read(fieldForecastProvider.future);
+
+      // 1. Verify getForecastDailyRecords was called exactly once
+      expect(capturingRepo.getForecastCallCount, equals(1));
+
+      // 2. Verify exact selected field coordinates were passed
+      expect(capturingRepo.capturedCoordinate, equals(distinctiveCoordinate));
+
+      // 3. Verify days equals 7
+      expect(capturingRepo.capturedDays, equals(7));
+
+      // 4. Verify provider returns success with same logical records
+      expect(result.isSuccess, isTrue);
+      final returnedRecords = result.dataOrNull!;
+
+      // 5. Verify record count
+      expect(returnedRecords.length, equals(7));
+
+      // 6. Verify dates, ordering, and referenceEt0Mm values
+      for (var i = 0; i < deterministicRecords.length; i++) {
+        expect(returnedRecords[i].date, equals(deterministicRecords[i].date));
+        expect(
+          returnedRecords[i].referenceEt0Mm,
+          equals(deterministicRecords[i].referenceEt0Mm),
+        );
+      }
+
+      // 7. Verify null versus 0.0 distinction and no silent zero replacement
+      expect(returnedRecords[0].referenceEt0Mm, equals(0.0));
+      expect(returnedRecords[2].referenceEt0Mm, isNull);
+      expect(returnedRecords[2].referenceEt0Mm, isNot(equals(0.0)));
+    },
+  );
+
+  testWidgets(
+    'Dashboard-to-ETc data handoff: preserves dates, order, ET0 values, null-vs-zero semantics, and requested period in calculation and UI',
+    (WidgetTester tester) async {
+      final testDb = constructTestDb();
+      addTearDown(() => testDb.close());
+
+      // Planting date: 2024-01-15 for wheat (duration 150 days)
+      // Development stage: ages 31 to 75 days, Kc(age) = 0.40 + (age - 30) / 60
+      final plantingDate = DateTime(2024, 1, 15);
+      final field = FarmField(
+        id: 'field_handoff_kafr_sheikh',
+        nameAr: 'حقل اختبار تسليم البيانات',
+        governorateAr: 'كفر الشيخ',
+        coordinate: const Coordinate(
+          latitude: 31.27,
+          longitude: 30.79,
+          governorateName: 'كفر الشيخ',
+        ),
+        areaInFeddan: 5.0,
+        soilType: SoilType.clay,
+        activeCropId: 'wheat',
+        plantingDate: plantingDate,
+      );
+
+      final prov = DataSourceProvenance(
+        providerName: 'Open-Meteo Weather API',
+        datasetName: 'Mock Forecast',
+        requestedLatitude: 31.27,
+        requestedLongitude: 30.79,
+        gridLatitude: 31.25,
+        gridLongitude: 30.75,
+        acquisitionTimestamp: DateTime.utc(2026, 11, 1, 12, 0),
+        expectedPeriodDays: 10,
+      );
+
+      // 10 consecutive forecast dates: 2024-02-24 (age 40) to 2024-03-04 (age 49)
+      // Distinct ET0 values on each day with Day 0 = 0.0 and Day 7 = null
+      final et0Values = <double?>[
+        0.0, // Day 0 (age 40, Kc = 17/30): 0.0 * Kc = 0.0 mm
+        3.0, // Day 1 (age 41, Kc = 35/60): 3.0 * (35/60) = 1.750 mm
+        4.0, // Day 2 (age 42, Kc = 36/60): 4.0 * 0.60 = 2.400 mm
+        5.0, // Day 3 (age 43, Kc = 37/60): 5.0 * (37/60) = 3.083333 mm
+        6.0, // Day 4 (age 44, Kc = 38/60): 6.0 * (38/60) = 3.800 mm
+        7.0, // Day 5 (age 45, Kc = 39/60): 7.0 * 0.65 = 4.550 mm
+        8.0, // Day 6 (age 46, Kc = 40/60): 8.0 * (40/60) = 5.333333 mm
+        null, // Day 7 (age 47, Kc = 41/60): null observation -> skipped
+        4.5, // Day 8 (age 48, Kc = 42/60): 4.5 * 0.70 = 3.150 mm
+        5.5, // Day 9 (age 49, Kc = 43/60): 5.5 * (43/60) = 3.941667 mm
+      ];
+
+      // Sum of ET0 = 0.0 + 3.0 + 4.0 + 5.0 + 6.0 + 7.0 + 8.0 + 4.5 + 5.5 = 43.0 mm
+      // Sum of daily ETc = 28.008333 mm -> formatted as "28.0 مم"
+      // Volume = 28.008333 * 4.2 = 117.635 m³/feddan -> formatted as "118 م³ / فدان"
+      final records = List.generate(10, (i) {
+        return DailyAgroRecord(
+          date: plantingDate.add(Duration(days: 40 + i)),
+          maxTemperatureC: 28.0,
+          minTemperatureC: 16.0,
+          precipitationMm: 0.0,
+          referenceEt0Mm: et0Values[i],
+          provenance: prov,
+        );
+      });
+
+      final customRepo = _StaticWeatherRepository(records);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDatabaseProvider.overrideWithValue(testDb),
+            weatherRepositoryProvider.overrideWithValue(customRepo),
+            fieldListProvider.overrideWith(
+              () => _StaticFieldListNotifier([field]),
+            ),
+            selectedFieldProvider.overrideWith(
+              () => _StaticFieldNotifier(field),
+            ),
+          ],
+          child: MaterialApp(
+            theme: AgroTheme.lightTheme,
+            locale: const Locale('ar', 'EG'),
+            supportedLocales: const [Locale('ar', 'EG'), Locale('en', 'US')],
+            localizationsDelegates: const [
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            home: const Directionality(
+              textDirection: TextDirection.rtl,
+              child: MainNavigationShell(),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // 1. Verify requested forecast period (10 days) and available count (9 days)
+      // Confirms expectedPeriodDays from provenance was preserved and 0.0 is counted while null is not
+      expect(
+        find.text('البخر نتح المرجعي (ET₀) — مجموع جزئي (9 من 10 أيام مطلوبة)'),
+        findsOneWidget,
+      );
+
+      // 2. Verify partial reference ET0 total reflects exactly the 9 available days (43.0 mm)
+      expect(
+        find.text(
+          'مجموع جزئي للبخر نتح المرجعي (9 من أصل 10 يوماً مطلوبة): 43.0 مم',
+        ),
+        findsOneWidget,
+      );
+
+      // 3. Verify missing observation warning identifies exactly 1 missing day
+      expect(
+        find.text(
+          'تنبيه: التوقعات غير مكتملة لكامل الفترة (1 أيام بدون قراءة ET₀ صالحة من أصل 10 يوماً). المجموع المعروض يمثل الأيام المتوفرة فقط.',
+        ),
+        findsOneWidget,
+      );
+
+      // 4. Verify crop title identifies wheat correctly
+      expect(
+        find.text('الاستهلاك المائي التبخري للمحصول (ETc) — القمح'),
+        findsOneWidget,
+      );
+
+      // 5. Verify partial ETc total: 28.0 mm
+      // Proves chronological order and exact pairing of each ET0 value with that day's Kc
+      expect(
+        find.text('استهلاك مائي جزئي للمحصول (9 من 10 أيام): 28.0 مم'),
+        findsOneWidget,
+      );
+
+      // 6. Verify volumetric demand reflects conversion: 118 m³/feddan
+      expect(
+        find.text(
+          'حجم البخر نتح التقديري الجزئي للمحصول (القمح - للأيام المتوفرة): 118 م³ / فدان',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
   testWidgets(
     'Dashboard add field button navigates to fields management tab and does not show manual snackbar',
     (WidgetTester tester) async {
@@ -1488,6 +1775,35 @@ class _StaticWeatherRepository implements IWeatherRepository {
     required Coordinate coordinate,
     required int days,
   }) async {
+    return Success(records);
+  }
+
+  @override
+  Future<Result<List<DailyAgroRecord>, Failure>> getHistoricalDailyRecords({
+    required Coordinate coordinate,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    return Success(records);
+  }
+}
+
+class _CapturingWeatherRepository implements IWeatherRepository {
+  final List<DailyAgroRecord> records;
+  int getForecastCallCount = 0;
+  Coordinate? capturedCoordinate;
+  int? capturedDays;
+
+  _CapturingWeatherRepository(this.records);
+
+  @override
+  Future<Result<List<DailyAgroRecord>, Failure>> getForecastDailyRecords({
+    required Coordinate coordinate,
+    required int days,
+  }) async {
+    getForecastCallCount++;
+    capturedCoordinate = coordinate;
+    capturedDays = days;
     return Success(records);
   }
 
