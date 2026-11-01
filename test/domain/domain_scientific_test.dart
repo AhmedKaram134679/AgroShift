@@ -2639,6 +2639,34 @@ void main() {
       );
     });
 
+    test(
+      'returns ParsingFailure for a non-chronological sequence containing a pre-planting date',
+      () {
+        final plantingDate = DateTime.utc(2024, 11, 10);
+        final forecastDates = [
+          DateTime.utc(2024, 11, 12),
+          DateTime.utc(2024, 11, 9),
+          DateTime.utc(2024, 11, 13),
+        ];
+        final et0Series = [4.0, 5.0, 6.0];
+
+        final res = EtcCalculator.calculateForecastEtcValidated(
+          crop: wheat,
+          plantingDate: plantingDate,
+          forecastDates: forecastDates,
+          dailyEt0Series: et0Series,
+          totalRequestedDays: 3,
+        );
+
+        expect(res.isFailure, isTrue);
+        expect(res.failureOrNull, isA<ParsingFailure>());
+        expect(
+          (res.failureOrNull as ParsingFailure).technicalMessage,
+          contains('Non-chronological date sequence'),
+        );
+      },
+    );
+
     test('15. Duplicate forecast dates fail closed with ParsingFailure', () {
       final plantingDate = DateTime.utc(2024, 11, 1);
 
