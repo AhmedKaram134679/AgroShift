@@ -160,11 +160,13 @@ class EtcCalculator {
   ///
   /// Guarantees:
   /// - A 7-day forecast does NOT progress across an entire crop cycle; each day receives Kc corresponding to its true age.
+  /// - Returns [InsufficientEvidenceFailure] if totalRequestedDays <= 0.
+  /// - Returns [ParsingFailure] if forecastDates.length, dailyEt0Series.length, and totalRequestedDays do not exactly agree.
+  /// - Returns [ParsingFailure] if forecastDates are not strictly consecutive daily calendar dates (descending, duplicate, or gap).
   /// - Returns [MissingCropStageFailure] if plantingDate is null, in the future relative to forecast dates, or if crop.typicalDurationDays <= 0.
   /// - Enforces operational ET0 envelope [0.0, 25.0] mm/day and rejects non-finite values with [PhysicalRangeFailure].
   /// - Enforces the 10% maximum missingness policy across totalRequestedDays with [InsufficientEvidenceFailure].
   /// - Missing days skip numeric contribution without shifting subsequent calendar dates or altering their Kc.
-  /// - Extra observations beyond totalRequestedDays are ignored.
   static Result<
     ({
       double totalEtcMm,
@@ -190,6 +192,55 @@ class EtcCalculator {
           missingRatio: 1.0,
         ),
       );
+    }
+
+    // Exact series-length agreement:
+    // forecastDates.length, dailyEt0Series.length, and totalRequestedDays must all agree.
+    if (forecastDates.length != totalRequestedDays ||
+        dailyEt0Series.length != totalRequestedDays) {
+      return FailureResult(
+        ParsingFailure(
+          userMessageAr:
+              'أبعاد بيانات التوقعات غير متطابقة مع عدد الأيام المطلوبة.',
+          technicalMessage:
+              'Series length mismatch: forecastDates.length (${forecastDates.length}) '
+              'and dailyEt0Series.length (${dailyEt0Series.length}) must exactly equal '
+              'totalRequestedDays ($totalRequestedDays).',
+        ),
+      );
+    }
+
+    // Validate calendar-date ordering and continuity:
+    // Normalize each forecast date to UTC calendar date (year, month, day).
+    // Each date must be exactly one calendar day after the previous date.
+    for (var i = 1; i < forecastDates.length; i++) {
+      final prevNorm = DateTime.utc(
+        forecastDates[i - 1].year,
+        forecastDates[i - 1].month,
+        forecastDates[i - 1].day,
+      );
+      final currNorm = DateTime.utc(
+        forecastDates[i].year,
+        forecastDates[i].month,
+        forecastDates[i].day,
+      );
+
+      final diffDays = currNorm.difference(prevNorm).inDays;
+      if (diffDays != 1) {
+        final reason = diffDays == 0
+            ? 'Duplicate calendar date detected at index $i ($currNorm).'
+            : diffDays < 0
+                ? 'Non-chronological date sequence at index $i ($currNorm precedes $prevNorm).'
+                : 'Gap in calendar date sequence at index $i ($diffDays days between $prevNorm and $currNorm).';
+        return FailureResult(
+          ParsingFailure(
+            userMessageAr:
+                'تسلسل تواريخ التوقعات المناخية غير متتابع يومياً وبشكل تصاعدي.',
+            technicalMessage:
+                'Invalid forecast dates sequence: $reason Forecast dates must be strictly consecutive calendar days (difference of exactly 1 day).',
+          ),
+        );
+      }
     }
 
     if (plantingDate == null) {
@@ -243,19 +294,9 @@ class EtcCalculator {
       plantingDate.day,
     );
 
-    final availableRequestedDays = dailyEt0Series.length < totalRequestedDays
-        ? dailyEt0Series.length
-        : totalRequestedDays;
-
     final unionOfIncompleteDateIndices = <int>{};
 
     for (var dayIndex = 0; dayIndex < totalRequestedDays; dayIndex++) {
-      if (dayIndex >= availableRequestedDays ||
-          dayIndex >= forecastDates.length) {
-        unionOfIncompleteDateIndices.add(dayIndex);
-        continue;
-      }
-
       final et0 = dailyEt0Series[dayIndex];
       if (et0 == null) {
         unionOfIncompleteDateIndices.add(dayIndex);
@@ -286,11 +327,6 @@ class EtcCalculator {
     final dailyKcSeries = <double>[];
 
     for (int dayIndex = 0; dayIndex < totalRequestedDays; dayIndex++) {
-      if (dayIndex >= availableRequestedDays ||
-          dayIndex >= forecastDates.length) {
-        break;
-      }
-
       final rawForecastDate = forecastDates[dayIndex];
       final normForecastDate = DateTime.utc(
         rawForecastDate.year,
