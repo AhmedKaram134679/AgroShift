@@ -2617,7 +2617,7 @@ void main() {
       // Non-chronological sequence: Day 60 (Dev), Day 10 (Init), Day 90 (Mid)
       // Wheat duration 150 days:
       // Index 0: 2024-12-31 (age = 60 days):
-      //   fraction = 60/150 = 0.40 (Dev stage: 0.40 + 2.5 * (10/150) = 0.40 + 25/150 = 0.40 + 0.50 = 0.90)
+      //   fraction = 60/150 = 0.40 (Dev stage: progress = (0.40 - 0.20) / 0.30 = 2/3; Kc = 0.40 + (2/3) * (1.15 - 0.40) = 0.90)
       //   ET0 = 4.0 mm -> ETc = 4.0 * 0.90 = 3.60 mm
       // Index 1: 2024-11-11 (age = 10 days):
       //   fraction = 10/150 <= 0.20 (Init stage: Kc = 0.40)
