@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:agro_shift/core/error/failures.dart';
 import 'package:agro_shift/data/datasources/remote/open_meteo_remote_data_source.dart';
 import 'package:agro_shift/data/datasources/remote/open_meteo_adapter.dart';
+import 'package:agro_shift/data/models/open_meteo_dto.dart';
 import 'package:agro_shift/domain/environment/models/coordinate.dart';
 
 void main() {
@@ -181,5 +183,211 @@ void main() {
           ? 'Opt-in live network smoke test skipped by default to keep test suite hermetic. Set RUN_LIVE_API_TESTS=true to enable.'
           : null,
     );
+
+    group('Data Integrity, Malformed & Incomplete Responses Tests', () {
+      const coord = Coordinate(
+        latitude: testLatitude,
+        longitude: testLongitude,
+        governorateName: 'الدقهلية',
+      );
+
+      test('Missing daily object in JSON payload fails closed with ParsingFailure', () {
+        final json = <String, dynamic>{
+          'latitude': testLatitude,
+          'longitude': testLongitude,
+          'generationtime_ms': 0.1,
+          'utc_offset_seconds': 10800,
+          'timezone': 'Africa/Cairo',
+          'daily_units': {
+            'temperature_2m_max': '°C',
+            'temperature_2m_min': '°C',
+            'et0_fao_evapotranspiration': 'mm',
+            'precipitation_sum': 'mm',
+          },
+          // 'daily' key completely omitted
+        };
+
+        final dto = OpenMeteoDailyResponseDto.fromJson(json);
+        expect(dto.daily, isEmpty);
+
+        final result = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'ERA5 Test',
+        );
+
+        expect(result.isFailure, isTrue);
+        expect(result.failureOrNull, isA<ParsingFailure>());
+        expect(result.failureOrNull!.technicalMessage, contains('missing required daily arrays'));
+      });
+
+      test('Missing daily_units object in JSON payload fails closed with ParsingFailure', () {
+        final json = <String, dynamic>{
+          'latitude': testLatitude,
+          'longitude': testLongitude,
+          'generationtime_ms': 0.1,
+          'utc_offset_seconds': 10800,
+          'timezone': 'Africa/Cairo',
+          // 'daily_units' key completely omitted
+          'daily': {
+            'time': ['2024-06-01'],
+            'temperature_2m_max': [35.0],
+            'temperature_2m_min': [21.0],
+            'et0_fao_evapotranspiration': [6.5],
+            'precipitation_sum': [0.0],
+          },
+        };
+
+        final dto = OpenMeteoDailyResponseDto.fromJson(json);
+        expect(dto.dailyUnits, isEmpty);
+
+        final result = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'ERA5 Test',
+        );
+
+        expect(result.isFailure, isTrue);
+        expect(result.failureOrNull, isA<ParsingFailure>());
+        expect(result.failureOrNull!.technicalMessage, contains('Missing unit declaration'));
+      });
+
+      test('Time array shorter than measurement arrays is rejected with ParsingFailure', () {
+        final dto = OpenMeteoDailyResponseDto(
+          latitude: testLatitude,
+          longitude: testLongitude,
+          generationTimeMs: 0.1,
+          utcOffsetSeconds: 10800,
+          timezone: 'Africa/Cairo',
+          dailyUnits: {
+            'temperature_2m_max': '°C',
+            'temperature_2m_min': '°C',
+            'et0_fao_evapotranspiration': 'mm',
+            'precipitation_sum': 'mm',
+          },
+          daily: {
+            'time': ['2024-06-01', '2024-06-02'], // 2 items
+            'temperature_2m_max': [35.0, 36.0, 37.0], // 3 items
+            'temperature_2m_min': [21.0, 22.0, 23.0],
+            'et0_fao_evapotranspiration': [6.5, 6.8, 7.0],
+            'precipitation_sum': [0.0, 0.0, 0.0],
+          },
+        );
+
+        final result = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'ERA5 Test',
+        );
+
+        expect(result.isFailure, isTrue);
+        expect(result.failureOrNull, isA<ParsingFailure>());
+        expect(result.failureOrNull!.technicalMessage, contains('Mismatched parallel array lengths'));
+      });
+
+      test('Time array longer than measurement arrays is rejected with ParsingFailure', () {
+        final dto = OpenMeteoDailyResponseDto(
+          latitude: testLatitude,
+          longitude: testLongitude,
+          generationTimeMs: 0.1,
+          utcOffsetSeconds: 10800,
+          timezone: 'Africa/Cairo',
+          dailyUnits: {
+            'temperature_2m_max': '°C',
+            'temperature_2m_min': '°C',
+            'et0_fao_evapotranspiration': 'mm',
+            'precipitation_sum': 'mm',
+          },
+          daily: {
+            'time': ['2024-06-01', '2024-06-02', '2024-06-03'], // 3 items
+            'temperature_2m_max': [35.0, 36.0], // 2 items
+            'temperature_2m_min': [21.0, 22.0],
+            'et0_fao_evapotranspiration': [6.5, 6.8],
+            'precipitation_sum': [0.0, 0.0],
+          },
+        );
+
+        final result = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'ERA5 Test',
+        );
+
+        expect(result.isFailure, isTrue);
+        expect(result.failureOrNull, isA<ParsingFailure>());
+        expect(result.failureOrNull!.technicalMessage, contains('Mismatched parallel array lengths'));
+      });
+
+      test('Missing ET0 measurement is preserved as null and not transformed to 0.0', () {
+        final times = List.generate(10, (i) => '2024-06-${(i + 1).toString().padLeft(2, '0')}');
+        final dto = OpenMeteoDailyResponseDto(
+          latitude: testLatitude,
+          longitude: testLongitude,
+          generationTimeMs: 0.1,
+          utcOffsetSeconds: 10800,
+          timezone: 'Africa/Cairo',
+          dailyUnits: {
+            'temperature_2m_max': '°C',
+            'temperature_2m_min': '°C',
+            'et0_fao_evapotranspiration': 'mm',
+            'precipitation_sum': 'mm',
+          },
+          daily: {
+            'time': times,
+            'temperature_2m_max': List.filled(10, 35.0),
+            'temperature_2m_min': List.filled(10, 21.0),
+            'et0_fao_evapotranspiration': List.generate(10, (i) => i == 1 ? null : 6.5), // Day 2 is null (10% missing)
+            'precipitation_sum': List.filled(10, 0.0),
+          },
+        );
+
+        final result = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'ERA5 Test',
+        );
+
+        expect(result.isSuccess, isTrue);
+        final records = result.dataOrNull!;
+        expect(records[0].referenceEt0Mm, equals(6.5));
+        expect(records[1].referenceEt0Mm, isNull);
+        expect(records[1].referenceEt0Mm, isNot(equals(0.0))); // Crucial: null is NOT zero
+      });
+
+      test('Affirmative zero precipitation (0.0) is strictly distinct from missing data', () {
+        final dto = OpenMeteoDailyResponseDto(
+          latitude: testLatitude,
+          longitude: testLongitude,
+          generationTimeMs: 0.1,
+          utcOffsetSeconds: 10800,
+          timezone: 'Africa/Cairo',
+          dailyUnits: {
+            'temperature_2m_max': '°C',
+            'temperature_2m_min': '°C',
+            'et0_fao_evapotranspiration': 'mm',
+            'precipitation_sum': 'mm',
+          },
+          daily: {
+            'time': ['2024-06-01', '2024-06-02'],
+            'temperature_2m_max': [35.0, 36.0],
+            'temperature_2m_min': [21.0, 22.0],
+            'et0_fao_evapotranspiration': [6.5, 6.8],
+            'precipitation_sum': [0.0, null], // Day 1 = real 0.0, Day 2 = missing
+          },
+        );
+
+        final result = OpenMeteoAdapter.toDomainRecords(
+          dto: dto,
+          requestedCoordinate: coord,
+          datasetLabel: 'ERA5 Test',
+        );
+
+        // Day 2 has missing precipitation (1 of 2 = 50% missing, which exceeds 10% threshold)
+        expect(result.isFailure, isTrue);
+        expect(result.failureOrNull, isA<InsufficientEvidenceFailure>());
+        final fail = result.failureOrNull as InsufficientEvidenceFailure;
+        expect(fail.variableName, equals('precipitation'));
+      });
+    });
   });
 }

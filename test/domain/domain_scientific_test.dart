@@ -531,6 +531,35 @@ void main() {
       expect(actualEtc, closeTo(expectedEtc, 1e-9));
     });
 
+    // Deterministic arithmetic test: ET0 = 7.89 mm/day, Kc = 1.15 -> ETc = 7.89 * 1.15 = 9.0735 mm/day
+    test('Independent oracle: deterministic ETc arithmetic for ET0=7.89 and Kc=1.15 yields 9.0735 mm/day', () {
+      const et0 = 7.89;
+      const kc = 1.15;
+      const expectedEtc = 9.0735;
+
+      final actualEtc = EtcCalculator.calculateDailyEtc(
+        referenceEt0Mm: et0,
+        cropKc: kc,
+      );
+
+      expect(actualEtc, closeTo(expectedEtc, 1e-9));
+
+      // Also verify through calculateForecastEtcValidated with a single-day forecast during mid-season
+      final res = EtcCalculator.calculateForecastEtcValidated(
+        crop: EgyptianCropsCatalog.wheat, // wheat has kcMid = 1.15
+        plantingDate: DateTime.utc(2024, 1, 1),
+        forecastDates: [DateTime.utc(2024, 1, 1).add(const Duration(days: 90))], // age 90 is mid-season (0.50 to 0.80) -> Kc = 1.15
+        dailyEt0Series: [et0],
+        totalRequestedDays: 1,
+      );
+
+      expect(res.isSuccess, isTrue);
+      final data = res.dataOrNull!;
+      expect(data.dailyKcSeries.first, equals(1.15));
+      expect(data.dailyEtcMmSeries.first, closeTo(expectedEtc, 1e-9));
+      expect(data.totalEtcMm, closeTo(expectedEtc, 1e-9));
+    });
+
     // Case 2: Configured feddan volume conversion
     // Inputs: Water depth = 100.0 mm, configured conversion constant = 4.2 m³/feddan/mm
     // Independent calculation: 100.0 * 4.2 = 420.0 m³/feddan
