@@ -61,6 +61,96 @@ bool isPointOnSegment(
   return px >= minX && px <= maxX && py >= minY && py <= maxY;
 }
 
+/// Checks whether an undirected line segment [p1, p2] exists as an actual consecutive
+/// boundary edge in the rings of a GeoJSON geometry (supports Polygon and MultiPolygon).
+bool geometryContainsSegment(
+  Map<String, dynamic> geometry,
+  List<double> p1,
+  List<double> p2, {
+  double tolerance = 1e-7,
+}) {
+  final type = geometry['type'] as String;
+  final List<List<dynamic>> allRings = [];
+
+  if (type == 'Polygon') {
+    final coords = geometry['coordinates'] as List;
+    for (final ring in coords) {
+      allRings.add(ring as List<dynamic>);
+    }
+  } else if (type == 'MultiPolygon') {
+    final polys = geometry['coordinates'] as List;
+    for (final poly in polys) {
+      for (final ring in poly as List) {
+        allRings.add(ring as List<dynamic>);
+      }
+    }
+  }
+
+  for (final ring in allRings) {
+    final n = ring.length;
+    for (int i = 0; i < n - 1; i++) {
+      final a = ring[i] as List;
+      final b = ring[i + 1] as List;
+      final ax = (a[0] as num).toDouble();
+      final ay = (a[1] as num).toDouble();
+      final bx = (b[0] as num).toDouble();
+      final by = (b[1] as num).toDouble();
+
+      final forwardMatch = (ax - p1[0]).abs() <= tolerance &&
+          (ay - p1[1]).abs() <= tolerance &&
+          (bx - p2[0]).abs() <= tolerance &&
+          (by - p2[1]).abs() <= tolerance;
+
+      final reverseMatch = (ax - p2[0]).abs() <= tolerance &&
+          (ay - p2[1]).abs() <= tolerance &&
+          (bx - p1[0]).abs() <= tolerance &&
+          (by - p1[1]).abs() <= tolerance;
+
+      if (forwardMatch || reverseMatch) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/// Checks whether a vertex coordinate exists in any ring of a GeoJSON geometry.
+bool geometryContainsVertex(
+  Map<String, dynamic> geometry,
+  List<double> target, {
+  double tolerance = 1e-7,
+}) {
+  final type = geometry['type'] as String;
+  final List<List<dynamic>> allRings = [];
+
+  if (type == 'Polygon') {
+    final coords = geometry['coordinates'] as List;
+    for (final ring in coords) {
+      allRings.add(ring as List<dynamic>);
+    }
+  } else if (type == 'MultiPolygon') {
+    final polys = geometry['coordinates'] as List;
+    for (final poly in polys) {
+      for (final ring in poly as List) {
+        allRings.add(ring as List<dynamic>);
+      }
+    }
+  }
+
+  for (final ring in allRings) {
+    for (final pt in ring) {
+      final coord = pt as List;
+      final x = (coord[0] as num).toDouble();
+      final y = (coord[1] as num).toDouble();
+      if ((x - target[0]).abs() <= tolerance &&
+          (y - target[1]).abs() <= tolerance) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 void main() {
   late EgyptBoundaryService boundaryService;
   late String geoJsonContent;
@@ -339,28 +429,76 @@ void main() {
     );
 
     test(
-      'Shared-boundary geometric segment proof and first-match deterministic resolution (Gharbia vs Kafr El-Sheikh)',
+      'Shared boundary segment is verified directly in actual GeoJSON geometry of Gharbia and Kafr El-Sheikh (Workstream A)',
       () {
-        // Shared horizontal boundary segment extracted directly from GeoJSON dataset:
-        // Endpoint A: [Lon 31.0235506, Lat 30.9865686]
-        // Endpoint B: [Lon 30.9252878, Lat 30.9865686]
+        final decoded = json.decode(geoJsonContent) as Map<String, dynamic>;
+        final features =
+            (decoded['features'] as List).cast<Map<String, dynamic>>();
+
+        // 1. Locate both features in the loaded GeoJSON
+        final ghFeature = features.firstWhere(
+          (f) => f['properties']['shapeISO'] == 'EG-GH',
+        );
+        final kfsFeature = features.firstWhere(
+          (f) => f['properties']['shapeISO'] == 'EG-KFS',
+        );
+
+        expect(ghFeature, isNotNull);
+        expect(kfsFeature, isNotNull);
+
+        // 2. Candidate shared segment endpoints [lon, lat]
         const double aLon = 31.0235506;
         const double aLat = 30.9865686;
         const double bLon = 30.9252878;
         const double bLat = 30.9865686;
 
-        // Verify that endpoints A and B both lie on segment AB
-        expect(isPointOnSegment(aLon, aLat, aLon, aLat, bLon, bLat), isTrue);
-        expect(isPointOnSegment(bLon, bLat, aLon, aLat, bLon, bLat), isTrue);
+        const candidateA = [aLon, aLat];
+        const candidateB = [bLon, bLat];
 
-        // Midpoint P of the segment
+        // 3. Verify that the candidate segment genuinely exists in Gharbia's loaded geometry
+        expect(
+          geometryContainsSegment(
+            ghFeature['geometry'],
+            candidateA,
+            candidateB,
+          ),
+          isTrue,
+          reason: 'Candidate segment AB must exist in Gharbia (EG-GH) geometry',
+        );
+
+        // 4. Verify that the same segment genuinely exists in Kafr El-Sheikh's loaded geometry
+        expect(
+          geometryContainsSegment(
+            kfsFeature['geometry'],
+            candidateA,
+            candidateB,
+          ),
+          isTrue,
+          reason:
+              'Candidate segment AB must exist in Kafr El-Sheikh (EG-KFS) geometry',
+        );
+
+        // 5. Negative control: Arbitrary unshared segment must be rejected
+        const fakeP1 = [31.0000, 30.0000];
+        const fakeP2 = [31.5000, 30.5000];
+        expect(
+          geometryContainsSegment(ghFeature['geometry'], fakeP1, fakeP2),
+          isFalse,
+        );
+        expect(
+          geometryContainsSegment(kfsFeature['geometry'], fakeP1, fakeP2),
+          isFalse,
+        );
+
+        // 6. Compute midpoint P of the verified source segment
         const double pLon = (aLon + bLon) / 2.0; // 30.9744192
         const double pLat = 30.9865686;
 
         // Mathematical proof: P lies strictly on segment AB
         expect(isPointOnSegment(pLon, pLat, aLon, aLat, bLon, bLat), isTrue);
 
-        // Exterior point test: Point strictly South of segment (interior to Gharbia)
+        // 7. Interior point tests on opposite sides of the verified shared boundary
+        // South of segment: Interior to Gharbia
         const double southLat = 30.9765686; // 0.01 deg south
         const double southLon = pLon;
         expect(boundaryService.isWithinEgypt(southLat, southLon), isTrue);
@@ -369,7 +507,7 @@ void main() {
           equals('الغربية'),
         );
 
-        // Exterior point test: Point strictly North of segment (interior to Kafr El-Sheikh)
+        // North of segment: Interior to Kafr El-Sheikh
         const double northLat = 30.9965686; // 0.01 deg north
         const double northLon = pLon;
         expect(boundaryService.isWithinEgypt(northLat, northLon), isTrue);
@@ -378,13 +516,13 @@ void main() {
           equals('كفر الشيخ'),
         );
 
-        // Deterministic boundary resolution:
-        // Exactly on the boundary segment at midpoint P, the point is within Egypt.
+        // 8. Deterministic boundary resolution:
+        // Midpoint on the shared boundary segment is within Egypt.
         expect(boundaryService.isWithinEgypt(pLat, pLon), isTrue);
 
-        // findGovernorate() evaluates features sequentially in dataset order.
+        // Under deterministic first-match in dataset order:
         // Gharbia (EG-GH, index 9) precedes Kafr El-Sheikh (EG-KFS, index 24).
-        // Under half-open ray casting, midpoint P matches Gharbia.
+        // Midpoint P resolves to Gharbia.
         final govAtBoundary = boundaryService.findGovernorate(pLat, pLon);
         expect(
           govAtBoundary,
@@ -396,25 +534,69 @@ void main() {
     );
 
     test(
-      'Exact boundary vertex semantics document deterministic point-in-polygon partitioning',
+      'Exact boundary vertex is verified in actual GeoJSON and deterministically resolves to Al Beheira (Workstream B)',
       () {
-        // Vertex [30.7613501, 30.9870359] is an administrative tripoint shared by Beheira (EG-BH), Gharbia (EG-GH), and Kafr El-Sheikh (EG-KFS).
-        // Standard half-open ray-casting evaluates edges with (p1y < y && p2y >= y) || (p2y < y && p1y >= y).
-        // On boundary vertices and edges, this deterministic partition assigns the shared point to an adjacent
-        // polygon rather than failing or double-counting across governorates.
+        final decoded = json.decode(geoJsonContent) as Map<String, dynamic>;
+        final features =
+            (decoded['features'] as List).cast<Map<String, dynamic>>();
+
+        // Tripoint vertex shared between Beheira (EG-BH), Gharbia (EG-GH), and Kafr El-Sheikh (EG-KFS)
         const double sharedVertexLat = 30.9870359;
         const double sharedVertexLon = 30.7613501;
+        const tripoint = [sharedVertexLon, sharedVertexLat];
 
+        // 1. Locate the three relevant features in loaded GeoJSON
+        final bhFeature = features.firstWhere(
+          (f) => f['properties']['shapeISO'] == 'EG-BH',
+        );
+        final ghFeature = features.firstWhere(
+          (f) => f['properties']['shapeISO'] == 'EG-GH',
+        );
+        final kfsFeature = features.firstWhere(
+          (f) => f['properties']['shapeISO'] == 'EG-KFS',
+        );
+
+        // 2. Independently verify the coordinate corresponds to the actual shared vertex in all three geometries
+        expect(
+          geometryContainsVertex(bhFeature['geometry'], tripoint),
+          isTrue,
+          reason: 'Tripoint vertex must exist in Beheira (EG-BH) boundary ring',
+        );
+        expect(
+          geometryContainsVertex(ghFeature['geometry'], tripoint),
+          isTrue,
+          reason: 'Tripoint vertex must exist in Gharbia (EG-GH) boundary ring',
+        );
+        expect(
+          geometryContainsVertex(kfsFeature['geometry'], tripoint),
+          isTrue,
+          reason:
+              'Tripoint vertex must exist in Kafr El-Sheikh (EG-KFS) boundary ring',
+        );
+
+        // 3. Verify that the vertex is recognized as within Egypt
         expect(
           boundaryService.isWithinEgypt(sharedVertexLat, sharedVertexLon),
           isTrue,
         );
+
+        // 4. Lock down the exact, deterministic expected result:
+        // In the production point-in-polygon half-open ray casting:
+        // ((p1y < y && p2y >= y) || (p2y < y && p1y >= y))
+        // Beheira (EG-BH, index 19) contains edges meeting this condition for the ray from [30.7613501, 30.9870359].
+        // Although Gharbia is at index 9, the ray test for Gharbia evaluates to false for this specific vertex,
+        // while Beheira evaluates to true.
+        // Therefore, the deterministic resolution is exclusively 'البحيرة'.
         final gov = boundaryService.findGovernorate(
           sharedVertexLat,
           sharedVertexLon,
         );
-        expect(gov, isNotNull);
-        expect(gov, isIn(['البحيرة', 'الغربية', 'كفر الشيخ']));
+        expect(
+          gov,
+          equals('البحيرة'),
+          reason:
+              'The boundary tripoint vertex must deterministically resolve to Al Beheira (البحيرة)',
+        );
       },
     );
 

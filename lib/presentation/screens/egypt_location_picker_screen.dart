@@ -48,10 +48,21 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen> {
   static const LatLng _egyptCenter = LatLng(27.0, 30.8);
   static const double _initialZoom = 6.0;
 
+  late final LatLng _mapInitialCenter;
+  late final double _mapInitialZoom;
+
   @override
   void initState() {
     super.initState();
     _mapController = MapController();
+    final hasValidInitial = widget.initialLatitude != null &&
+        widget.initialLongitude != null &&
+        widget.initialLatitude!.isFinite &&
+        widget.initialLongitude!.isFinite;
+    _mapInitialCenter = hasValidInitial
+        ? LatLng(widget.initialLatitude!, widget.initialLongitude!)
+        : _egyptCenter;
+    _mapInitialZoom = hasValidInitial ? 10.0 : _initialZoom;
     _initBoundaryService();
   }
 
@@ -207,11 +218,11 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen> {
         FlutterMap(
           mapController: _mapController,
           options: MapOptions(
-            initialCenter: _selectedPoint ?? _egyptCenter,
-            initialZoom: _selectedPoint != null ? 10.0 : _initialZoom,
+            initialCenter: _mapInitialCenter,
+            initialZoom: _mapInitialZoom,
             minZoom: 5.0,
             maxZoom: 18.0,
-            cameraConstraint: CameraConstraint.contain(
+            cameraConstraint: CameraConstraint.containCenter(
               bounds: LatLngBounds(
                 const LatLng(21.0, 24.0),
                 const LatLng(32.5, 37.5),

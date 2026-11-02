@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:drift/native.dart';
 import 'package:agro_shift/app/theme.dart';
@@ -165,7 +166,7 @@ void main() {
     );
 
     testWidgets(
-      'End-to-end map selection, confirmation, dialog population, non-persistence, and subsequent save (Workstream C)',
+      'End-to-end map selection of a genuine new point, confirmation, dialog population, non-persistence, and subsequent save (Workstream C)',
       (tester) async {
         await tester.pumpWidget(createTestWidget());
         await tester.pumpAndSettle();
@@ -183,7 +184,7 @@ void main() {
         expect(find.text('إضافة حقل زراعي جديد في مصر'), findsOneWidget);
 
         // 3. User enters field name and area manually
-        const testFieldName = 'مزرعة غرب الدلتا النموذجية';
+        const testFieldName = 'مزرعة الوادي الجديد التجريبية';
         const testArea = '15.0';
         await tester.enterText(
           find.widgetWithText(TextFormField, 'اسم الحقل / المزرعة'),
@@ -195,18 +196,19 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // 4. Pre-enter coordinate in the dialog for map inspection
+        // 4. Clear the pre-populated default coordinates in the dialog
+        // so that the map opens without any pre-selected location
         await tester.enterText(
           find.widgetWithText(TextFormField, 'خط العرض'),
-          '28.5000',
+          '',
         );
         await tester.enterText(
           find.widgetWithText(TextFormField, 'خط الطول'),
-          '30.8000',
+          '',
         );
         await tester.pumpAndSettle();
 
-        // 5. Tap "تحديد الموقع على الخريطة" to open EgyptLocationPickerScreen
+        // 5. User opens the map with empty coordinate inputs
         final mapBtn = find.widgetWithText(
           OutlinedButton,
           'تحديد الموقع على الخريطة',
@@ -215,31 +217,52 @@ void main() {
         await tester.tap(mapBtn);
         await tester.pumpAndSettle();
 
-        // 6. Verify map picker is open and pre-populated point resolves to Minya
+        // 6. Verify map picker is open and NO location is selected initially
         expect(find.text('تحديد موقع الحقل على الخريطة'), findsOneWidget);
-        expect(find.text('المحافظة: المنيا'), findsOneWidget);
-        expect(find.textContaining('28.5000'), findsOneWidget);
-        expect(find.textContaining('30.8000'), findsOneWidget);
+        expect(find.text('لم يتم تحديد موقع بعد'), findsOneWidget);
 
-        // 7. Confirm selection on the map
-        final confirmBtn = find.widgetWithText(ElevatedButton, 'تأكيد الموقع');
-        expect(confirmBtn, findsOneWidget);
-        await tester.tap(confirmBtn);
+        // Confirm button is disabled prior to map selection
+        final initialConfirmBtn = tester.widget<ElevatedButton>(
+          find.widgetWithText(ElevatedButton, 'تأكيد الموقع'),
+        );
+        expect(initialConfirmBtn.onPressed, isNull);
+
+        // 7. Select a genuinely new point through real map interaction.
+        // Tapping the interactive FlutterMap canvas invokes MapOptions.onTap(tapPosition, point).
+        // PositionedTapDetector2 requires the double-tap timeout (typically ~250-300ms) to fire single tap.
+        await tester.tap(find.byType(FlutterMap));
+        await tester.pump(const Duration(milliseconds: 400));
         await tester.pumpAndSettle();
 
-        // 8. Verify returned to the still-open Add Field dialog
+        // 8. Verify that the selected point changes to the newly tapped location
+        // Lat 27.0, Lon 30.8 is within Egypt and correctly detected as New Valley (الوادي الجديد).
+        expect(find.text('المحافظة: الوادي الجديد'), findsOneWidget);
+        expect(find.textContaining('27.0000'), findsOneWidget);
+        expect(find.textContaining('30.8000'), findsOneWidget);
+
+        // Confirm button is now enabled
+        final updatedConfirmBtn = tester.widget<ElevatedButton>(
+          find.widgetWithText(ElevatedButton, 'تأكيد الموقع'),
+        );
+        expect(updatedConfirmBtn.onPressed, isNotNull);
+
+        // 9. Confirm the newly selected location on the map
+        await tester.tap(find.widgetWithText(ElevatedButton, 'تأكيد الموقع'));
+        await tester.pumpAndSettle();
+
+        // 10. Verify returned to the still-open Add Field dialog
         expect(find.text('إضافة حقل زراعي جديد في مصر'), findsOneWidget);
 
-        // 9. Verify coordinates and detected governorate populated into text controllers
-        expect(find.text('المنيا'), findsOneWidget);
-        expect(find.text('28.5000'), findsOneWidget);
+        // 11. Verify newly selected coordinates and detected governorate populated into dialog controllers
+        expect(find.text('الوادي الجديد'), findsOneWidget);
+        expect(find.text('27.0000'), findsOneWidget);
         expect(find.text('30.8000'), findsOneWidget);
 
-        // 10. Verify previously entered name and area are preserved
+        // 12. Verify previously entered name and area are preserved
         expect(find.text(testFieldName), findsOneWidget);
         expect(find.text(testArea), findsOneWidget);
 
-        // 11. CRITICAL: Verify field is NOT automatically persisted upon map confirmation
+        // 13. CRITICAL: Verify field is NOT automatically persisted upon map confirmation
         final midFields = await db.select(db.farmFieldsTable).get();
         expect(
           midFields.length,
@@ -253,16 +276,16 @@ void main() {
           reason: 'Custom field must not exist in database yet',
         );
 
-        // 12. User explicitly saves the field
+        // 14. User explicitly saves the field
         final saveBtn = find.widgetWithText(ElevatedButton, 'حفظ الحقل');
         await tester.ensureVisible(saveBtn);
         await tester.tap(saveBtn);
         await tester.pumpAndSettle();
 
-        // 13. Verify dialog is dismissed
+        // 15. Verify dialog is dismissed
         expect(find.text('إضافة حقل زراعي جديد في مصر'), findsNothing);
 
-        // 14. Verify database now contains exactly initialCount + 1 fields
+        // 16. Verify database now contains exactly initialCount + 1 fields with confirmed location
         final savedFields = await db.select(db.farmFieldsTable).get();
         expect(savedFields.length, equals(initialCount + 1));
         final savedField = savedFields.firstWhere(
@@ -270,12 +293,12 @@ void main() {
         );
         expect(savedField.nameAr, equals(testFieldName));
         expect(savedField.areaInFeddan, equals(15.0));
-        expect(savedField.governorateAr, equals('المنيا'));
-        expect(savedField.latitude, equals(28.5));
+        expect(savedField.governorateAr, equals('الوادي الجديد'));
+        expect(savedField.latitude, equals(27.0));
         expect(savedField.longitude, equals(30.8));
         expect(savedField.isDefault, isFalse);
 
-        // 15. Verify field card appears in the list on FieldManagementScreen
+        // 17. Verify field card appears in the list on FieldManagementScreen
         await tester.scrollUntilVisible(find.text(testFieldName), 100);
         expect(find.text(testFieldName), findsOneWidget);
       },
