@@ -395,6 +395,185 @@ class FAO56ScientificRegressionTests(unittest.TestCase):
             )
         self.assertIn("Tmax is below Tmin", str(ctx.exception))
 
+    def test_fao56_example_18_against_published_reference(self) -> None:
+        """Verify daily ET0 against the published benchmark in FAO-56 Chapter 4 Example 18.
+
+        Provenance:
+        - Source: FAO Irrigation and Drainage Paper No. 56 (Allen, Pereira, Raes, & Smith, 1998),
+          Chapter 4, Example 18: 'Calculation of ET0 with daily data'.
+        - Location: Uccle (Brussels, Belgium), Latitude: 50° 48' N (50.8° N), Elevation: 100 m.
+        - Date: 6 July (Day of Year 187).
+        - Documented weather inputs:
+          * Maximum temperature Tmax = 21.5 °C
+          * Minimum temperature Tmin = 12.3 °C
+          * Relative humidity RHmax = 84 %, RHmin = 63 %
+          * Wind speed at 10 m: u10 = 10.0 km/h = 2.777778 m/s
+          * Sunshine duration n = 9.25 h, giving Rs = 22.07 MJ/m²/day (Ra = 41.1 MJ/m²/day)
+        - Derived actual vapour pressure ea:
+          ea = [e0(Tmin) * RHmax/100 + e0(Tmax) * RHmin/100] / 2
+             = [1.4306 * 0.84 + 2.5644 * 0.63] / 2 = 1.4086 kPa.
+          Inverted dew point: Tdew = 12.065143 °C (yields e0(Tdew) = 1.4086 kPa).
+        - Published FAO-56 Example 18 intermediate parameters:
+          * es = 1.997 kPa
+          * ea = 1.409 kPa
+          * Delta = 0.122 kPa/°C
+          * gamma = 0.066 kPa/°C (P = 100.1 kPa)
+          * u2 = 2.08 m/s
+          * Ra = 41.1 MJ/m²/day, Rso = 30.9 MJ/m²/day, Rns = 17.0 MJ/m²/day
+          * Rnl = 3.71 MJ/m²/day, Rn = 13.29 MJ/m²/day
+        - Published final ET0: 3.9 mm/day (rounded to 1 decimal place in official text).
+        - Full-precision analytical intermediate: ~3.8801 to 3.8867 mm/day.
+        """
+        # 6 July in a non-leap year has day of year (tm_yday) = 187
+        d = date(2023, 7, 6)
+        self.assertEqual(d.timetuple().tm_yday, 187, "Day of year for 6 July must be 187")
+
+        lat = 50.8
+        elev = 100.0
+        tmax = 21.5
+        tmin = 12.3
+        tdew_derived = 12.06514346  # yields ea = 1.4086 kPa matching FAO-56 Eq. 17
+        w10_m_s = 10.0 / 3.6        # 10.0 km/h converted to m/s (~2.7778 m/s)
+        rs_mj_m2 = 22.07            # Derived from n = 9.25 h and Angstrom-Prescott formula
+
+        calculated_et0 = fao56_daily_et0(
+            day=d,
+            latitude_deg=lat,
+            elevation_m=elev,
+            tmax=tmax,
+            tmin=tmin,
+            dewpoint_mean=tdew_derived,
+            wind10_m_s=w10_m_s,
+            solar_radiation_mj_m2=rs_mj_m2,
+        )
+
+        published_et0_mm_day = 3.9
+
+        # 1. Verify non-negative finite numeric result
+        self.assertTrue(math.isfinite(calculated_et0) and calculated_et0 > 0.0)
+
+        # 2. Verify rounded 1-decimal result matches published benchmark exactly
+        self.assertEqual(
+            round(calculated_et0, 1),
+            published_et0_mm_day,
+            f"Rounded ET0 must match published 3.9 mm/day (got {round(calculated_et0, 1)})",
+        )
+
+        # 3. Verify unrounded full-precision calculation is within documented rounding tolerance (+-0.05 mm/day)
+        # Full precision calculated is ~3.8801 mm/day; |3.8801 - 3.9000| = 0.0199 mm/day <= 0.05 mm/day
+        self.assertAlmostEqual(
+            calculated_et0,
+            published_et0_mm_day,
+            delta=0.05,
+            msg=f"Full-precision ET0 ({calculated_et0:.4f}) must be within +-0.05 mm/day of published 3.9 mm/day",
+        )
+
+        # 4. Independent step-by-step verification directly from Example 18 published intermediate parameters
+        tmean = (tmax + tmin) / 2.0  # 16.9 °C
+        es_pub = 1.997
+        ea_pub = 1.409
+        vpd_pub = es_pub - ea_pub    # 0.588 kPa
+        delta_pub = 0.122
+        gamma_pub = 0.066
+        u2_pub = 2.08
+        rn_pub = 13.29
+        g_pub = 0.0
+
+        num_pub = 0.408 * delta_pub * (rn_pub - g_pub) + gamma_pub * (900.0 / (tmean + 273.0)) * u2_pub * vpd_pub
+        den_pub = delta_pub + gamma_pub * (1.0 + 0.34 * u2_pub)
+        et0_from_pub_intermediates = num_pub / den_pub
+
+        self.assertAlmostEqual(
+            calculated_et0,
+            et0_from_pub_intermediates,
+            delta=0.02,
+            msg=f"ET0 ({calculated_et0:.4f}) and intermediate-derived ET0 ({et0_from_pub_intermediates:.4f}) must agree within 0.02 mm/day",
+        )
+
+    def test_recovered_june_2024_five_day_regression_and_units(self) -> None:
+        """Verify the recovered June 1-5, 2024 ERA5 daily inputs, units, and independent ET0 calculations.
+
+        Provenance:
+        - Evidence snapshot: PY-Audit/agroshift_era5_verification/era5_daily_gmt3_elev6_all_vars.json
+        - Model: ECMWF ERA5 reanalysis via Open-Meteo Historical Weather API
+        - Request parameters: lat=31.0, lon=31.0, elevation=6.0m, timezone=GMT+3, wind_speed_unit=ms
+        - Dates: 2024-06-01 to 2024-06-05
+        - Preserved reference ET0 values: [7.89, 7.82, 7.76, 7.43, 7.59] mm/day
+        """
+        snapshot_path = Path(__file__).resolve().parent / "agroshift_era5_verification" / "era5_daily_gmt3_elev6_all_vars.json"
+        self.assertTrue(snapshot_path.exists(), f"Recovered evidence snapshot must exist at {snapshot_path}")
+
+        with open(snapshot_path, "r", encoding="utf-8") as f:
+            evidence = json.load(f)
+
+        resp = evidence["response"]
+        self.assertEqual(resp["latitude"], 31.0)
+        self.assertEqual(resp["longitude"], 31.0)
+        self.assertEqual(resp["elevation"], 6.0)
+        self.assertEqual(resp["utc_offset_seconds"], 10800)
+        self.assertEqual(resp["timezone_abbreviation"], "GMT+3")
+
+        daily_units = resp["daily_units"]
+        self.assertEqual(daily_units["wind_speed_10m_mean"], "m/s")
+        self.assertIn("°C", daily_units["temperature_2m_max"])
+        self.assertIn("°C", daily_units["temperature_2m_min"])
+        self.assertIn("°C", daily_units["dew_point_2m_mean"])
+        self.assertIn("MJ/m", daily_units["shortwave_radiation_sum"])
+        self.assertEqual(daily_units["et0_fao_evapotranspiration"], "mm")
+
+        daily = resp["daily"]
+        dates = daily["time"]
+        self.assertEqual(dates, ["2024-06-01", "2024-06-02", "2024-06-03", "2024-06-04", "2024-06-05"])
+
+        tmax = daily["temperature_2m_max"]
+        tmin = daily["temperature_2m_min"]
+        tdew = daily["dew_point_2m_mean"]
+        w10 = daily["wind_speed_10m_mean"]
+        rs = daily["shortwave_radiation_sum"]
+        ref_et0 = daily["et0_fao_evapotranspiration"]
+
+        self.assertEqual(ref_et0, [7.89, 7.82, 7.76, 7.43, 7.59])
+
+        # Expected full-precision calculations
+        expected_calc = [
+            7.732104927312171,
+            7.70866401316174,
+            7.751687286583416,
+            7.507292550640235,
+            7.685137546139102,
+        ]
+
+        computed_calc = []
+        for i, d_str in enumerate(dates):
+            d = date.fromisoformat(d_str)
+            val = fao56_daily_et0(
+                day=d,
+                latitude_deg=31.0,
+                elevation_m=6.0,
+                tmax=tmax[i],
+                tmin=tmin[i],
+                dewpoint_mean=tdew[i],
+                wind10_m_s=w10[i],
+                solar_radiation_mj_m2=rs[i],
+            )
+            computed_calc.append(val)
+            self.assertAlmostEqual(
+                val,
+                expected_calc[i],
+                places=7,
+                msg=f"Day {d_str} calculated ET0 must reproduce deterministic value {expected_calc[i]}",
+            )
+
+        # Verify summary error metrics
+        metric_results = metrics(list(zip(computed_calc, ref_et0)))
+        self.assertEqual(metric_results["paired_days"], 5)
+        self.assertEqual(metric_results["valid_pairs_count"], 5)
+        self.assertAlmostEqual(metric_results["mae_mm_day"], 0.08999477, places=6)
+        self.assertAlmostEqual(metric_results["bias_independent_minus_api_mm_day"], -0.02102274, places=6)
+        self.assertAlmostEqual(metric_results["rmse_mm_day"], 0.10239233, places=6)
+        self.assertAlmostEqual(metric_results["mean_absolute_relative_difference_percent"], 1.16515942, places=6)
+
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,104 @@
+{
+  "provenance": {
+    "description": "Recovered Open-Meteo ERA5 daily weather forcing inputs and reference ET0 for June 1-5, 2024",
+    "retrieval_timestamp_utc": "2026-11-02T06:43:19.977932+00:00",
+    "api_endpoint": "https://archive-api.open-meteo.com/v1/archive",
+    "request_parameters": {
+      "latitude": 31.0,
+      "longitude": 31.0,
+      "elevation": 6.0,
+      "start_date": "2024-06-01",
+      "end_date": "2024-06-05",
+      "timezone": "GMT+3",
+      "models": "era5",
+      "wind_speed_unit": "ms",
+      "daily": [
+        "temperature_2m_max",
+        "temperature_2m_min",
+        "dew_point_2m_mean",
+        "wind_speed_10m_mean",
+        "shortwave_radiation_sum",
+        "et0_fao_evapotranspiration",
+        "precipitation_sum"
+      ]
+    },
+    "notes": "Dedicated snapshot preserving the exact single API response containing both forcing inputs and reference ET0 (utc_offset=10800, elev=6.0m)"
+  },
+  "response": {
+    "latitude": 31.0,
+    "longitude": 31.0,
+    "generationtime_ms": 0.9934902191162109,
+    "utc_offset_seconds": 10800,
+    "timezone": "GMT+0300",
+    "timezone_abbreviation": "GMT+3",
+    "elevation": 6.0,
+    "daily_units": {
+      "time": "iso8601",
+      "temperature_2m_max": "\u00b0C",
+      "temperature_2m_min": "\u00b0C",
+      "dew_point_2m_mean": "\u00b0C",
+      "wind_speed_10m_mean": "m/s",
+      "shortwave_radiation_sum": "MJ/m\u00b2",
+      "et0_fao_evapotranspiration": "mm",
+      "precipitation_sum": "mm"
+    },
+    "daily": {
+      "time": [
+        "2024-06-01",
+        "2024-06-02",
+        "2024-06-03",
+        "2024-06-04",
+        "2024-06-05"
+      ],
+      "temperature_2m_max": [
+        37.8,
+        35.2,
+        35.4,
+        36.6,
+        37.5
+      ],
+      "temperature_2m_min": [
+        20.8,
+        21.3,
+        21.5,
+        21.4,
+        22.1
+      ],
+      "dew_point_2m_mean": [
+        10.1,
+        14.5,
+        15.6,
+        18.0,
+        17.8
+      ],
+      "wind_speed_10m_mean": [
+        2.45,
+        3.16,
+        3.22,
+        2.9,
+        2.8
+      ],
+      "shortwave_radiation_sum": [
+        28.83,
+        29.0,
+        29.4,
+        29.2,
+        29.26
+      ],
+      "et0_fao_evapotranspiration": [
+        7.89,
+        7.82,
+        7.76,
+        7.43,
+        7.59
+      ],
+      "precipitation_sum": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  }
+}
