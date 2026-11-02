@@ -490,7 +490,7 @@ class FAO56ScientificRegressionTests(unittest.TestCase):
             msg=f"ET0 ({calculated_et0:.4f}) and intermediate-derived ET0 ({et0_from_pub_intermediates:.4f}) must agree within 0.005 mm/day",
         )
 
-    def test_recovered_june_2024_five_day_regression_and_units(self) -> None:
+    def test_newly_retrieved_june_2024_five_day_regression_and_units(self) -> None:
         """Verify the newly retrieved June 1-5, 2024 ERA5 daily inputs, units, and independent ET0 calculations.
 
         Provenance:
