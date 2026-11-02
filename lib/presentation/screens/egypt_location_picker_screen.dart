@@ -11,12 +11,21 @@ class EgyptLocationPickerScreen extends StatefulWidget {
   final double? initialLongitude;
   final EgyptBoundaryService?
   boundaryService; // Test seam for injecting preloaded service
+  final AssetBundle?
+  assetBundle; // Test seam for injecting custom/failing asset bundle
+  final TileProvider?
+  tileProvider; // Test seam for injecting offline/mock tile provider
+  final void Function(TileImage tile, Object error, StackTrace? stackTrace)?
+  onTileLoadError; // Test seam for observing/simulating tile errors
 
   const EgyptLocationPickerScreen({
     super.key,
     this.initialLatitude,
     this.initialLongitude,
     this.boundaryService,
+    this.assetBundle,
+    this.tileProvider,
+    this.onTileLoadError,
   });
 
   @override
@@ -33,6 +42,7 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen> {
   LatLng? _selectedPoint;
   String? _detectedGovernorate;
   bool _isPointInEgypt = false;
+  bool _hasTileLoadError = false;
 
   // Center of Egypt (near Minya/Asyut)
   static const LatLng _egyptCenter = LatLng(27.0, 30.8);
@@ -54,7 +64,9 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen> {
     }
 
     try {
-      final service = await EgyptBoundaryService.loadFromBundle();
+      final service = await EgyptBoundaryService.loadFromBundle(
+        bundle: widget.assetBundle,
+      );
       if (!mounted) return;
       setState(() {
         _boundaryService = service;
@@ -211,8 +223,29 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen> {
             TileLayer(
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.agroshift.app',
-              tileProvider: NetworkTileProvider(),
-              errorImage: const AssetImage('assets/images/tile_error.png'),
+              tileProvider: widget.tileProvider ?? NetworkTileProvider(),
+              tileBuilder: (context, tileWidget, tile) {
+                if (tile.loadError) {
+                  return Container(
+                    color: Colors.grey.shade200,
+                    alignment: Alignment.center,
+                    child: Icon(
+                      Icons.broken_image_outlined,
+                      size: 28,
+                      color: Colors.grey.shade400,
+                    ),
+                  );
+                }
+                return tileWidget;
+              },
+              errorTileCallback: (tile, error, stackTrace) {
+                widget.onTileLoadError?.call(tile, error, stackTrace);
+                if (mounted && !_hasTileLoadError) {
+                  setState(() {
+                    _hasTileLoadError = true;
+                  });
+                }
+              },
             ),
             if (_selectedPoint != null)
               MarkerLayer(
@@ -257,34 +290,80 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen> {
           top: 12,
           right: 12,
           left: 12,
-          child: Material(
-            elevation: 3,
-            borderRadius: BorderRadius.circular(8),
-            color: Colors.white.withAlpha(242), // 0.95 opacity
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.touch_app,
-                    size: 20,
-                    color: Color(0xFF1B5E20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Material(
+                elevation: 3,
+                borderRadius: BorderRadius.circular(8),
+                color: Colors.white.withAlpha(242), // 0.95 opacity
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _selectedPoint == null
-                          ? 'انقر على الخريطة لتحديد موقع الحقل داخل مصر'
-                          : 'يمكنك النقر مجدداً لتغيير موقع الحقل المحدد',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.touch_app,
+                        size: 20,
+                        color: Color(0xFF1B5E20),
                       ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _selectedPoint == null
+                              ? 'انقر على الخريطة لتحديد موقع الحقل داخل مصر'
+                              : 'يمكنك النقر مجدداً لتغيير موقع الحقل المحدد',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (_hasTileLoadError) ...[
+                const SizedBox(height: 6),
+                Material(
+                  elevation: 2,
+                  borderRadius: BorderRadius.circular(8),
+                  color: Colors.amber.shade50,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.amber.shade300),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.wifi_off_outlined,
+                          size: 18,
+                          color: Colors.amber.shade900,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'تعذر تحميل خلفية الخريطة نظراً لضعف الاتصال بالشبكة أو تعطل خدمة الخرائط. لا يزال بإمكانك النقر لتحديد الموقع أو الإلغاء.',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.amber.shade900,
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
+                ),
+              ],
+            ],
           ),
         ),
       ],

@@ -115,23 +115,6 @@ void main() {
         await tester.tap(saveBtn);
         await tester.pumpAndSettle();
 
-        debugPrint(
-          'POST-SAVE DIALOG COUNT: ${find.text('إضافة حقل زراعي جديد في مصر').evaluate().length}',
-        );
-        debugPrint(
-          'POST-SAVE SNACKBAR COUNT: ${find.byType(SnackBar).evaluate().length}',
-        );
-        for (final el in find.byType(Text).evaluate()) {
-          final w = el.widget as Text;
-          if (w.data != null &&
-              (w.data!.contains('خطأ') ||
-                  w.data!.contains('تسجيل') ||
-                  w.data!.contains('بنجاح') ||
-                  w.data!.contains('مزرعة'))) {
-            debugPrint('TEXT WIDGET: ${w.data}');
-          }
-        }
-
         // Verify dialog is dismissed and new field is visible in the list
         expect(find.text('إضافة حقل زراعي جديد في مصر'), findsNothing);
         await tester.scrollUntilVisible(

@@ -1,10 +1,84 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:agro_shift/data/datasources/local/egypt_boundary_service.dart';
 import 'package:agro_shift/presentation/screens/egypt_location_picker_screen.dart';
 import 'package:agro_shift/domain/environment/models/selected_location.dart';
+
+// Minimal deterministic 1x1 transparent PNG tile for offline widget tests
+final Uint8List _transparentPngBytes = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+);
+
+/// Deterministic offline tile provider returning a mock in-memory tile
+class MockOfflineTileProvider extends TileProvider {
+  @override
+  ImageProvider<Object> getImage(
+    TileCoordinates coordinates,
+    TileLayer options,
+  ) => MemoryImage(_transparentPngBytes);
+}
+
+/// Simulated failing image provider for deterministic tile error tests
+class _FailingTileImageProvider
+    extends ImageProvider<_FailingTileImageProvider> {
+  @override
+  Future<_FailingTileImageProvider> obtainKey(
+    ImageConfiguration configuration,
+  ) {
+    return SynchronousFuture(this);
+  }
+
+  @override
+  ImageStreamCompleter loadImage(
+    _FailingTileImageProvider key,
+    ImageDecoderCallback decode,
+  ) {
+    final streamCompleter = OneFrameImageStreamCompleter(
+      Future<ImageInfo>.error(
+        const SocketException('Failed host lookup: tile.openstreetmap.org'),
+      ),
+    );
+    return streamCompleter;
+  }
+
+  @override
+  bool operator ==(Object other) => other is _FailingTileImageProvider;
+
+  @override
+  int get hashCode => 42;
+}
+
+/// Deterministic tile provider simulating network/service failure
+/// Simulated failing asset bundle for testing boundary loading failure
+class MockFailingAssetBundle extends CachingAssetBundle {
+  @override
+  Future<String> loadString(String key, {bool cache = true}) {
+    return Future.error(
+      const FileSystemException('Asset not found or corrupt'),
+    );
+  }
+
+  @override
+  Future<ByteData> load(String key) {
+    return Future.error(
+      const FileSystemException('Asset not found or corrupt'),
+    );
+  }
+}
+
+class MockFailingTileProvider extends TileProvider {
+  @override
+  ImageProvider<Object> getImage(
+    TileCoordinates coordinates,
+    TileLayer options,
+  ) => _FailingTileImageProvider();
+}
 
 void main() {
   late EgyptBoundaryService boundaryService;
@@ -21,7 +95,10 @@ void main() {
     ) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: EgyptLocationPickerScreen(boundaryService: boundaryService),
+          home: EgyptLocationPickerScreen(
+            boundaryService: boundaryService,
+            tileProvider: MockOfflineTileProvider(),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -45,6 +122,7 @@ void main() {
           MaterialApp(
             home: EgyptLocationPickerScreen(
               boundaryService: boundaryService,
+              tileProvider: MockOfflineTileProvider(),
               initialLatitude: 31.27, // Sidi Salem
               initialLongitude: 30.79,
             ),
@@ -70,6 +148,7 @@ void main() {
           MaterialApp(
             home: EgyptLocationPickerScreen(
               boundaryService: boundaryService,
+              tileProvider: MockOfflineTileProvider(),
               initialLatitude: 31.60, // Mediterranean offshore in old bbox
               initialLongitude: 30.00,
             ),
@@ -106,6 +185,7 @@ void main() {
                         MaterialPageRoute(
                           builder: (ctx) => EgyptLocationPickerScreen(
                             boundaryService: boundaryService,
+                            tileProvider: MockOfflineTileProvider(),
                             initialLatitude: 28.50, // Minya
                             initialLongitude: 30.80,
                           ),
@@ -147,6 +227,7 @@ void main() {
                       MaterialPageRoute(
                         builder: (ctx) => EgyptLocationPickerScreen(
                           boundaryService: boundaryService,
+                          tileProvider: MockOfflineTileProvider(),
                           initialLatitude: 28.50,
                           initialLongitude: 30.80,
                         ),
@@ -169,5 +250,87 @@ void main() {
       expect(popped, isTrue);
       expect(returnedLocation, isNull);
     });
+
+    testWidgets(
+      'Simulated tile loading failure displays warning banner and broken tile placeholder without crashing',
+      (tester) async {
+        int tileErrorCount = 0;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: EgyptLocationPickerScreen(
+              boundaryService: boundaryService,
+              tileProvider: MockFailingTileProvider(),
+              initialLatitude: 31.27, // Sidi Salem
+              initialLongitude: 30.79,
+              onTileLoadError: (tile, error, stackTrace) {
+                tileErrorCount++;
+              },
+            ),
+          ),
+        );
+
+        // Allow tile loading errors to dispatch through image stream completers
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+        await tester.pumpAndSettle();
+
+        // Screen does not crash and tile errors were detected
+        expect(tileErrorCount, greaterThan(0));
+
+        // Network tile error banner is displayed
+        expect(
+          find.text(
+            'تعذر تحميل خلفية الخريطة نظراً لضعف الاتصال بالشبكة أو تعطل خدمة الخرائط. لا يزال بإمكانك النقر لتحديد الموقع أو الإلغاء.',
+          ),
+          findsOneWidget,
+        );
+        expect(find.byIcon(Icons.wifi_off_outlined), findsOneWidget);
+
+        // Broken image fallback icons rendered in place of tiles
+        expect(find.byIcon(Icons.broken_image_outlined), findsWidgets);
+
+        // Map interaction and pre-populated governorate data remain intact
+        expect(find.text('المحافظة: كفر الشيخ'), findsOneWidget);
+
+        // Confirmation remains functional and enabled for valid Egyptian point
+        final confirmBtn = tester.widget<ElevatedButton>(
+          find.widgetWithText(ElevatedButton, 'تأكيد الموقع'),
+        );
+        expect(confirmBtn.onPressed, isNotNull);
+
+        // Cancel button remains completely accessible and functional
+        expect(find.text('إلغاء'), findsOneWidget);
+        await tester.tap(find.text('إلغاء'));
+        await tester.pumpAndSettle();
+      },
+    );
+
+    testWidgets(
+      'Boundary service initialization failure is handled independently from tile failure',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: EgyptLocationPickerScreen(
+              assetBundle: MockFailingAssetBundle(),
+            ),
+          ),
+        );
+
+        // Pump frames for async _initBoundaryService
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        // Verifies the boundary error screen renders without tile layer
+        expect(
+          find.textContaining('تعذر تحميل بيانات الحدود الجغرافية لمصر'),
+          findsOneWidget,
+        );
+        expect(find.text('إعادة المحاولة'), findsOneWidget);
+
+        // Back / Cancel remains available
+        expect(find.byIcon(Icons.arrow_back), findsOneWidget);
+      },
+    );
   });
 }

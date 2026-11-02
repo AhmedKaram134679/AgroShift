@@ -1,0 +1,14 @@
+Dataset: geoBoundaries Egypt Subnational Administrative Boundaries (ADM1)
+Provider: William & Mary geoLab (geoBoundaries) / Primary source: OpenStreetMap, Wambacher
+Source URL: https://www.geoboundaries.org/api/current/gbOpen/EGY/ADM1/
+Upstream GeoJSON URL: https://github.com/wmgeolab/geoBoundaries/raw/9469f09/releaseData/gbOpen/EGY/ADM1/geoBoundaries-EGY-ADM1_simplified.geojson
+Administrative level: ADM1 (27 Egyptian Governorates)
+Boundary ID: EGY-ADM1-46179711
+Release date / Build date: Dec 12, 2023 (Source Data Update: Jan 19, 2023)
+License: Open Data Commons Open Database License 1.0 (ODbL) / geoBoundaries infrastructure CC BY 4.0
+Required attribution:
+- Runfola, D. et al. (2020) geoBoundaries: A global database of political administrative boundaries. PLoS ONE 15(4): e0231866.
+- OpenStreetMap contributors (http://www.openstreetmap.org/copyright)
+Transformation:
+The coordinates are identical to geoBoundaries-EGY-ADM1_simplified.geojson (simplified polygon boundaries for all 27 governorates). Each feature was augmented with an Arabic governorate name (`nameAr`) matching AgroShift domain conventions for Egyptian governorates.
+
