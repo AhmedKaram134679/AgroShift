@@ -5,9 +5,14 @@ import 'package:agro_shift/presentation/providers/agro_providers.dart';
 import 'package:agro_shift/domain/agronomy/models/farm_field.dart';
 import 'package:agro_shift/domain/environment/models/coordinate.dart';
 import 'package:agro_shift/domain/agronomy/models/crop_catalog.dart';
+import 'package:agro_shift/presentation/screens/egypt_location_picker_screen.dart';
+import 'package:agro_shift/data/datasources/local/egypt_boundary_service.dart';
+import 'package:agro_shift/domain/environment/models/selected_location.dart';
 
 class FieldManagementScreen extends ConsumerStatefulWidget {
-  const FieldManagementScreen({super.key});
+  final EgyptBoundaryService? boundaryService;
+
+  const FieldManagementScreen({super.key, this.boundaryService});
 
   @override
   ConsumerState<FieldManagementScreen> createState() =>
@@ -102,6 +107,58 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                             validator: (v) => (v == null || v.trim().isEmpty)
                                 ? 'يرجى إدخال اسم الحقل'
                                 : null,
+                          ),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              final initialLat = double.tryParse(
+                                _latController.text.trim(),
+                              );
+                              final initialLon = double.tryParse(
+                                _lonController.text.trim(),
+                              );
+
+                              final selected = await Navigator.of(context)
+                                  .push<SelectedLocation>(
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          EgyptLocationPickerScreen(
+                                            initialLatitude: initialLat,
+                                            initialLongitude: initialLon,
+                                            boundaryService:
+                                                widget.boundaryService,
+                                          ),
+                                    ),
+                                  );
+
+                              if (selected != null) {
+                                setDialogState(() {
+                                  _govController.text = selected.governorateAr;
+                                  _latController.text = selected.latitude
+                                      .toStringAsFixed(4);
+                                  _lonController.text = selected.longitude
+                                      .toStringAsFixed(4);
+                                });
+                              }
+                            },
+                            icon: const Icon(
+                              Icons.map_outlined,
+                              color: Color(0xFF1B5E20),
+                            ),
+                            label: const Text(
+                              'تحديد الموقع على الخريطة',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1B5E20),
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              side: const BorderSide(color: Color(0xFF1B5E20)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
                           ),
                           const SizedBox(height: 12),
                           TextFormField(
