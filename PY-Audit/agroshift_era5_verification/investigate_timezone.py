@@ -199,7 +199,10 @@ def run_investigation():
             f"Hourly precipitation at index {idx} ({t_str}) is finite numeric (got {val!r})",
         )
 
-    t_map = {t[:16]: v for t, v in zip(times, et0_values)}
+    t_map = {
+        dt.strftime("%Y-%m-%dT%H:%M"): value
+        for dt, value in zip(parsed_dts, et0_values)
+    }
     print(f"Validated {len(times)} consecutive, unique, finite hourly observations from {times[0]} to {times[-1]}.")
 
     dates = ["2024-06-01", "2024-06-02", "2024-06-03", "2024-06-04", "2024-06-05"]
@@ -459,8 +462,11 @@ def run_investigation():
 
     # Precise equality claim (Correction E)
     run_assert(
-        all(math.isclose(a, b, abs_tol=1e-9) for a, b in zip(d_gmt3_e6, d_fixture)),
-        "Config 3 and the historical fixture have zero differences at the configured 4-decimal comparison precision",
+        all(
+            math.isclose(a, b, rel_tol=0.0, abs_tol=1e-9)
+            for a, b in zip(d_gmt3_e6, d_fixture)
+        ),
+        "Config 3 and the historical fixture agree within an absolute tolerance of 1e-9",
     )
     run_assert(
         all(a == b for a, b in zip(d_gmt3_e6, d_fixture)),
