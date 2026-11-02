@@ -417,12 +417,12 @@ class FAO56ScientificRegressionTests(unittest.TestCase):
           * es = 1.997 kPa
           * ea = 1.409 kPa
           * Delta = 0.122 kPa/°C
-          * gamma = 0.066 kPa/°C (P = 100.1 kPa)
+          * gamma = 0.0666 kPa/°C (P = 100.1 kPa)
           * u2 = 2.08 m/s
           * Ra = 41.1 MJ/m²/day, Rso = 30.9 MJ/m²/day, Rns = 17.0 MJ/m²/day
           * Rnl = 3.71 MJ/m²/day, Rn = 13.29 MJ/m²/day
         - Published final ET0: 3.9 mm/day (rounded to 1 decimal place in official text).
-        - Full-precision analytical intermediate: ~3.8801 to 3.8867 mm/day.
+        - Full-precision analytical intermediate: ~3.8801 mm/day (with intermediate-derived ET0 ~3.8795 mm/day).
         """
         # 6 July in a non-leap year has day of year (tm_yday) = 187
         d = date(2023, 7, 6)
@@ -474,7 +474,7 @@ class FAO56ScientificRegressionTests(unittest.TestCase):
         ea_pub = 1.409
         vpd_pub = es_pub - ea_pub    # 0.588 kPa
         delta_pub = 0.122
-        gamma_pub = 0.066
+        gamma_pub = 0.0666
         u2_pub = 2.08
         rn_pub = 13.29
         g_pub = 0.0
@@ -486,12 +486,12 @@ class FAO56ScientificRegressionTests(unittest.TestCase):
         self.assertAlmostEqual(
             calculated_et0,
             et0_from_pub_intermediates,
-            delta=0.02,
-            msg=f"ET0 ({calculated_et0:.4f}) and intermediate-derived ET0 ({et0_from_pub_intermediates:.4f}) must agree within 0.02 mm/day",
+            delta=0.005,
+            msg=f"ET0 ({calculated_et0:.4f}) and intermediate-derived ET0 ({et0_from_pub_intermediates:.4f}) must agree within 0.005 mm/day",
         )
 
     def test_recovered_june_2024_five_day_regression_and_units(self) -> None:
-        """Verify the recovered June 1-5, 2024 ERA5 daily inputs, units, and independent ET0 calculations.
+        """Verify the newly retrieved June 1-5, 2024 ERA5 daily inputs, units, and independent ET0 calculations.
 
         Provenance:
         - Evidence snapshot: PY-Audit/agroshift_era5_verification/era5_daily_gmt3_elev6_all_vars.json
@@ -501,7 +501,7 @@ class FAO56ScientificRegressionTests(unittest.TestCase):
         - Preserved reference ET0 values: [7.89, 7.82, 7.76, 7.43, 7.59] mm/day
         """
         snapshot_path = Path(__file__).resolve().parent / "agroshift_era5_verification" / "era5_daily_gmt3_elev6_all_vars.json"
-        self.assertTrue(snapshot_path.exists(), f"Recovered evidence snapshot must exist at {snapshot_path}")
+        self.assertTrue(snapshot_path.exists(), f"Evidence snapshot must exist at {snapshot_path}")
 
         with open(snapshot_path, "r", encoding="utf-8") as f:
             evidence = json.load(f)

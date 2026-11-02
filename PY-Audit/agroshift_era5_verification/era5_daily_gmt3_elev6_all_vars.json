@@ -1,6 +1,6 @@
 {
   "provenance": {
-    "description": "Recovered Open-Meteo ERA5 daily weather forcing inputs and reference ET0 for June 1-5, 2024",
+    "description": "Newly retrieved, reproducible Open-Meteo ERA5 daily weather forcing inputs and reference ET0 for June 1-5, 2024",
     "retrieval_timestamp_utc": "2026-11-02T06:43:19.977932+00:00",
     "api_endpoint": "https://archive-api.open-meteo.com/v1/archive",
     "request_parameters": {
@@ -22,7 +22,7 @@
         "precipitation_sum"
       ]
     },
-    "notes": "Dedicated snapshot preserving the exact single API response containing both forcing inputs and reference ET0 (utc_offset=10800, elev=6.0m)"
+    "notes": "Dedicated snapshot of a newly retrieved, reproducible response obtained via the specified request parameters (utc_offset=10800, elev=6.0m). This preserves the complete set of daily forcing inputs alongside the reference ET0 series without claiming to be the unrecovered original historical response payload."
   },
   "response": {
     "latitude": 31.0,
