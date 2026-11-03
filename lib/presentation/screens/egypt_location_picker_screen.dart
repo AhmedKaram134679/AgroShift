@@ -55,7 +55,8 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen> {
   void initState() {
     super.initState();
     _mapController = MapController();
-    final hasValidInitial = widget.initialLatitude != null &&
+    final hasValidInitial =
+        widget.initialLatitude != null &&
         widget.initialLongitude != null &&
         widget.initialLatitude!.isFinite &&
         widget.initialLongitude!.isFinite;
@@ -105,28 +106,25 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen> {
   }
 
   void _onPointSelected(LatLng point) {
-    if (_boundaryService == null) return;
+    if (!mounted || _boundaryService == null) {
+      return;
+    }
 
     final inEgypt = _boundaryService!.isWithinEgypt(
       point.latitude,
       point.longitude,
     );
+
     final gov = _boundaryService!.findGovernorate(
       point.latitude,
       point.longitude,
     );
 
-    if (mounted) {
-      setState(() {
-        _selectedPoint = point;
-        _isPointInEgypt = inEgypt;
-        _detectedGovernorate = gov;
-      });
-    } else {
+    setState(() {
       _selectedPoint = point;
       _isPointInEgypt = inEgypt;
       _detectedGovernorate = gov;
-    }
+    });
   }
 
   void _confirmSelection() {

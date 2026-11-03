@@ -96,12 +96,14 @@ bool geometryContainsSegment(
       final bx = (b[0] as num).toDouble();
       final by = (b[1] as num).toDouble();
 
-      final forwardMatch = (ax - p1[0]).abs() <= tolerance &&
+      final forwardMatch =
+          (ax - p1[0]).abs() <= tolerance &&
           (ay - p1[1]).abs() <= tolerance &&
           (bx - p2[0]).abs() <= tolerance &&
           (by - p2[1]).abs() <= tolerance;
 
-      final reverseMatch = (ax - p2[0]).abs() <= tolerance &&
+      final reverseMatch =
+          (ax - p2[0]).abs() <= tolerance &&
           (ay - p2[1]).abs() <= tolerance &&
           (bx - p1[0]).abs() <= tolerance &&
           (by - p1[1]).abs() <= tolerance;
@@ -166,60 +168,89 @@ void main() {
       expect(boundaryService.governorates.length, equals(27));
     });
 
-    test(
-      'Exhaustive GeoJSON structural, ring closure, and coordinate validation across all 27 governorates',
-      () {
-        final decoded = json.decode(geoJsonContent) as Map<String, dynamic>;
-        expect(decoded['type'], equals('FeatureCollection'));
-        final features = decoded['features'] as List<dynamic>;
-        expect(features.length, equals(27));
+    test('Exhaustive GeoJSON structural, ring closure, and coordinate validation across all 27 governorates', () {
+      final decoded = json.decode(geoJsonContent) as Map<String, dynamic>;
+      expect(decoded['type'], equals('FeatureCollection'));
+      final features = decoded['features'] as List<dynamic>;
+      expect(features.length, equals(27));
 
-        final seenIsos = <String>{};
-        final seenNamesAr = <String>{};
-        final seenNamesEn = <String>{};
+      final seenIsos = <String>{};
+      final seenNamesAr = <String>{};
+      final seenNamesEn = <String>{};
 
-        int polygonCount = 0;
-        int multiPolygonCount = 0;
-        int totalRings = 0;
-        int exteriorRings = 0;
-        int interiorRings = 0;
-        int totalCoordinates = 0;
+      int polygonCount = 0;
+      int multiPolygonCount = 0;
+      int totalRings = 0;
+      int exteriorRings = 0;
+      int interiorRings = 0;
+      int totalCoordinates = 0;
 
-        for (final f in features) {
-          final feature = f as Map<String, dynamic>;
-          final props = feature['properties'] as Map<String, dynamic>;
-          final geom = feature['geometry'] as Map<String, dynamic>;
+      for (final f in features) {
+        final feature = f as Map<String, dynamic>;
+        final props = feature['properties'] as Map<String, dynamic>;
+        final geom = feature['geometry'] as Map<String, dynamic>;
 
-          final iso = props['shapeISO'] as String?;
-          final nameAr = props['nameAr'] as String?;
-          final nameEn = props['shapeName'] as String?;
+        final iso = props['shapeISO'] as String?;
+        final nameAr = props['nameAr'] as String?;
+        final nameEn = props['shapeName'] as String?;
 
-          expect(iso, isNotNull);
-          expect(iso!.trim(), isNotEmpty);
-          expect(seenIsos.add(iso), isTrue, reason: 'Duplicate ISO: $iso');
+        expect(iso, isNotNull);
+        expect(iso!.trim(), isNotEmpty);
+        expect(seenIsos.add(iso), isTrue, reason: 'Duplicate ISO: $iso');
 
-          expect(nameAr, isNotNull);
-          expect(nameAr!.trim(), isNotEmpty);
-          expect(
-            seenNamesAr.add(nameAr),
-            isTrue,
-            reason: 'Duplicate nameAr: $nameAr',
-          );
+        expect(nameAr, isNotNull);
+        expect(nameAr!.trim(), isNotEmpty);
+        expect(
+          seenNamesAr.add(nameAr),
+          isTrue,
+          reason: 'Duplicate nameAr: $nameAr',
+        );
 
-          expect(nameEn, isNotNull);
-          expect(nameEn!.trim(), isNotEmpty);
-          expect(
-            seenNamesEn.add(nameEn),
-            isTrue,
-            reason: 'Duplicate nameEn: $nameEn',
-          );
+        expect(nameEn, isNotNull);
+        expect(nameEn!.trim(), isNotEmpty);
+        expect(
+          seenNamesEn.add(nameEn),
+          isTrue,
+          reason: 'Duplicate nameEn: $nameEn',
+        );
 
-          final geomType = geom['type'] as String;
-          expect(geomType, isIn(['Polygon', 'MultiPolygon']));
+        final geomType = geom['type'] as String;
+        expect(geomType, isIn(['Polygon', 'MultiPolygon']));
 
-          if (geomType == 'Polygon') {
-            polygonCount++;
-            final rings = geom['coordinates'] as List;
+        if (geomType == 'Polygon') {
+          polygonCount++;
+          final rings = geom['coordinates'] as List;
+          expect(rings.isNotEmpty, isTrue);
+
+          for (int rIdx = 0; rIdx < rings.length; rIdx++) {
+            totalRings++;
+            if (rIdx == 0) {
+              exteriorRings++;
+            } else {
+              interiorRings++;
+            }
+            final ring = rings[rIdx];
+            expect(
+              isValidRing(ring),
+              isTrue,
+              reason: 'Invalid Polygon ring in $iso (ring index $rIdx)',
+            );
+            for (final coord in ring as List) {
+              totalCoordinates++;
+              expect(
+                isValidCoordinate(coord),
+                isTrue,
+                reason: 'Invalid coordinate in $iso: $coord',
+              );
+            }
+          }
+        } else {
+          multiPolygonCount++;
+          final parts = geom['coordinates'] as List;
+          expect(parts.isNotEmpty, isTrue);
+
+          for (int pIdx = 0; pIdx < parts.length; pIdx++) {
+            final rings = parts[pIdx] as List;
             expect(rings.isNotEmpty, isTrue);
 
             for (int rIdx = 0; rIdx < rings.length; rIdx++) {
@@ -233,7 +264,8 @@ void main() {
               expect(
                 isValidRing(ring),
                 isTrue,
-                reason: 'Invalid Polygon ring in $iso (ring index $rIdx)',
+                reason:
+                    'Invalid MultiPolygon ring in $iso (part $pIdx, ring $rIdx)',
               );
               for (final coord in ring as List) {
                 totalCoordinates++;
@@ -244,101 +276,68 @@ void main() {
                 );
               }
             }
-          } else {
-            multiPolygonCount++;
-            final parts = geom['coordinates'] as List;
-            expect(parts.isNotEmpty, isTrue);
-
-            for (int pIdx = 0; pIdx < parts.length; pIdx++) {
-              final rings = parts[pIdx] as List;
-              expect(rings.isNotEmpty, isTrue);
-
-              for (int rIdx = 0; rIdx < rings.length; rIdx++) {
-                totalRings++;
-                if (rIdx == 0) {
-                  exteriorRings++;
-                } else {
-                  interiorRings++;
-                }
-                final ring = rings[rIdx];
-                expect(
-                  isValidRing(ring),
-                  isTrue,
-                  reason:
-                      'Invalid MultiPolygon ring in $iso (part $pIdx, ring $rIdx)',
-                );
-                for (final coord in ring as List) {
-                  totalCoordinates++;
-                  expect(
-                    isValidCoordinate(coord),
-                    isTrue,
-                    reason: 'Invalid coordinate in $iso: $coord',
-                  );
-                }
-              }
-            }
           }
         }
+      }
 
-        expect(polygonCount, equals(19));
-        expect(multiPolygonCount, equals(8));
-        expect(seenIsos.length, equals(27));
-        expect(seenNamesAr.length, equals(27));
-        expect(seenNamesEn.length, equals(27));
-        expect(totalRings, equals(62));
-        expect(exteriorRings, equals(62));
-        expect(interiorRings, equals(0)); // geoBoundaries ADM1 simplified contains no holes
-        expect(totalCoordinates, equals(6773));
-      },
-    );
+      expect(polygonCount, equals(19));
+      expect(multiPolygonCount, equals(8));
+      expect(seenIsos.length, equals(27));
+      expect(seenNamesAr.length, equals(27));
+      expect(seenNamesEn.length, equals(27));
+      expect(totalRings, equals(62));
+      expect(exteriorRings, equals(62));
+      expect(
+        interiorRings,
+        equals(0),
+      ); // geoBoundaries ADM1 simplified contains no holes
+      expect(totalCoordinates, equals(6773));
+    });
 
-    test(
-      'Rejects malformed coordinate positions and unclosed or degenerate rings (Workstream A fixture validation)',
-      () {
-        // Coordinate level rejections
-        expect(isValidCoordinate([double.nan, 30.0]), isFalse);
-        expect(isValidCoordinate([30.0, double.nan]), isFalse);
-        expect(isValidCoordinate([double.infinity, 30.0]), isFalse);
-        expect(isValidCoordinate([30.0, double.negativeInfinity]), isFalse);
-        expect(isValidCoordinate([190.0, 30.0]), isFalse); // Lon > 180
-        expect(isValidCoordinate([-190.0, 30.0]), isFalse); // Lon < -180
-        expect(isValidCoordinate([30.0, 95.0]), isFalse); // Lat > 90
-        expect(isValidCoordinate([30.0, -95.0]), isFalse); // Lat < -90
-        expect(isValidCoordinate(['30.0', 31.0]), isFalse); // Non-numeric
-        expect(isValidCoordinate([30.0]), isFalse); // Insufficient dimensions
-        expect(isValidCoordinate('not-a-list'), isFalse);
+    test('Rejects malformed coordinate positions and unclosed or degenerate rings (Workstream A fixture validation)', () {
+      // Coordinate level rejections
+      expect(isValidCoordinate([double.nan, 30.0]), isFalse);
+      expect(isValidCoordinate([30.0, double.nan]), isFalse);
+      expect(isValidCoordinate([double.infinity, 30.0]), isFalse);
+      expect(isValidCoordinate([30.0, double.negativeInfinity]), isFalse);
+      expect(isValidCoordinate([190.0, 30.0]), isFalse); // Lon > 180
+      expect(isValidCoordinate([-190.0, 30.0]), isFalse); // Lon < -180
+      expect(isValidCoordinate([30.0, 95.0]), isFalse); // Lat > 90
+      expect(isValidCoordinate([30.0, -95.0]), isFalse); // Lat < -90
+      expect(isValidCoordinate(['30.0', 31.0]), isFalse); // Non-numeric
+      expect(isValidCoordinate([30.0]), isFalse); // Insufficient dimensions
+      expect(isValidCoordinate('not-a-list'), isFalse);
 
-        // Ring level rejections
-        expect(
-          isValidRing([
-            [30.0, 30.0],
-            [31.0, 30.0],
-            [31.0, 31.0],
-            [30.0, 30.5], // Unclosed (first != last)
-          ]),
-          isFalse,
-        );
+      // Ring level rejections
+      expect(
+        isValidRing([
+          [30.0, 30.0],
+          [31.0, 30.0],
+          [31.0, 31.0],
+          [30.0, 30.5], // Unclosed (first != last)
+        ]),
+        isFalse,
+      );
 
-        expect(
-          isValidRing([
-            [30.0, 30.0],
-            [31.0, 30.0],
-            [30.0, 30.0], // Degenerate: only 3 points
-          ]),
-          isFalse,
-        );
+      expect(
+        isValidRing([
+          [30.0, 30.0],
+          [31.0, 30.0],
+          [30.0, 30.0], // Degenerate: only 3 points
+        ]),
+        isFalse,
+      );
 
-        expect(
-          isValidRing([
-            [30.0, 30.0],
-            [double.nan, 30.0], // Contaminated with NaN
-            [31.0, 31.0],
-            [30.0, 30.0],
-          ]),
-          isFalse,
-        );
-      },
-    );
+      expect(
+        isValidRing([
+          [30.0, 30.0],
+          [double.nan, 30.0], // Contaminated with NaN
+          [31.0, 31.0],
+          [30.0, 30.0],
+        ]),
+        isFalse,
+      );
+    });
 
     test('Known valid points inside Egypt pass boundary check', () {
       // Sidi Salem, Kafr El-Sheikh
@@ -388,229 +387,202 @@ void main() {
       );
     });
 
-    test(
-      'MultiPolygon non-primary component resolves accurately (South Sinai: Tiran Island)',
-      () {
-        // Tiran Island is part 0 of EG-JS (South Sinai Governorate MultiPolygon)
-        // Coordinates: Lat 27.962878, Lon 34.558708
-        const double tiranLat = 27.962878;
-        const double tiranLon = 34.558708;
+    test('MultiPolygon non-primary component resolves accurately (South Sinai: Tiran Island)', () {
+      // Tiran Island is part 0 of EG-JS (South Sinai Governorate MultiPolygon)
+      // Coordinates: Lat 27.962878, Lon 34.558708
+      const double tiranLat = 27.962878;
+      const double tiranLon = 34.558708;
 
-        expect(boundaryService.isWithinEgypt(tiranLat, tiranLon), isTrue);
-        expect(
-          boundaryService.findGovernorate(tiranLat, tiranLon),
-          equals('جنوب سيناء'),
-        );
-      },
-    );
+      expect(boundaryService.isWithinEgypt(tiranLat, tiranLon), isTrue);
+      expect(
+        boundaryService.findGovernorate(tiranLat, tiranLon),
+        equals('جنوب سيناء'),
+      );
+    });
 
-    test(
-      'Boundary-adjacent points on opposite sides of shared border resolve to correct governorates',
-      () {
-        // Shared boundary between Gharbia (EG-GH) and Kafr El-Sheikh (EG-KFS) near vertex [30.7613501, 30.9870359]
-        // Point 1: South of border in Gharbia interior (Lat 30.9767, Lon 30.7785)
-        const double gharbiaLat = 30.9767;
-        const double gharbiaLon = 30.7785;
-        expect(boundaryService.isWithinEgypt(gharbiaLat, gharbiaLon), isTrue);
-        expect(
-          boundaryService.findGovernorate(gharbiaLat, gharbiaLon),
-          equals('الغربية'),
-        );
+    test('Boundary-adjacent points on opposite sides of shared border resolve to correct governorates', () {
+      // Shared boundary between Gharbia (EG-GH) and Kafr El-Sheikh (EG-KFS) near vertex [30.7613501, 30.9870359]
+      // Point 1: South of border in Gharbia interior (Lat 30.9767, Lon 30.7785)
+      const double gharbiaLat = 30.9767;
+      const double gharbiaLon = 30.7785;
+      expect(boundaryService.isWithinEgypt(gharbiaLat, gharbiaLon), isTrue);
+      expect(
+        boundaryService.findGovernorate(gharbiaLat, gharbiaLon),
+        equals('الغربية'),
+      );
 
-        // Point 2: North of border in Kafr El-Sheikh interior (Lat 31.0070, Lon 30.7602)
-        const double kfsLat = 31.0070;
-        const double kfsLon = 30.7602;
-        expect(boundaryService.isWithinEgypt(kfsLat, kfsLon), isTrue);
-        expect(
-          boundaryService.findGovernorate(kfsLat, kfsLon),
-          equals('كفر الشيخ'),
-        );
-      },
-    );
+      // Point 2: North of border in Kafr El-Sheikh interior (Lat 31.0070, Lon 30.7602)
+      const double kfsLat = 31.0070;
+      const double kfsLon = 30.7602;
+      expect(boundaryService.isWithinEgypt(kfsLat, kfsLon), isTrue);
+      expect(
+        boundaryService.findGovernorate(kfsLat, kfsLon),
+        equals('كفر الشيخ'),
+      );
+    });
 
-    test(
-      'Shared boundary segment is verified directly in actual GeoJSON geometry of Gharbia and Kafr El-Sheikh (Workstream A)',
-      () {
-        final decoded = json.decode(geoJsonContent) as Map<String, dynamic>;
-        final features =
-            (decoded['features'] as List).cast<Map<String, dynamic>>();
+    test('Shared boundary segment is verified directly in actual GeoJSON geometry of Gharbia and Kafr El-Sheikh (Workstream A)', () {
+      final decoded = json.decode(geoJsonContent) as Map<String, dynamic>;
+      final features = (decoded['features'] as List)
+          .cast<Map<String, dynamic>>();
 
-        // 1. Locate both features in the loaded GeoJSON
-        final ghFeature = features.firstWhere(
-          (f) => f['properties']['shapeISO'] == 'EG-GH',
-        );
-        final kfsFeature = features.firstWhere(
-          (f) => f['properties']['shapeISO'] == 'EG-KFS',
-        );
+      // 1. Locate both features in the loaded GeoJSON
+      final ghFeature = features.firstWhere(
+        (f) => f['properties']['shapeISO'] == 'EG-GH',
+      );
+      final kfsFeature = features.firstWhere(
+        (f) => f['properties']['shapeISO'] == 'EG-KFS',
+      );
 
-        expect(ghFeature, isNotNull);
-        expect(kfsFeature, isNotNull);
+      expect(ghFeature, isNotNull);
+      expect(kfsFeature, isNotNull);
 
-        // 2. Candidate shared segment endpoints [lon, lat]
-        const double aLon = 31.0235506;
-        const double aLat = 30.9865686;
-        const double bLon = 30.9252878;
-        const double bLat = 30.9865686;
+      // 2. Candidate shared segment endpoints [lon, lat]
+      const double aLon = 31.0235506;
+      const double aLat = 30.9865686;
+      const double bLon = 30.9252878;
+      const double bLat = 30.9865686;
 
-        const candidateA = [aLon, aLat];
-        const candidateB = [bLon, bLat];
+      const candidateA = [aLon, aLat];
+      const candidateB = [bLon, bLat];
 
-        // 3. Verify that the candidate segment genuinely exists in Gharbia's loaded geometry
-        expect(
-          geometryContainsSegment(
-            ghFeature['geometry'],
-            candidateA,
-            candidateB,
-          ),
-          isTrue,
-          reason: 'Candidate segment AB must exist in Gharbia (EG-GH) geometry',
-        );
+      // 3. Verify that the candidate segment genuinely exists in Gharbia's loaded geometry
+      expect(
+        geometryContainsSegment(ghFeature['geometry'], candidateA, candidateB),
+        isTrue,
+        reason: 'Candidate segment AB must exist in Gharbia (EG-GH) geometry',
+      );
 
-        // 4. Verify that the same segment genuinely exists in Kafr El-Sheikh's loaded geometry
-        expect(
-          geometryContainsSegment(
-            kfsFeature['geometry'],
-            candidateA,
-            candidateB,
-          ),
-          isTrue,
-          reason:
-              'Candidate segment AB must exist in Kafr El-Sheikh (EG-KFS) geometry',
-        );
+      // 4. Verify that the same segment genuinely exists in Kafr El-Sheikh's loaded geometry
+      expect(
+        geometryContainsSegment(kfsFeature['geometry'], candidateA, candidateB),
+        isTrue,
+        reason: 'Candidate segment AB must exist in Kafr El-Sheikh (EG-KFS) geometry',
+      );
 
-        // 5. Negative control: Arbitrary unshared segment must be rejected
-        const fakeP1 = [31.0000, 30.0000];
-        const fakeP2 = [31.5000, 30.5000];
-        expect(
-          geometryContainsSegment(ghFeature['geometry'], fakeP1, fakeP2),
-          isFalse,
-        );
-        expect(
-          geometryContainsSegment(kfsFeature['geometry'], fakeP1, fakeP2),
-          isFalse,
-        );
+      // 5. Negative control: Arbitrary unshared segment must be rejected
+      const fakeP1 = [31.0000, 30.0000];
+      const fakeP2 = [31.5000, 30.5000];
+      expect(
+        geometryContainsSegment(ghFeature['geometry'], fakeP1, fakeP2),
+        isFalse,
+      );
+      expect(
+        geometryContainsSegment(kfsFeature['geometry'], fakeP1, fakeP2),
+        isFalse,
+      );
 
-        // 6. Compute midpoint P of the verified source segment
-        const double pLon = (aLon + bLon) / 2.0; // 30.9744192
-        const double pLat = 30.9865686;
+      // 6. Compute midpoint P of the verified source segment
+      const double pLon = (aLon + bLon) / 2.0; // 30.9744192
+      const double pLat = 30.9865686;
 
-        // Mathematical proof: P lies strictly on segment AB
-        expect(isPointOnSegment(pLon, pLat, aLon, aLat, bLon, bLat), isTrue);
+      // Mathematical proof: P lies strictly on segment AB
+      expect(isPointOnSegment(pLon, pLat, aLon, aLat, bLon, bLat), isTrue);
 
-        // 7. Interior point tests on opposite sides of the verified shared boundary
-        // South of segment: Interior to Gharbia
-        const double southLat = 30.9765686; // 0.01 deg south
-        const double southLon = pLon;
-        expect(boundaryService.isWithinEgypt(southLat, southLon), isTrue);
-        expect(
-          boundaryService.findGovernorate(southLat, southLon),
-          equals('الغربية'),
-        );
+      // 7. Interior point tests on opposite sides of the verified shared boundary
+      // South of segment: Interior to Gharbia
+      const double southLat = 30.9765686; // 0.01 deg south
+      const double southLon = pLon;
+      expect(boundaryService.isWithinEgypt(southLat, southLon), isTrue);
+      expect(
+        boundaryService.findGovernorate(southLat, southLon),
+        equals('الغربية'),
+      );
 
-        // North of segment: Interior to Kafr El-Sheikh
-        const double northLat = 30.9965686; // 0.01 deg north
-        const double northLon = pLon;
-        expect(boundaryService.isWithinEgypt(northLat, northLon), isTrue);
-        expect(
-          boundaryService.findGovernorate(northLat, northLon),
-          equals('كفر الشيخ'),
-        );
+      // North of segment: Interior to Kafr El-Sheikh
+      const double northLat = 30.9965686; // 0.01 deg north
+      const double northLon = pLon;
+      expect(boundaryService.isWithinEgypt(northLat, northLon), isTrue);
+      expect(
+        boundaryService.findGovernorate(northLat, northLon),
+        equals('كفر الشيخ'),
+      );
 
-        // 8. Deterministic boundary resolution:
-        // Midpoint on the shared boundary segment is within Egypt.
-        expect(boundaryService.isWithinEgypt(pLat, pLon), isTrue);
+      // 8. Deterministic boundary resolution:
+      // Midpoint on the shared boundary segment is within Egypt.
+      expect(boundaryService.isWithinEgypt(pLat, pLon), isTrue);
 
-        // Under deterministic first-match in dataset order:
-        // Gharbia (EG-GH, index 9) precedes Kafr El-Sheikh (EG-KFS, index 24).
-        // Midpoint P resolves to Gharbia.
-        final govAtBoundary = boundaryService.findGovernorate(pLat, pLon);
-        expect(
-          govAtBoundary,
-          equals('الغربية'),
-          reason:
-              'Boundary point must resolve deterministically to the first matching feature in dataset order (Gharbia)',
-        );
-      },
-    );
+      // Under deterministic first-match in dataset order:
+      // Gharbia (EG-GH, index 9) precedes Kafr El-Sheikh (EG-KFS, index 24).
+      // Midpoint P resolves to Gharbia.
+      final govAtBoundary = boundaryService.findGovernorate(pLat, pLon);
+      expect(
+        govAtBoundary,
+        equals('الغربية'),
+        reason: 'Boundary point must resolve deterministically to the first matching feature in dataset order (Gharbia)',
+      );
+    });
 
-    test(
-      'Exact boundary vertex is verified in actual GeoJSON and deterministically resolves to Al Beheira (Workstream B)',
-      () {
-        final decoded = json.decode(geoJsonContent) as Map<String, dynamic>;
-        final features =
-            (decoded['features'] as List).cast<Map<String, dynamic>>();
+    test('Exact boundary vertex is verified in actual GeoJSON and deterministically resolves to Al Beheira (Workstream B)', () {
+      final decoded = json.decode(geoJsonContent) as Map<String, dynamic>;
+      final features = (decoded['features'] as List)
+          .cast<Map<String, dynamic>>();
 
-        // Tripoint vertex shared between Beheira (EG-BH), Gharbia (EG-GH), and Kafr El-Sheikh (EG-KFS)
-        const double sharedVertexLat = 30.9870359;
-        const double sharedVertexLon = 30.7613501;
-        const tripoint = [sharedVertexLon, sharedVertexLat];
+      // Tripoint vertex shared between Beheira (EG-BH), Gharbia (EG-GH), and Kafr El-Sheikh (EG-KFS)
+      const double sharedVertexLat = 30.9870359;
+      const double sharedVertexLon = 30.7613501;
+      const tripoint = [sharedVertexLon, sharedVertexLat];
 
-        // 1. Locate the three relevant features in loaded GeoJSON
-        final bhFeature = features.firstWhere(
-          (f) => f['properties']['shapeISO'] == 'EG-BH',
-        );
-        final ghFeature = features.firstWhere(
-          (f) => f['properties']['shapeISO'] == 'EG-GH',
-        );
-        final kfsFeature = features.firstWhere(
-          (f) => f['properties']['shapeISO'] == 'EG-KFS',
-        );
+      // 1. Locate the three relevant features in loaded GeoJSON
+      final bhFeature = features.firstWhere(
+        (f) => f['properties']['shapeISO'] == 'EG-BH',
+      );
+      final ghFeature = features.firstWhere(
+        (f) => f['properties']['shapeISO'] == 'EG-GH',
+      );
+      final kfsFeature = features.firstWhere(
+        (f) => f['properties']['shapeISO'] == 'EG-KFS',
+      );
 
-        // 2. Independently verify the coordinate corresponds to the actual shared vertex in all three geometries
-        expect(
-          geometryContainsVertex(bhFeature['geometry'], tripoint),
-          isTrue,
-          reason: 'Tripoint vertex must exist in Beheira (EG-BH) boundary ring',
-        );
-        expect(
-          geometryContainsVertex(ghFeature['geometry'], tripoint),
-          isTrue,
-          reason: 'Tripoint vertex must exist in Gharbia (EG-GH) boundary ring',
-        );
-        expect(
-          geometryContainsVertex(kfsFeature['geometry'], tripoint),
-          isTrue,
-          reason:
-              'Tripoint vertex must exist in Kafr El-Sheikh (EG-KFS) boundary ring',
-        );
+      // 2. Independently verify the coordinate corresponds to the actual shared vertex in all three geometries
+      expect(
+        geometryContainsVertex(bhFeature['geometry'], tripoint),
+        isTrue,
+        reason: 'Tripoint vertex must exist in Beheira (EG-BH) boundary ring',
+      );
+      expect(
+        geometryContainsVertex(ghFeature['geometry'], tripoint),
+        isTrue,
+        reason: 'Tripoint vertex must exist in Gharbia (EG-GH) boundary ring',
+      );
+      expect(
+        geometryContainsVertex(kfsFeature['geometry'], tripoint),
+        isTrue,
+        reason: 'Tripoint vertex must exist in Kafr El-Sheikh (EG-KFS) boundary ring',
+      );
 
-        // 3. Verify that the vertex is recognized as within Egypt
-        expect(
-          boundaryService.isWithinEgypt(sharedVertexLat, sharedVertexLon),
-          isTrue,
-        );
+      // 3. Verify that the vertex is recognized as within Egypt
+      expect(
+        boundaryService.isWithinEgypt(sharedVertexLat, sharedVertexLon),
+        isTrue,
+      );
 
-        // 4. Lock down the exact, deterministic expected result:
-        // In the production point-in-polygon half-open ray casting:
-        // ((p1y < y && p2y >= y) || (p2y < y && p1y >= y))
-        // Beheira (EG-BH, index 19) contains edges meeting this condition for the ray from [30.7613501, 30.9870359].
-        // Although Gharbia is at index 9, the ray test for Gharbia evaluates to false for this specific vertex,
-        // while Beheira evaluates to true.
-        // Therefore, the deterministic resolution is exclusively 'البحيرة'.
-        final gov = boundaryService.findGovernorate(
-          sharedVertexLat,
-          sharedVertexLon,
-        );
-        expect(
-          gov,
-          equals('البحيرة'),
-          reason:
-              'The boundary tripoint vertex must deterministically resolve to Al Beheira (البحيرة)',
-        );
-      },
-    );
+      // 4. Lock down the exact, deterministic expected result:
+      // In the production point-in-polygon half-open ray casting:
+      // ((p1y < y && p2y >= y) || (p2y < y && p1y >= y))
+      // Beheira (EG-BH, index 19) contains edges meeting this condition for the ray from [30.7613501, 30.9870359].
+      // Although Gharbia is at index 9, the ray test for Gharbia evaluates to false for this specific vertex,
+      // while Beheira evaluates to true.
+      // Therefore, the deterministic resolution is exclusively 'البحيرة'.
+      final gov = boundaryService.findGovernorate(
+        sharedVertexLat,
+        sharedVertexLon,
+      );
+      expect(
+        gov,
+        equals('البحيرة'),
+        reason: 'The boundary tripoint vertex must deterministically resolve to Al Beheira (البحيرة)',
+      );
+    });
 
-    test(
-      'Point inside bounding box envelope but outside Egypt boundary is rejected',
-      () {
-        // Mediterranean offshore (Lat 31.6, Lon 30.0 is inside 22.0..31.8, 25.0..37.0 bbox, but outside Egypt land)
-        expect(boundaryService.isWithinEgypt(31.60, 30.00), isFalse);
-        expect(boundaryService.findGovernorate(31.60, 30.00), isNull);
+    test('Point inside bounding box envelope but outside Egypt boundary is rejected', () {
+      // Mediterranean offshore (Lat 31.6, Lon 30.0 is inside 22.0..31.8, 25.0..37.0 bbox, but outside Egypt land)
+      expect(boundaryService.isWithinEgypt(31.60, 30.00), isFalse);
+      expect(boundaryService.findGovernorate(31.60, 30.00), isNull);
 
-        // Gulf of Suez open waters / international waters
-        expect(boundaryService.isWithinEgypt(32.0, 31.0), isFalse);
-      },
-    );
+      // Gulf of Suez open waters / international waters
+      expect(boundaryService.isWithinEgypt(32.0, 31.0), isFalse);
+    });
 
     test('Points clearly outside Egypt are rejected', () {
       // Northern Sudan (Lat 20.0, Lon 30.0)
@@ -708,7 +680,10 @@ void main() {
       expect(service.governorates.first.polygons.first.holes.length, equals(1));
 
       expect(service.isWithinEgypt(28.5, 30.5), isTrue);
-      expect(service.findGovernorate(28.5, 30.5), equals('محافظة تجريبية بها بحيرة'));
+      expect(
+        service.findGovernorate(28.5, 30.5),
+        equals('محافظة تجريبية بها بحيرة'),
+      );
 
       expect(service.isWithinEgypt(30.0, 32.0), isFalse);
       expect(service.findGovernorate(30.0, 32.0), isNull);
@@ -762,14 +737,22 @@ void main() {
         ],
       });
 
-      final service = EgyptBoundaryService.fromJsonString(syntheticMultiPolyGeoJson);
+      final service = EgyptBoundaryService.fromJsonString(
+        syntheticMultiPolyGeoJson,
+      );
       expect(service.governorates.first.polygons.length, equals(2));
 
       expect(service.isWithinEgypt(28.5, 30.5), isTrue);
-      expect(service.findGovernorate(28.5, 30.5), equals('محافظة الجزر التجريبية'));
+      expect(
+        service.findGovernorate(28.5, 30.5),
+        equals('محافظة الجزر التجريبية'),
+      );
 
       expect(service.isWithinEgypt(30.2, 33.2), isTrue);
-      expect(service.findGovernorate(30.2, 33.2), equals('محافظة الجزر التجريبية'));
+      expect(
+        service.findGovernorate(30.2, 33.2),
+        equals('محافظة الجزر التجريبية'),
+      );
 
       expect(service.isWithinEgypt(31.0, 34.0), isFalse);
       expect(service.findGovernorate(31.0, 34.0), isNull);
@@ -779,19 +762,39 @@ void main() {
     });
 
     test('Strict GeoJSON validation throws FormatException on invalid inputs and structures', () {
-      expect(() => EgyptBoundaryService.fromJsonString('"invalid"'), throwsFormatException);
-      expect(() => EgyptBoundaryService.fromJsonString('[1, 2, 3]'), throwsFormatException);
-
-      expect(() => EgyptBoundaryService.fromJsonString('{"type": "FeatureCollection"}'), throwsFormatException);
-      expect(() => EgyptBoundaryService.fromJsonString('{"type": "FeatureCollection", "features": null}'), throwsFormatException);
-
       expect(
-        () => EgyptBoundaryService.fromJsonString('{"type": "FeatureCollection", "features": ["not-a-map"]}'),
+        () => EgyptBoundaryService.fromJsonString('"invalid"'),
+        throwsFormatException,
+      );
+      expect(
+        () => EgyptBoundaryService.fromJsonString('[1, 2, 3]'),
         throwsFormatException,
       );
 
       expect(
-        () => EgyptBoundaryService.fromJsonString('{"type": "FeatureCollection", "features": [{"properties": {}}]}'),
+        () => EgyptBoundaryService.fromJsonString(
+          '{"type": "FeatureCollection"}',
+        ),
+        throwsFormatException,
+      );
+      expect(
+        () => EgyptBoundaryService.fromJsonString(
+          '{"type": "FeatureCollection", "features": null}',
+        ),
+        throwsFormatException,
+      );
+
+      expect(
+        () => EgyptBoundaryService.fromJsonString(
+          '{"type": "FeatureCollection", "features": ["not-a-map"]}',
+        ),
+        throwsFormatException,
+      );
+
+      expect(
+        () => EgyptBoundaryService.fromJsonString(
+          '{"type": "FeatureCollection", "features": [{"properties": {}}]}',
+        ),
         throwsFormatException,
       );
 
@@ -868,7 +871,10 @@ void main() {
 
     test('Latitude and longitude parameters are strictly validated and not accidentally reversed', () {
       expect(boundaryService.isWithinEgypt(30.0444, 31.2357), isTrue);
-      expect(boundaryService.findGovernorate(30.0444, 31.2357), equals('القاهرة'));
+      expect(
+        boundaryService.findGovernorate(30.0444, 31.2357),
+        equals('القاهرة'),
+      );
 
       final swappedGov = boundaryService.findGovernorate(31.2357, 30.0444);
       expect(swappedGov, isNot(equals('القاهرة')));
@@ -881,6 +887,278 @@ void main() {
       expect(boundaryService.findGovernorate(-90.1, 31.0), isNull);
       expect(boundaryService.findGovernorate(30.0, 180.1), isNull);
       expect(boundaryService.findGovernorate(30.0, -180.1), isNull);
+    });
+  });
+
+  group('Direct Parser GeoJSON Linear Ring Validation Tests (Task B)', () {
+    Map<String, dynamic> createPolygonFixture(List<dynamic> rings) {
+      return {
+        'type': 'FeatureCollection',
+        'features': [
+          {
+            'type': 'Feature',
+            'properties': {
+              'shapeISO': 'EG-TEST',
+              'shapeName': 'Test Governorate',
+              'nameAr': 'محافظة اختبار',
+            },
+            'geometry': {'type': 'Polygon', 'coordinates': rings},
+          },
+        ],
+      };
+    }
+
+    Map<String, dynamic> createMultiPolygonFixture(List<dynamic> multiRings) {
+      return {
+        'type': 'FeatureCollection',
+        'features': [
+          {
+            'type': 'Feature',
+            'properties': {
+              'shapeISO': 'EG-MULTI-TEST',
+              'shapeName': 'Test Multi Governorate',
+              'nameAr': 'محافظة متعددة اختبار',
+            },
+            'geometry': {'type': 'MultiPolygon', 'coordinates': multiRings},
+          },
+        ],
+      };
+    }
+
+    test('accepts a valid closed ring with three distinct vertices', () {
+      final geoJson = createPolygonFixture([
+        [
+          [30.0, 28.0],
+          [31.0, 28.0],
+          [31.0, 29.0],
+          [30.0, 28.0],
+        ],
+      ]);
+
+      final service = EgyptBoundaryService.fromJsonString(jsonEncode(geoJson));
+      expect(service.governorates.length, equals(1));
+      expect(service.governorates.first.nameAr, equals('محافظة اختبار'));
+      expect(service.governorates.first.nameEn, equals('Test Governorate'));
+      expect(service.isWithinEgypt(28.3, 30.6), isTrue);
+      expect(service.findGovernorate(28.3, 30.6), equals('محافظة اختبار'));
+    });
+
+    test('rejects a ring with only three coordinate positions', () {
+      final geoJson = createPolygonFixture([
+        [
+          [30.0, 28.0],
+          [31.0, 28.0],
+          [30.0, 28.0],
+        ],
+      ]);
+      expect(
+        () => EgyptBoundaryService.fromJsonString(jsonEncode(geoJson)),
+        throwsFormatException,
+      );
+    });
+
+    test('rejects a ring with four positions but fewer than three distinct vertices', () {
+      final geoJson = createPolygonFixture([
+        [
+          [30.0, 28.0],
+          [31.0, 28.0],
+          [30.0, 28.0],
+          [30.0, 28.0],
+        ],
+      ]);
+      expect(
+        () => EgyptBoundaryService.fromJsonString(jsonEncode(geoJson)),
+        throwsFormatException,
+      );
+    });
+
+    test('rejects a ring whose first and last positions do not match', () {
+      final geoJson = createPolygonFixture([
+        [
+          [30.0, 28.0],
+          [31.0, 28.0],
+          [31.0, 29.0],
+          [30.0, 29.0],
+        ],
+      ]);
+      expect(
+        () => EgyptBoundaryService.fromJsonString(jsonEncode(geoJson)),
+        throwsFormatException,
+      );
+    });
+
+    test('rejects longitude below the valid GeoJSON range (-180)', () {
+      final geoJson = createPolygonFixture([
+        [
+          [-180.1, 28.0],
+          [31.0, 28.0],
+          [31.0, 29.0],
+          [-180.1, 28.0],
+        ],
+      ]);
+      expect(
+        () => EgyptBoundaryService.fromJsonString(jsonEncode(geoJson)),
+        throwsFormatException,
+      );
+    });
+
+    test('rejects longitude above the valid GeoJSON range (180)', () {
+      final geoJson = createPolygonFixture([
+        [
+          [180.1, 28.0],
+          [31.0, 28.0],
+          [31.0, 29.0],
+          [180.1, 28.0],
+        ],
+      ]);
+      expect(
+        () => EgyptBoundaryService.fromJsonString(jsonEncode(geoJson)),
+        throwsFormatException,
+      );
+    });
+
+    test('rejects latitude below the valid GeoJSON range (-90)', () {
+      final geoJson = createPolygonFixture([
+        [
+          [30.0, -90.1],
+          [31.0, 28.0],
+          [31.0, 29.0],
+          [30.0, -90.1],
+        ],
+      ]);
+      expect(
+        () => EgyptBoundaryService.fromJsonString(jsonEncode(geoJson)),
+        throwsFormatException,
+      );
+    });
+
+    test('rejects latitude above the valid GeoJSON range (90)', () {
+      final geoJson = createPolygonFixture([
+        [
+          [30.0, 90.1],
+          [31.0, 28.0],
+          [31.0, 29.0],
+          [30.0, 90.1],
+        ],
+      ]);
+      expect(
+        () => EgyptBoundaryService.fromJsonString(jsonEncode(geoJson)),
+        throwsFormatException,
+      );
+    });
+
+    test('rejects a ring containing NaN coordinate', () {
+      final geoJson = {
+        'type': 'FeatureCollection',
+        'features': [
+          {
+            'type': 'Feature',
+            'properties': {
+              'shapeISO': 'EG-TEST',
+              'shapeName': 'Test',
+              'nameAr': 'اختبار',
+            },
+            'geometry': {
+              'type': 'Polygon',
+              'coordinates': [
+                [
+                  ['NaN', 28.0],
+                  [31.0, 28.0],
+                  [31.0, 29.0],
+                  ['NaN', 28.0],
+                ],
+              ],
+            },
+          },
+        ],
+      };
+      expect(
+        () => EgyptBoundaryService.fromJsonString(jsonEncode(geoJson)),
+        throwsFormatException,
+      );
+    });
+
+    test('rejects a ring containing Infinite coordinate', () {
+      final rawJson = '''
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {"shapeISO": "EG-TEST", "shapeName": "Test", "nameAr": "اختبار"},
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [1e999, 28.0],
+            [31.0, 28.0],
+            [31.0, 29.0],
+            [1e999, 28.0]
+          ]
+        ]
+      }
+    }
+  ]
+}''';
+      expect(
+        () => EgyptBoundaryService.fromJsonString(rawJson),
+        throwsFormatException,
+      );
+    });
+
+    test('rejects an invalid Polygon exterior ring', () {
+      final geoJson = createPolygonFixture(['not-a-list-of-positions']);
+      expect(
+        () => EgyptBoundaryService.fromJsonString(jsonEncode(geoJson)),
+        throwsFormatException,
+      );
+    });
+
+    test('rejects an invalid Polygon interior ring', () {
+      final geoJson = createPolygonFixture([
+        [
+          [30.0, 28.0],
+          [34.0, 28.0],
+          [34.0, 32.0],
+          [30.0, 32.0],
+          [30.0, 28.0],
+        ],
+        [
+          [31.0, 29.0],
+          [33.0, 29.0],
+          [33.0, 31.0],
+          [31.0, 31.0],
+        ],
+      ]);
+      expect(
+        () => EgyptBoundaryService.fromJsonString(jsonEncode(geoJson)),
+        throwsFormatException,
+      );
+    });
+
+    test('rejects an invalid ring inside a MultiPolygon component', () {
+      final geoJson = createMultiPolygonFixture([
+        [
+          [
+            [30.0, 28.0],
+            [31.0, 28.0],
+            [31.0, 29.0],
+            [30.0, 28.0],
+          ],
+        ],
+        [
+          [
+            [33.0, 30.0],
+            [34.0, 30.0],
+            [33.0, 30.0],
+            [33.0, 30.0],
+          ],
+        ],
+      ]);
+      expect(
+        () => EgyptBoundaryService.fromJsonString(jsonEncode(geoJson)),
+        throwsFormatException,
+      );
     });
   });
 }

@@ -25,39 +25,89 @@ class GeoPolygon {
     required String ringType,
   }) {
     if (ringData is! List) {
-      throw FormatException('$ringType ring must be a JSON array');
-    }
-    if (ringData.length < 3) {
       throw FormatException(
-        '$ringType ring must contain at least 3 coordinates',
+        '$ringType must be a list of coordinate positions.',
       );
     }
 
-    final ring = <List<double>>[];
-    for (int i = 0; i < ringData.length; i++) {
-      final pt = ringData[i];
-      if (pt is! List || pt.length < 2) {
-        throw FormatException(
-          'Coordinate at index $i in $ringType ring must be an array of at least 2 numbers',
-        );
-      }
-      final x = pt[0];
-      final y = pt[1];
-      if (x is! num || y is! num) {
-        throw FormatException(
-          'Coordinate at index $i in $ringType ring contains non-numeric values',
-        );
-      }
-      final dx = x.toDouble();
-      final dy = y.toDouble();
-      if (!dx.isFinite || !dy.isFinite) {
-        throw FormatException(
-          'Coordinate at index $i in $ringType ring contains non-finite values',
-        );
-      }
-      ring.add([dx, dy]);
+    if (ringData.length < 4) {
+      throw FormatException(
+        '$ringType must contain at least four positions, '
+        'including the closing position.',
+      );
     }
-    return ring;
+
+    final parsedRing = <List<double>>[];
+
+    for (var i = 0; i < ringData.length; i++) {
+      final position = ringData[i];
+
+      if (position is! List || position.length < 2) {
+        throw FormatException(
+          '$ringType position $i must contain at least '
+          'longitude and latitude.',
+        );
+      }
+
+      final longitudeValue = position[0];
+      final latitudeValue = position[1];
+
+      if (longitudeValue is! num || latitudeValue is! num) {
+        throw FormatException(
+          '$ringType position $i contains non-numeric coordinates.',
+        );
+      }
+
+      final longitude = longitudeValue.toDouble();
+      final latitude = latitudeValue.toDouble();
+
+      if (!longitude.isFinite || !latitude.isFinite) {
+        throw FormatException(
+          '$ringType position $i contains a non-finite coordinate.',
+        );
+      }
+
+      if (longitude < -180.0 || longitude > 180.0) {
+        throw FormatException(
+          '$ringType position $i has longitude outside [-180, 180].',
+        );
+      }
+
+      if (latitude < -90.0 || latitude > 90.0) {
+        throw FormatException(
+          '$ringType position $i has latitude outside [-90, 90].',
+        );
+      }
+
+      parsedRing.add([longitude, latitude]);
+    }
+
+    final firstPosition = parsedRing.first;
+    final lastPosition = parsedRing.last;
+
+    final isClosed =
+        firstPosition[0] == lastPosition[0] &&
+        firstPosition[1] == lastPosition[1];
+
+    if (!isClosed) {
+      throw FormatException(
+        '$ringType is not closed: its first and last positions must match.',
+      );
+    }
+
+    final distinctVertices = <String>{};
+
+    for (final position in parsedRing.take(parsedRing.length - 1)) {
+      distinctVertices.add('${position[0]},${position[1]}');
+    }
+
+    if (distinctVertices.length < 3) {
+      throw FormatException(
+        '$ringType must contain at least three distinct vertices.',
+      );
+    }
+
+    return parsedRing;
   }
 
   factory GeoPolygon.fromRings(List<dynamic> rings) {
@@ -65,7 +115,7 @@ class GeoPolygon {
       throw const FormatException('Empty polygon rings');
     }
 
-    final exterior = _parseRing(rings[0], ringType: 'Exterior');
+    final exterior = _parseRing(rings[0], ringType: 'Exterior ring');
 
     double minX = double.infinity;
     double maxX = -double.infinity;
@@ -81,7 +131,7 @@ class GeoPolygon {
 
     final holes = <List<List<double>>>[];
     for (int i = 1; i < rings.length; i++) {
-      holes.add(_parseRing(rings[i], ringType: 'Interior hole #$i'));
+      holes.add(_parseRing(rings[i], ringType: 'Interior ring #$i'));
     }
 
     return GeoPolygon(
