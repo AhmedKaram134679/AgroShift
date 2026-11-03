@@ -116,11 +116,17 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen> {
       point.longitude,
     );
 
-    setState(() {
+    if (mounted) {
+      setState(() {
+        _selectedPoint = point;
+        _isPointInEgypt = inEgypt;
+        _detectedGovernorate = gov;
+      });
+    } else {
       _selectedPoint = point;
       _isPointInEgypt = inEgypt;
       _detectedGovernorate = gov;
-    });
+    }
   }
 
   void _confirmSelection() {

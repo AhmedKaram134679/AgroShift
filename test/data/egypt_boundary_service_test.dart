@@ -667,4 +667,220 @@ void main() {
       );
     });
   });
+
+  group('Synthetic GeoJSON Geometry, Parsing & Defensive Correctness Tests (Workstream A)', () {
+    test('Synthetic Polygon with interior hole correctly includes exterior and excludes hole', () {
+      final syntheticHoleGeoJson = json.encode({
+        'type': 'FeatureCollection',
+        'features': [
+          {
+            'type': 'Feature',
+            'properties': {
+              'shapeISO': 'SYN-HOLE',
+              'shapeName': 'Synthetic Governorate with Oasis Hole',
+              'nameAr': 'محافظة تجريبية بها بحيرة',
+            },
+            'geometry': {
+              'type': 'Polygon',
+              'coordinates': [
+                [
+                  [30.0, 28.0],
+                  [34.0, 28.0],
+                  [34.0, 32.0],
+                  [30.0, 32.0],
+                  [30.0, 28.0],
+                ],
+                [
+                  [31.0, 29.0],
+                  [33.0, 29.0],
+                  [33.0, 31.0],
+                  [31.0, 31.0],
+                  [31.0, 29.0],
+                ],
+              ],
+            },
+          },
+        ],
+      });
+
+      final service = EgyptBoundaryService.fromJsonString(syntheticHoleGeoJson);
+      expect(service.governorates.length, equals(1));
+      expect(service.governorates.first.polygons.first.holes.length, equals(1));
+
+      expect(service.isWithinEgypt(28.5, 30.5), isTrue);
+      expect(service.findGovernorate(28.5, 30.5), equals('محافظة تجريبية بها بحيرة'));
+
+      expect(service.isWithinEgypt(30.0, 32.0), isFalse);
+      expect(service.findGovernorate(30.0, 32.0), isNull);
+
+      expect(service.isWithinEgypt(27.0, 32.0), isFalse);
+      expect(service.findGovernorate(27.0, 32.0), isNull);
+    });
+
+    test('Synthetic MultiPolygon evaluates each component and respects holes per component', () {
+      final syntheticMultiPolyGeoJson = json.encode({
+        'type': 'FeatureCollection',
+        'features': [
+          {
+            'type': 'Feature',
+            'properties': {
+              'shapeISO': 'SYN-MULTI',
+              'shapeName': 'Synthetic Multi-Islands',
+              'nameAr': 'محافظة الجزر التجريبية',
+            },
+            'geometry': {
+              'type': 'MultiPolygon',
+              'coordinates': [
+                [
+                  [
+                    [30.0, 28.0],
+                    [31.0, 28.0],
+                    [31.0, 29.0],
+                    [30.0, 29.0],
+                    [30.0, 28.0],
+                  ],
+                ],
+                [
+                  [
+                    [33.0, 30.0],
+                    [35.0, 30.0],
+                    [35.0, 32.0],
+                    [33.0, 32.0],
+                    [33.0, 30.0],
+                  ],
+                  [
+                    [33.8, 30.8],
+                    [34.2, 30.8],
+                    [34.2, 31.2],
+                    [33.8, 31.2],
+                    [33.8, 30.8],
+                  ],
+                ],
+              ],
+            },
+          },
+        ],
+      });
+
+      final service = EgyptBoundaryService.fromJsonString(syntheticMultiPolyGeoJson);
+      expect(service.governorates.first.polygons.length, equals(2));
+
+      expect(service.isWithinEgypt(28.5, 30.5), isTrue);
+      expect(service.findGovernorate(28.5, 30.5), equals('محافظة الجزر التجريبية'));
+
+      expect(service.isWithinEgypt(30.2, 33.2), isTrue);
+      expect(service.findGovernorate(30.2, 33.2), equals('محافظة الجزر التجريبية'));
+
+      expect(service.isWithinEgypt(31.0, 34.0), isFalse);
+      expect(service.findGovernorate(31.0, 34.0), isNull);
+
+      expect(service.isWithinEgypt(29.5, 32.0), isFalse);
+      expect(service.findGovernorate(29.5, 32.0), isNull);
+    });
+
+    test('Strict GeoJSON validation throws FormatException on invalid inputs and structures', () {
+      expect(() => EgyptBoundaryService.fromJsonString('"invalid"'), throwsFormatException);
+      expect(() => EgyptBoundaryService.fromJsonString('[1, 2, 3]'), throwsFormatException);
+
+      expect(() => EgyptBoundaryService.fromJsonString('{"type": "FeatureCollection"}'), throwsFormatException);
+      expect(() => EgyptBoundaryService.fromJsonString('{"type": "FeatureCollection", "features": null}'), throwsFormatException);
+
+      expect(
+        () => EgyptBoundaryService.fromJsonString('{"type": "FeatureCollection", "features": ["not-a-map"]}'),
+        throwsFormatException,
+      );
+
+      expect(
+        () => EgyptBoundaryService.fromJsonString('{"type": "FeatureCollection", "features": [{"properties": {}}]}'),
+        throwsFormatException,
+      );
+
+      expect(
+        () => EgyptBoundaryService.fromJsonString(
+          '{"type": "FeatureCollection", "features": [{"properties": {}, "geometry": {"type": "Polygon"}}]}',
+        ),
+        throwsFormatException,
+      );
+
+      expect(
+        () => EgyptBoundaryService.fromJsonString(
+          '{"type": "FeatureCollection", "features": [{"properties": {}, "geometry": {"type": "Point", "coordinates": [30.0, 31.0]}}]}',
+        ),
+        throwsFormatException,
+      );
+
+      expect(
+        () => EgyptBoundaryService.fromJsonString(
+          '{"type": "FeatureCollection", "features": [{"properties": {}, "geometry": {"type": "MultiPolygon", "coordinates": []}}]}',
+        ),
+        throwsFormatException,
+      );
+
+      expect(
+        () => EgyptBoundaryService.fromJsonString(
+          '{"type": "FeatureCollection", "features": [{"properties": {}, "geometry": {"type": "MultiPolygon", "coordinates": ["not-a-list"]}}]}',
+        ),
+        throwsFormatException,
+      );
+
+      expect(
+        () => EgyptBoundaryService.fromJsonString(
+          '{"type": "FeatureCollection", "features": [{"properties": {}, "geometry": {"type": "Polygon", "coordinates": []}}]}',
+        ),
+        throwsFormatException,
+      );
+
+      expect(
+        () => EgyptBoundaryService.fromJsonString(
+          '{"type": "FeatureCollection", "features": [{"properties": {}, "geometry": {"type": "Polygon", "coordinates": ["not-a-ring"]}}]}',
+        ),
+        throwsFormatException,
+      );
+
+      expect(
+        () => EgyptBoundaryService.fromJsonString(
+          '{"type": "FeatureCollection", "features": [{"properties": {}, "geometry": {"type": "Polygon", "coordinates": [[[30.0, 30.0], [31.0, 31.0]]]}}]}',
+        ),
+        throwsFormatException,
+      );
+
+      expect(
+        () => EgyptBoundaryService.fromJsonString(
+          '{"type": "FeatureCollection", "features": [{"properties": {}, "geometry": {"type": "Polygon", "coordinates": [[[30.0], [31.0], [32.0]]]}}]}',
+        ),
+        throwsFormatException,
+      );
+
+      expect(
+        () => EgyptBoundaryService.fromJsonString(
+          '{"type": "FeatureCollection", "features": [{"properties": {}, "geometry": {"type": "Polygon", "coordinates": [[["30.0", 30.0], [31.0, 31.0], [30.0, 31.0]]]}}]}',
+        ),
+        throwsFormatException,
+      );
+
+      expect(
+        () => EgyptBoundaryService.fromJsonString(
+          '{"type": "FeatureCollection", "features": [{"properties": {}, "geometry": {"type": "Polygon", "coordinates": [[[1e999, 30.0], [31.0, 31.0], [30.0, 31.0]]]}}]}',
+        ),
+        throwsFormatException,
+      );
+    });
+
+    test('Latitude and longitude parameters are strictly validated and not accidentally reversed', () {
+      expect(boundaryService.isWithinEgypt(30.0444, 31.2357), isTrue);
+      expect(boundaryService.findGovernorate(30.0444, 31.2357), equals('القاهرة'));
+
+      final swappedGov = boundaryService.findGovernorate(31.2357, 30.0444);
+      expect(swappedGov, isNot(equals('القاهرة')));
+
+      expect(boundaryService.isWithinEgypt(90.1, 31.0), isFalse);
+      expect(boundaryService.isWithinEgypt(-90.1, 31.0), isFalse);
+      expect(boundaryService.isWithinEgypt(30.0, 180.1), isFalse);
+      expect(boundaryService.isWithinEgypt(30.0, -180.1), isFalse);
+      expect(boundaryService.findGovernorate(90.1, 31.0), isNull);
+      expect(boundaryService.findGovernorate(-90.1, 31.0), isNull);
+      expect(boundaryService.findGovernorate(30.0, 180.1), isNull);
+      expect(boundaryService.findGovernorate(30.0, -180.1), isNull);
+    });
+  });
 }

@@ -80,13 +80,42 @@ class MockFailingTileProvider extends TileProvider {
   ) => _FailingTileImageProvider();
 }
 
+
+/// Asset bundle that fails on first load and succeeds on subsequent load
+class MockRetryAssetBundle extends CachingAssetBundle {
+  int attempts = 0;
+  final String validGeoJson;
+
+  MockRetryAssetBundle(this.validGeoJson);
+
+  @override
+  Future<String> loadString(String key, {bool cache = true}) async {
+    attempts++;
+    if (attempts == 1) {
+      throw const FileSystemException('Temporary I/O failure');
+    }
+    return validGeoJson;
+  }
+
+  @override
+  Future<ByteData> load(String key) async {
+    attempts++;
+    if (attempts == 1) {
+      throw const FileSystemException('Temporary I/O failure');
+    }
+    final bytes = utf8.encode(validGeoJson);
+    return ByteData.view(Uint8List.fromList(bytes).buffer);
+  }
+}
+
 void main() {
   late EgyptBoundaryService boundaryService;
+  late String geoJsonString;
 
   setUpAll(() async {
     final file = File('assets/geo/egypt_governorates.geojson');
-    final jsonStr = await file.readAsString();
-    boundaryService = EgyptBoundaryService.fromJsonString(jsonStr);
+    geoJsonString = await file.readAsString();
+    boundaryService = EgyptBoundaryService.fromJsonString(geoJsonString);
   });
 
   group('EgyptLocationPickerScreen Widget Tests', () {
@@ -332,5 +361,148 @@ void main() {
         expect(find.byIcon(Icons.arrow_back), findsOneWidget);
       },
     );
-  });
+
+    testWidgets(
+      'Retry button re-attempts loading boundary service after initial failure',
+      (tester) async {
+        final retryBundle = MockRetryAssetBundle(geoJsonString);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: EgyptLocationPickerScreen(
+              assetBundle: retryBundle,
+              tileProvider: MockOfflineTileProvider(),
+            ),
+          ),
+        );
+
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        // 1. Initial attempt fails and displays retry button
+        expect(
+          find.textContaining('تعذر تحميل بيانات الحدود الجغرافية لمصر'),
+          findsOneWidget,
+        );
+        expect(find.text('إعادة المحاولة'), findsOneWidget);
+
+        // 2. Tap retry
+        await tester.tap(find.text('إعادة المحاولة'));
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        // 3. Retry succeeds: error message is gone, map controls are rendered
+        expect(
+          find.textContaining('تعذر تحميل بيانات الحدود الجغرافية لمصر'),
+          findsNothing,
+        );
+        expect(find.text('تحديد موقع الحقل على الخريطة'), findsOneWidget);
+        expect(find.text('لم يتم تحديد موقع بعد'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Interactive canvas tap selects point, detects governorate, and enables confirmation',
+      (tester) async {
+        SelectedLocation? returnedLocation;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () async {
+                  returnedLocation = await Navigator.of(ctx).push<SelectedLocation>(
+                    MaterialPageRoute(
+                      builder: (ctx) => EgyptLocationPickerScreen(
+                        boundaryService: boundaryService,
+                        tileProvider: MockOfflineTileProvider(),
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('Open Map'),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Open Map'));
+        await tester.pumpAndSettle();
+
+        // Initial state: no location selected, confirm disabled
+        expect(find.text('لم يتم تحديد موقع بعد'), findsOneWidget);
+        final initialConfirmBtn = tester.widget<ElevatedButton>(
+          find.widgetWithText(ElevatedButton, 'تأكيد الموقع'),
+        );
+        expect(initialConfirmBtn.onPressed, isNull);
+
+        // Tap the map canvas at center (default center is Lat 27.0, Lon 30.8)
+        await tester.tap(find.byType(FlutterMap));
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.pumpAndSettle();
+
+        // Location detected in New Valley
+        expect(find.text('المحافظة: الوادي الجديد'), findsOneWidget);
+        expect(find.textContaining('27.0000'), findsOneWidget);
+        expect(find.textContaining('30.8000'), findsOneWidget);
+
+        // Confirm button is now enabled
+        final activeConfirmBtn = tester.widget<ElevatedButton>(
+          find.widgetWithText(ElevatedButton, 'تأكيد الموقع'),
+        );
+        expect(activeConfirmBtn.onPressed, isNotNull);
+
+        // Tap confirm
+        await tester.tap(find.widgetWithText(ElevatedButton, 'تأكيد الموقع'));
+        await tester.pumpAndSettle();
+
+        // Verify returned location
+        expect(returnedLocation, isNotNull);
+        expect(returnedLocation!.governorateAr, equals('الوادي الجديد'));
+        expect(returnedLocation!.latitude, equals(27.0));
+        expect(returnedLocation!.longitude, equals(30.8));
+      },
+    );
+
+    testWidgets(
+      'Safe disposal during asynchronous boundary loading does not throw',
+      (tester) async {
+        final navKey = GlobalKey<NavigatorState>();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            navigatorKey: navKey,
+            home: Builder(
+              builder: (ctx) => ElevatedButton(
+                onPressed: () {
+                  Navigator.of(ctx).push(
+                    MaterialPageRoute(
+                      builder: (ctx) => EgyptLocationPickerScreen(
+                        assetBundle: MockFailingAssetBundle(),
+                        tileProvider: MockOfflineTileProvider(),
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('Launch Screen'),
+              ),
+            ),
+          ),
+        );
+
+        await tester.tap(find.text('Launch Screen'));
+        await tester.pump(); // Trigger tap and push
+        await tester.pump(const Duration(milliseconds: 50)); // Build screen in transition
+        expect(find.byType(EgyptLocationPickerScreen), findsOneWidget);
+
+        // Immediately pop before async bundle load completes
+        navKey.currentState!.pop();
+        await tester.pumpAndSettle();
+
+        // Screen safely unmounted without throwing unhandled exceptions
+        expect(find.byType(EgyptLocationPickerScreen), findsNothing);
+        expect(find.text('Launch Screen'), findsOneWidget);
+      },
+    );
+});
 }
