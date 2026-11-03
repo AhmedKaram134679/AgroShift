@@ -95,10 +95,10 @@ class GeoPolygon {
       );
     }
 
-    final distinctVertices = <String>{};
+    final distinctVertices = <(double, double)>{};
 
     for (final position in parsedRing.take(parsedRing.length - 1)) {
-      distinctVertices.add('${position[0]},${position[1]}');
+      distinctVertices.add((position[0], position[1]));
     }
 
     if (distinctVertices.length < 3) {

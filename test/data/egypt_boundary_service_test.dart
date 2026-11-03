@@ -972,6 +972,39 @@ void main() {
       );
     });
 
+    test('rejects a ring with fewer than three distinct vertices when coordinates differ only by zero signs', () {
+      final geoJson = createPolygonFixture([
+        [
+          [-0.0, 0.0],
+          [1.0, 0.0],
+          [0.0, 0.0],
+          [-0.0, 0.0],
+        ],
+      ]);
+      expect(
+        () => EgyptBoundaryService.fromJsonString(jsonEncode(geoJson)),
+        throwsFormatException,
+      );
+    });
+
+    test(
+      'rejects a ring with fewer than three distinct vertices when coordinates differ only by zero signs',
+      () {
+        final geoJson = createPolygonFixture([
+          [
+            [-0.0, 0.0],
+            [1.0, 0.0],
+            [0.0, 0.0],
+            [-0.0, 0.0],
+          ],
+        ]);
+        expect(
+          () => EgyptBoundaryService.fromJsonString(jsonEncode(geoJson)),
+          throwsFormatException,
+        );
+      },
+    );
+
     test('rejects a ring whose first and last positions do not match', () {
       final geoJson = createPolygonFixture([
         [
