@@ -41,11 +41,13 @@ class EgyptLocationPickerScreen extends StatefulWidget {
 class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen> {
   static const String _esriSatelliteUrl =
       'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+  static const String _esriLabelsUrl =
+      'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
   static const String _osmStreetUrl =
       'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
-  static const String _esriAttribution =
-      'Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community';
+  static const String _esriHybridAttribution =
+      'Imagery © Esri, Maxar, Earthstar Geographics | Labels © Esri, Garmin, HERE, and GIS Community';
   static const String _osmAttribution = '© OpenStreetMap contributors';
 
   late final MapController _mapController;
@@ -282,6 +284,28 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen> {
                 }
               },
             ),
+            if (_selectedLayer == MapLayerType.satellite)
+              TileLayer(
+                key: const ValueKey('esri_labels_layer'),
+                urlTemplate: _esriLabelsUrl,
+                userAgentPackageName: 'com.agroshift.app',
+                tileProvider: widget.tileProvider ?? NetworkTileProvider(),
+                maxZoom: 19,
+                tileBuilder: (context, tileWidget, tile) {
+                  if (tile.loadError) {
+                    return const SizedBox.shrink();
+                  }
+                  return tileWidget;
+                },
+                errorTileCallback: (tile, error, stackTrace) {
+                  widget.onTileLoadError?.call(tile, error, stackTrace);
+                  if (mounted && !_hasTileLoadError) {
+                    setState(() {
+                      _hasTileLoadError = true;
+                    });
+                  }
+                },
+              ),
             if (_selectedPoint != null)
               MarkerLayer(
                 markers: [
@@ -308,10 +332,14 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen> {
           left: 8,
           bottom: 8,
           child: Container(
-            constraints: const BoxConstraints(maxWidth: 200),
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.sizeOf(context).width > 380
+                  ? 210
+                  : MediaQuery.sizeOf(context).width - 165,
+            ),
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
             decoration: BoxDecoration(
-              color: Colors.white.withAlpha(217), // 0.85 opacity
+              color: Colors.white.withAlpha(225), // 0.88 opacity
               borderRadius: BorderRadius.circular(4),
               boxShadow: [
                 BoxShadow(
@@ -323,15 +351,14 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen> {
             ),
             child: Text(
               _selectedLayer == MapLayerType.satellite
-                  ? _esriAttribution
+                  ? _esriHybridAttribution
                   : _osmAttribution,
               style: const TextStyle(
-                fontSize: 9,
+                fontSize: 8.5,
                 color: Colors.black87,
-                height: 1.2,
+                height: 1.25,
               ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+              softWrap: true,
             ),
           ),
         ),

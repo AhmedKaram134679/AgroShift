@@ -508,46 +508,7 @@ void main() {
     );
 
     testWidgets(
-      'Defaults to Esri World Imagery satellite layer with correct attribution and layer controls',
-      (tester) async {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: EgyptLocationPickerScreen(
-              boundaryService: boundaryService,
-              tileProvider: MockOfflineTileProvider(),
-            ),
-          ),
-        );
-        await tester.pumpAndSettle();
-
-        // 1. Verify default TileLayer is Esri World Imagery with maxZoom 19
-        final tileLayerFinder = find.byType(TileLayer);
-        expect(tileLayerFinder, findsOneWidget);
-        final tileLayer = tester.widget<TileLayer>(tileLayerFinder);
-        expect(
-          tileLayer.urlTemplate,
-          equals(
-            'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-          ),
-        );
-        expect(tileLayer.maxZoom, equals(19));
-
-        // 2. Verify Esri attribution text is displayed
-        expect(
-          find.text(
-            'Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community',
-          ),
-          findsOneWidget,
-        );
-
-        // 3. Verify layer selector buttons are rendered in Arabic
-        expect(find.text('قمر صناعي'), findsOneWidget);
-        expect(find.text('خريطة'), findsOneWidget);
-      },
-    );
-
-    testWidgets(
-      'Switching layers via layer selector toggles between satellite and street map without resetting selected location',
+      'Defaults to Esri World Imagery satellite layer with reference labels overlay, correct layer ordering, and attribution',
       (tester) async {
         await tester.pumpWidget(
           MaterialApp(
@@ -561,31 +522,98 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // Initial state: Satellite layer & Cairo selected
-        expect(find.text('المحافظة: القاهرة'), findsOneWidget);
-        var tileLayer = tester.widget<TileLayer>(find.byType(TileLayer));
+        // 1. Verify Satellite is default layer and FlutterMap children ordering:
+        // [0] = Satellite TileLayer
+        // [1] = Esri Labels TileLayer (above satellite imagery)
+        // [2] = MarkerLayer (above all tile layers)
+        final flutterMap = tester.widget<FlutterMap>(find.byType(FlutterMap));
+        expect(flutterMap.children.length, equals(3));
+
+        final basemapLayer = flutterMap.children[0] as TileLayer;
         expect(
-          tileLayer.urlTemplate,
+          basemapLayer.urlTemplate,
+          equals(
+            'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+          ),
+        );
+        expect(basemapLayer.maxZoom, equals(19));
+
+        final labelsLayer = flutterMap.children[1] as TileLayer;
+        expect(
+          labelsLayer.urlTemplate,
+          equals(
+            'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+          ),
+        );
+        expect(labelsLayer.maxZoom, equals(19));
+
+        final markerLayer = flutterMap.children[2] as MarkerLayer;
+        expect(markerLayer.markers.length, equals(1));
+        expect(markerLayer.markers.first.point.latitude, equals(30.0444));
+
+        // 2. Verify Esri hybrid attribution text is displayed without truncation
+        expect(
+          find.text(
+            'Imagery © Esri, Maxar, Earthstar Geographics | Labels © Esri, Garmin, HERE, and GIS Community',
+          ),
+          findsOneWidget,
+        );
+
+        // 3. Verify layer selector buttons are rendered in Arabic
+        expect(find.text('قمر صناعي'), findsOneWidget);
+        expect(find.text('خريطة'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Switching layers via layer selector toggles between satellite+labels and street map without resetting selected location',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: EgyptLocationPickerScreen(
+              boundaryService: boundaryService,
+              tileProvider: MockOfflineTileProvider(),
+              initialLatitude: 30.0444, // Cairo
+              initialLongitude: 31.2357,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Initial state: Satellite layer & Cairo selected with labels overlay
+        expect(find.text('المحافظة: القاهرة'), findsOneWidget);
+        var flutterMap = tester.widget<FlutterMap>(find.byType(FlutterMap));
+        expect(flutterMap.children.length, equals(3));
+        expect(
+          (flutterMap.children[0] as TileLayer).urlTemplate,
           contains(
             'services.arcgisonline.com/ArcGIS/rest/services/World_Imagery',
           ),
         );
         expect(
+          (flutterMap.children[1] as TileLayer).urlTemplate,
+          contains('World_Boundaries_and_Places'),
+        );
+        expect(flutterMap.children[2], isA<MarkerLayer>());
+        expect(
           find.text(
-            'Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+            'Imagery © Esri, Maxar, Earthstar Geographics | Labels © Esri, Garmin, HERE, and GIS Community',
           ),
           findsOneWidget,
         );
 
-        // 1. Switch to Street Map ('خريطة')
+        // 1. Switch to Street Map ('خريطة') -> removes labels overlay to avoid duplicate labels
         await tester.tap(find.text('خريطة'));
         await tester.pumpAndSettle();
 
-        tileLayer = tester.widget<TileLayer>(find.byType(TileLayer));
+        flutterMap = tester.widget<FlutterMap>(find.byType(FlutterMap));
+        expect(flutterMap.children.length, equals(2));
+        final osmLayer = flutterMap.children[0] as TileLayer;
         expect(
-          tileLayer.urlTemplate,
+          osmLayer.urlTemplate,
           equals('https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
         );
+        expect(flutterMap.children[1], isA<MarkerLayer>());
         expect(find.text('© OpenStreetMap contributors'), findsOneWidget);
 
         // Location selection and confirmation remain intact
@@ -595,20 +623,26 @@ void main() {
         );
         expect(confirmBtn.onPressed, isNotNull);
 
-        // 2. Switch back to Satellite ('قمر صناعي')
+        // 2. Switch back to Satellite ('قمر صناعي') -> restores labels overlay
         await tester.tap(find.text('قمر صناعي'));
         await tester.pumpAndSettle();
 
-        tileLayer = tester.widget<TileLayer>(find.byType(TileLayer));
+        flutterMap = tester.widget<FlutterMap>(find.byType(FlutterMap));
+        expect(flutterMap.children.length, equals(3));
         expect(
-          tileLayer.urlTemplate,
+          (flutterMap.children[0] as TileLayer).urlTemplate,
           contains(
             'services.arcgisonline.com/ArcGIS/rest/services/World_Imagery',
           ),
         );
         expect(
+          (flutterMap.children[1] as TileLayer).urlTemplate,
+          contains('World_Boundaries_and_Places'),
+        );
+        expect(flutterMap.children[2], isA<MarkerLayer>());
+        expect(
           find.text(
-            'Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+            'Imagery © Esri, Maxar, Earthstar Geographics | Labels © Esri, Garmin, HERE, and GIS Community',
           ),
           findsOneWidget,
         );
