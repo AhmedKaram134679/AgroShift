@@ -181,12 +181,6 @@ flutter run
 flutter build apk --release
 ```
 
-### بناء Windows
-
-```bash
-flutter build windows --release
-```
-
 ## الاختبارات والتحليل
 
 ```bash
