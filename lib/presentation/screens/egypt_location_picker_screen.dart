@@ -4,6 +4,9 @@ import 'package:latlong2/latlong.dart';
 import 'package:agro_shift/data/datasources/local/egypt_boundary_service.dart';
 import 'package:agro_shift/domain/environment/models/selected_location.dart';
 
+/// Available basemap layers for the Egypt location picker.
+enum MapLayerType { satellite, streets }
+
 /// Screen allowing the user to pick an agricultural field location on an interactive map
 /// strictly restricted and verified against the Arab Republic of Egypt's geographic boundaries.
 class EgyptLocationPickerScreen extends StatefulWidget {
@@ -17,6 +20,7 @@ class EgyptLocationPickerScreen extends StatefulWidget {
   tileProvider; // Test seam for injecting offline/mock tile provider
   final void Function(TileImage tile, Object error, StackTrace? stackTrace)?
   onTileLoadError; // Test seam for observing/simulating tile errors
+  final MapLayerType initialLayer;
 
   const EgyptLocationPickerScreen({
     super.key,
@@ -26,6 +30,7 @@ class EgyptLocationPickerScreen extends StatefulWidget {
     this.assetBundle,
     this.tileProvider,
     this.onTileLoadError,
+    this.initialLayer = MapLayerType.satellite,
   });
 
   @override
@@ -34,7 +39,17 @@ class EgyptLocationPickerScreen extends StatefulWidget {
 }
 
 class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen> {
+  static const String _esriSatelliteUrl =
+      'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+  static const String _osmStreetUrl =
+      'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+  static const String _esriAttribution =
+      'Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community';
+  static const String _osmAttribution = '© OpenStreetMap contributors';
+
   late final MapController _mapController;
+  late MapLayerType _selectedLayer;
   EgyptBoundaryService? _boundaryService;
   bool _isLoadingService = true;
   String? _serviceErrorMessage;
@@ -54,6 +69,7 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedLayer = widget.initialLayer;
     _mapController = MapController();
     final hasValidInitial =
         widget.initialLatitude != null &&
@@ -236,9 +252,13 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen> {
           ),
           children: [
             TileLayer(
-              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              key: ValueKey(_selectedLayer),
+              urlTemplate: _selectedLayer == MapLayerType.satellite
+                  ? _esriSatelliteUrl
+                  : _osmStreetUrl,
               userAgentPackageName: 'com.agroshift.app',
               tileProvider: widget.tileProvider ?? NetworkTileProvider(),
+              maxZoom: 19,
               tileBuilder: (context, tileWidget, tile) {
                 if (tile.loadError) {
                   return Container(
@@ -288,14 +308,64 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen> {
           left: 8,
           bottom: 8,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            constraints: const BoxConstraints(maxWidth: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
             decoration: BoxDecoration(
               color: Colors.white.withAlpha(217), // 0.85 opacity
               borderRadius: BorderRadius.circular(4),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(25),
+                  blurRadius: 3,
+                  offset: const Offset(0, 1),
+                ),
+              ],
             ),
-            child: const Text(
-              '© OpenStreetMap contributors',
-              style: TextStyle(fontSize: 10, color: Colors.black87),
+            child: Text(
+              _selectedLayer == MapLayerType.satellite
+                  ? _esriAttribution
+                  : _osmAttribution,
+              style: const TextStyle(
+                fontSize: 9,
+                color: Colors.black87,
+                height: 1.2,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+
+        // Map Layer Selector (Satellite vs Street Map)
+        Positioned(
+          right: 8,
+          bottom: 8,
+          child: Material(
+            elevation: 3,
+            borderRadius: BorderRadius.circular(20),
+            color: Colors.white.withAlpha(245),
+            child: Container(
+              padding: const EdgeInsets.all(3),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.grey.shade300, width: 0.5),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildLayerOption(
+                    type: MapLayerType.satellite,
+                    label: 'قمر صناعي',
+                    icon: Icons.satellite_alt_outlined,
+                  ),
+                  const SizedBox(width: 2),
+                  _buildLayerOption(
+                    type: MapLayerType.streets,
+                    label: 'خريطة',
+                    icon: Icons.map_outlined,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -382,6 +452,52 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildLayerOption({
+    required MapLayerType type,
+    required String label,
+    required IconData icon,
+  }) {
+    final isSelected = _selectedLayer == type;
+    return InkWell(
+      onTap: () {
+        if (_selectedLayer != type) {
+          setState(() {
+            _selectedLayer = type;
+            _hasTileLoadError = false;
+          });
+        }
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF1B5E20) : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: isSelected ? Colors.white : Colors.grey.shade700,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? Colors.white : Colors.grey.shade800,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

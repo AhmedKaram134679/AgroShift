@@ -80,7 +80,6 @@ class MockFailingTileProvider extends TileProvider {
   ) => _FailingTileImageProvider();
 }
 
-
 /// Asset bundle that fails on first load and succeeds on subsequent load
 class MockRetryAssetBundle extends CachingAssetBundle {
   int attempts = 0;
@@ -411,14 +410,15 @@ void main() {
             home: Builder(
               builder: (ctx) => ElevatedButton(
                 onPressed: () async {
-                  returnedLocation = await Navigator.of(ctx).push<SelectedLocation>(
-                    MaterialPageRoute(
-                      builder: (ctx) => EgyptLocationPickerScreen(
-                        boundaryService: boundaryService,
-                        tileProvider: MockOfflineTileProvider(),
-                      ),
-                    ),
-                  );
+                  returnedLocation = await Navigator.of(ctx)
+                      .push<SelectedLocation>(
+                        MaterialPageRoute(
+                          builder: (ctx) => EgyptLocationPickerScreen(
+                            boundaryService: boundaryService,
+                            tileProvider: MockOfflineTileProvider(),
+                          ),
+                        ),
+                      );
                 },
                 child: const Text('Open Map'),
               ),
@@ -492,7 +492,9 @@ void main() {
 
         await tester.tap(find.text('Launch Screen'));
         await tester.pump(); // Trigger tap and push
-        await tester.pump(const Duration(milliseconds: 50)); // Build screen in transition
+        await tester.pump(
+          const Duration(milliseconds: 50),
+        ); // Build screen in transition
         expect(find.byType(EgyptLocationPickerScreen), findsOneWidget);
 
         // Immediately pop before async bundle load completes
@@ -504,5 +506,120 @@ void main() {
         expect(find.text('Launch Screen'), findsOneWidget);
       },
     );
-});
+
+    testWidgets(
+      'Defaults to Esri World Imagery satellite layer with correct attribution and layer controls',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: EgyptLocationPickerScreen(
+              boundaryService: boundaryService,
+              tileProvider: MockOfflineTileProvider(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // 1. Verify default TileLayer is Esri World Imagery with maxZoom 19
+        final tileLayerFinder = find.byType(TileLayer);
+        expect(tileLayerFinder, findsOneWidget);
+        final tileLayer = tester.widget<TileLayer>(tileLayerFinder);
+        expect(
+          tileLayer.urlTemplate,
+          equals(
+            'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+          ),
+        );
+        expect(tileLayer.maxZoom, equals(19));
+
+        // 2. Verify Esri attribution text is displayed
+        expect(
+          find.text(
+            'Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+          ),
+          findsOneWidget,
+        );
+
+        // 3. Verify layer selector buttons are rendered in Arabic
+        expect(find.text('قمر صناعي'), findsOneWidget);
+        expect(find.text('خريطة'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'Switching layers via layer selector toggles between satellite and street map without resetting selected location',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: EgyptLocationPickerScreen(
+              boundaryService: boundaryService,
+              tileProvider: MockOfflineTileProvider(),
+              initialLatitude: 30.0444, // Cairo
+              initialLongitude: 31.2357,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Initial state: Satellite layer & Cairo selected
+        expect(find.text('المحافظة: القاهرة'), findsOneWidget);
+        var tileLayer = tester.widget<TileLayer>(find.byType(TileLayer));
+        expect(
+          tileLayer.urlTemplate,
+          contains(
+            'services.arcgisonline.com/ArcGIS/rest/services/World_Imagery',
+          ),
+        );
+        expect(
+          find.text(
+            'Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+          ),
+          findsOneWidget,
+        );
+
+        // 1. Switch to Street Map ('خريطة')
+        await tester.tap(find.text('خريطة'));
+        await tester.pumpAndSettle();
+
+        tileLayer = tester.widget<TileLayer>(find.byType(TileLayer));
+        expect(
+          tileLayer.urlTemplate,
+          equals('https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
+        );
+        expect(find.text('© OpenStreetMap contributors'), findsOneWidget);
+
+        // Location selection and confirmation remain intact
+        expect(find.text('المحافظة: القاهرة'), findsOneWidget);
+        var confirmBtn = tester.widget<ElevatedButton>(
+          find.widgetWithText(ElevatedButton, 'تأكيد الموقع'),
+        );
+        expect(confirmBtn.onPressed, isNotNull);
+
+        // 2. Switch back to Satellite ('قمر صناعي')
+        await tester.tap(find.text('قمر صناعي'));
+        await tester.pumpAndSettle();
+
+        tileLayer = tester.widget<TileLayer>(find.byType(TileLayer));
+        expect(
+          tileLayer.urlTemplate,
+          contains(
+            'services.arcgisonline.com/ArcGIS/rest/services/World_Imagery',
+          ),
+        );
+        expect(
+          find.text(
+            'Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+          ),
+          findsOneWidget,
+        );
+
+        // Location selection and confirmation still intact
+        expect(find.text('المحافظة: القاهرة'), findsOneWidget);
+        confirmBtn = tester.widget<ElevatedButton>(
+          find.widgetWithText(ElevatedButton, 'تأكيد الموقع'),
+        );
+        expect(confirmBtn.onPressed, isNotNull);
+      },
+    );
+  });
 }
