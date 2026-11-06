@@ -27,10 +27,17 @@ class FieldManagementScreen extends ConsumerStatefulWidget {
 class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _govController = TextEditingController(text: 'كفر الشيخ');
-  final _latController = TextEditingController(text: '31.10');
-  final _lonController = TextEditingController(text: '30.95');
-  final _areaController = TextEditingController(text: '5.0');
+  final _govController = TextEditingController();
+  final _latController = TextEditingController();
+  final _lonController = TextEditingController();
+  final _areaController = TextEditingController();
+
+  bool _hasVerifiedFieldLocation = false;
+  SelectedLocation? _selectedFieldLocation;
+  bool _isSaving = false;
+  bool _isProgrammaticUpdate = false;
+  StateSetter? _dialogSetState;
+  EgyptBoundaryService? _boundaryService;
 
   String _soilTypeName(SoilType s) => switch (s) {
     SoilType.clay => 'طينية ثقيلة (دلتا قديمة)',
@@ -40,7 +47,144 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
   };
 
   @override
+  void initState() {
+    super.initState();
+    _latController.addListener(_handleCoordinateChanged);
+    _lonController.addListener(_handleCoordinateChanged);
+    _govController.addListener(_handleCoordinateChanged);
+    _initBoundaryService();
+  }
+
+  Future<void> _initBoundaryService() async {
+    if (widget.boundaryService != null) {
+      _boundaryService = widget.boundaryService;
+      return;
+    }
+    try {
+      final service = await EgyptBoundaryService.loadFromBundle();
+      if (!mounted) return;
+      _boundaryService = service;
+    } catch (_) {}
+  }
+
+  void _handleCoordinateChanged() {
+    if (_isProgrammaticUpdate) return;
+    if (!_hasVerifiedFieldLocation && _selectedFieldLocation == null) return;
+
+    final currentLat = double.tryParse(_latController.text.trim());
+    final currentLon = double.tryParse(_lonController.text.trim());
+    final currentGov = _govController.text.trim();
+
+    if (_selectedFieldLocation == null ||
+        currentLat == null ||
+        currentLon == null ||
+        (currentLat - _selectedFieldLocation!.latitude).abs() > 0.0001 ||
+        (currentLon - _selectedFieldLocation!.longitude).abs() > 0.0001 ||
+        currentGov != _selectedFieldLocation!.governorateAr) {
+      _invalidateFieldLocationIfModified();
+    }
+  }
+
+  void _invalidateFieldLocationIfModified() {
+    if (!_hasVerifiedFieldLocation && _selectedFieldLocation == null) return;
+    _dialogSetState?.call(() {
+      _hasVerifiedFieldLocation = false;
+      _selectedFieldLocation = null;
+    });
+    setState(() {
+      _hasVerifiedFieldLocation = false;
+      _selectedFieldLocation = null;
+    });
+  }
+
+  bool _isValidSelectedLocation(SelectedLocation? location) {
+    if (location == null) {
+      return false;
+    }
+
+    final latitude = location.latitude;
+    final longitude = location.longitude;
+
+    if (!latitude.isFinite || !longitude.isFinite) {
+      return false;
+    }
+
+    if (latitude < -90 ||
+        latitude > 90 ||
+        longitude < -180 ||
+        longitude > 180) {
+      return false;
+    }
+
+    if (location.governorateAr.trim().isEmpty) {
+      return false;
+    }
+
+    final boundaryService = widget.boundaryService ?? _boundaryService;
+    if (boundaryService != null) {
+      if (!boundaryService.isWithinEgypt(latitude, longitude)) {
+        return false;
+      }
+      final detectedGov = boundaryService.findGovernorate(latitude, longitude);
+      if (detectedGov == null || detectedGov.trim().isEmpty) {
+        return false;
+      }
+    } else {
+      if (latitude < 22.0 ||
+          latitude > 31.8 ||
+          longitude < 25.0 ||
+          longitude > 37.0) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  void _onFieldLocationSelected(SelectedLocation location) {
+    if (!mounted) return;
+
+    if (!_isValidSelectedLocation(location)) {
+      _dialogSetState?.call(() {
+        _selectedFieldLocation = null;
+        _hasVerifiedFieldLocation = false;
+      });
+      setState(() {
+        _selectedFieldLocation = null;
+        _hasVerifiedFieldLocation = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'الموقع المحدد غير صالح. يرجى اختيار موقع صحيح داخل مصر.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    _isProgrammaticUpdate = true;
+    _govController.text = location.governorateAr;
+    _latController.text = location.latitude.toStringAsFixed(4);
+    _lonController.text = location.longitude.toStringAsFixed(4);
+    _isProgrammaticUpdate = false;
+
+    _dialogSetState?.call(() {
+      _selectedFieldLocation = location;
+      _hasVerifiedFieldLocation = true;
+    });
+    setState(() {
+      _selectedFieldLocation = location;
+      _hasVerifiedFieldLocation = true;
+    });
+  }
+
+  @override
   void dispose() {
+    _latController.removeListener(_handleCoordinateChanged);
+    _lonController.removeListener(_handleCoordinateChanged);
+    _govController.removeListener(_handleCoordinateChanged);
     _nameController.dispose();
     _govController.dispose();
     _latController.dispose();
@@ -50,20 +194,129 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
   }
 
   void _showAddFieldDialog() {
-    _nameController.clear();
-    _govController.text = 'كفر الشيخ';
-    _latController.text = '31.10';
-    _lonController.text = '30.95';
-    _areaController.text = '5.0';
-    var selectedSoil = SoilType.clay;
-    var selectedCropId = 'wheat';
-    DateTime? selectedPlantingDate;
+    _showFieldFormDialog();
+  }
+
+  void _showEditFieldDialog(FarmField field) {
+    _showFieldFormDialog(existingField: field);
+  }
+
+  void _showFieldFormDialog({FarmField? existingField}) {
+    _isProgrammaticUpdate = true;
+    _nameController.text = existingField?.nameAr ?? '';
+    _areaController.text = existingField != null
+        ? existingField.areaInFeddan.toString()
+        : '';
+
+    if (existingField != null) {
+      _govController.text = existingField.governorateAr;
+      _latController.text = existingField.coordinate.latitude.toString();
+      _lonController.text = existingField.coordinate.longitude.toString();
+      _selectedFieldLocation = SelectedLocation(
+        latitude: existingField.coordinate.latitude,
+        longitude: existingField.coordinate.longitude,
+        governorateAr: existingField.governorateAr,
+      );
+      _hasVerifiedFieldLocation = true;
+    } else {
+      _govController.clear();
+      _latController.clear();
+      _lonController.clear();
+      _selectedFieldLocation = null;
+      _hasVerifiedFieldLocation = false;
+    }
+    _isProgrammaticUpdate = false;
+
+    var selectedSoil = existingField?.soilType ?? SoilType.clay;
+    var selectedCropId = existingField?.activeCropId ?? '';
+    DateTime? selectedPlantingDate = existingField?.plantingDate;
+    _isSaving = false;
 
     showDialog(
       context: context,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (dialogCtx, setDialogState) {
+            _dialogSetState = setDialogState;
+
+            Future<void> saveField() async {
+              if (!mounted) return;
+
+              // Mandatory validation guard directly inside save method
+              if (!_hasVerifiedFieldLocation ||
+                  !_isValidSelectedLocation(_selectedFieldLocation)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'يرجى تحديد موقع الحقل والتحقق منه على الخريطة أولاً.',
+                    ),
+                  ),
+                );
+                return;
+              }
+
+              if (!(_formKey.currentState?.validate() ?? false)) {
+                return;
+              }
+
+              setDialogState(() => _isSaving = true);
+              setState(() => _isSaving = true);
+
+              try {
+                final location = _selectedFieldLocation!;
+                final fieldToSave = FarmField(
+                  id:
+                      existingField?.id ??
+                      'field_${DateTime.now().millisecondsSinceEpoch}',
+                  nameAr: _nameController.text.trim(),
+                  governorateAr: location.governorateAr,
+                  coordinate: Coordinate(
+                    latitude: location.latitude,
+                    longitude: location.longitude,
+                    governorateName: location.governorateAr,
+                  ),
+                  areaInFeddan: double.parse(_areaController.text.trim()),
+                  soilType: selectedSoil,
+                  activeCropId: selectedCropId.isNotEmpty
+                      ? selectedCropId
+                      : null,
+                  plantingDate: selectedCropId.isNotEmpty
+                      ? selectedPlantingDate
+                      : null,
+                );
+
+                final addRes = await ref
+                    .read(fieldListProvider.notifier)
+                    .addField(fieldToSave);
+                if (!mounted || !dialogCtx.mounted) return;
+                if (addRes.isSuccess) {
+                  Navigator.of(dialogCtx).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        existingField != null
+                            ? 'تم تحديث الحقل الزراعي بنجاح'
+                            : 'تم تسجيل الحقل الزراعي بنجاح',
+                      ),
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        addRes.failureOrNull?.userMessageAr ?? 'خطأ في التسجيل',
+                      ),
+                    ),
+                  );
+                }
+              } finally {
+                if (mounted) {
+                  setDialogState(() => _isSaving = false);
+                  setState(() => _isSaving = false);
+                }
+              }
+            }
+
             return Directionality(
               textDirection: TextDirection.rtl,
               child: AlertDialog(
@@ -71,14 +324,19 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                   horizontal: 20,
                   vertical: 24,
                 ),
-                title: const Row(
+                title: Row(
                   children: [
-                    Icon(Icons.add_location_alt, color: Color(0xFF1B5E20)),
-                    SizedBox(width: 8),
+                    const Icon(
+                      Icons.add_location_alt,
+                      color: Color(0xFF1B5E20),
+                    ),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'إضافة حقل زراعي جديد في مصر',
-                        style: TextStyle(
+                        existingField != null
+                            ? 'تعديل بيانات الحقل الزراعي'
+                            : 'إضافة حقل زراعي جديد في مصر',
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
@@ -131,7 +389,8 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                                             initialLatitude: initialLat,
                                             initialLongitude: initialLon,
                                             boundaryService:
-                                                widget.boundaryService,
+                                                widget.boundaryService ??
+                                                _boundaryService,
                                             locationService:
                                                 widget.locationService ??
                                                 const GeolocatorLocationService(),
@@ -140,13 +399,7 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                                   );
 
                               if (selected != null) {
-                                setDialogState(() {
-                                  _govController.text = selected.governorateAr;
-                                  _latController.text = selected.latitude
-                                      .toStringAsFixed(4);
-                                  _lonController.text = selected.longitude
-                                      .toStringAsFixed(4);
-                                });
+                                _onFieldLocationSelected(selected);
                               }
                             },
                             icon: const Icon(
@@ -168,12 +421,58 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                               ),
                             ),
                           ),
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _hasVerifiedFieldLocation
+                                  ? const Color(0xFFE8F5E9)
+                                  : const Color(0xFFFFF3E0),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: _hasVerifiedFieldLocation
+                                    ? const Color(0xFF81C784)
+                                    : const Color(0xFFFFB74D),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _hasVerifiedFieldLocation
+                                      ? Icons.check_circle_outline
+                                      : Icons.info_outline,
+                                  size: 18,
+                                  color: _hasVerifiedFieldLocation
+                                      ? const Color(0xFF2E7D32)
+                                      : const Color(0xFFE65100),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _hasVerifiedFieldLocation
+                                        ? 'تم تحديد موقع الحقل والتحقق منه بنجاح.'
+                                        : 'يجب تحديد موقع الحقل على الخريطة والتحقق منه قبل التسجيل.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: _hasVerifiedFieldLocation
+                                          ? const Color(0xFF1B5E20)
+                                          : const Color(0xFFBF360C),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                           const SizedBox(height: 12),
                           TextFormField(
                             controller: _govController,
                             decoration: InputDecoration(
                               labelText: 'المحافظة (مثال: كفر الشيخ، المنيا)',
-                              hintText: 'مثال: كفر الشيخ',
+                              hintText: 'يتم تحديدها تلقائياً من الخريطة',
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(10),
                               ),
@@ -183,7 +482,7 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                               ),
                             ),
                             validator: (v) => (v == null || v.trim().isEmpty)
-                                ? 'يرجى إدخال اسم المحافظة'
+                                ? 'يرجى تحديد الموقع على الخريطة'
                                 : null,
                           ),
                           const SizedBox(height: 12),
@@ -200,7 +499,7 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                                   decoration: InputDecoration(
                                     labelText: 'خط العرض',
                                     helperText: '22 - 31.8 شمالاً',
-                                    hintText: '31.10',
+                                    hintText: 'من الخريطة',
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(10),
                                     ),
@@ -210,7 +509,10 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                                     ),
                                   ),
                                   validator: (v) {
-                                    final d = double.tryParse(v ?? '');
+                                    if (v == null || v.trim().isEmpty) {
+                                      return 'يرجى تحديد الموقع';
+                                    }
+                                    final d = double.tryParse(v.trim());
                                     if (d == null || d < 22.0 || d > 31.8) {
                                       return 'بين 22 و 31.8';
                                     }
@@ -229,7 +531,7 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                                   decoration: InputDecoration(
                                     labelText: 'خط الطول',
                                     helperText: '25 - 37 شرقاً',
-                                    hintText: '30.95',
+                                    hintText: 'من الخريطة',
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(10),
                                     ),
@@ -239,7 +541,10 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                                     ),
                                   ),
                                   validator: (v) {
-                                    final d = double.tryParse(v ?? '');
+                                    if (v == null || v.trim().isEmpty) {
+                                      return 'يرجى تحديد الموقع';
+                                    }
+                                    final d = double.tryParse(v.trim());
                                     if (d == null || d < 25.0 || d > 37.0) {
                                       return 'بين 25 و 37';
                                     }
@@ -413,51 +718,23 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                     child: const Text('إلغاء'),
                   ),
                   ElevatedButton(
-                    onPressed: () async {
-                      if (_formKey.currentState?.validate() ?? false) {
-                        final newField = FarmField(
-                          id: 'field_${DateTime.now().millisecondsSinceEpoch}',
-                          nameAr: _nameController.text.trim(),
-                          governorateAr: _govController.text.trim(),
-                          coordinate: Coordinate(
-                            latitude: double.parse(_latController.text),
-                            longitude: double.parse(_lonController.text),
-                            governorateName: _govController.text.trim(),
+                    onPressed: (_hasVerifiedFieldLocation && !_isSaving)
+                        ? saveField
+                        : null,
+                    child: _isSaving
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            existingField != null
+                                ? 'حفظ التعديلات'
+                                : 'حفظ الحقل',
                           ),
-                          areaInFeddan: double.parse(_areaController.text),
-                          soilType: selectedSoil,
-                          activeCropId: selectedCropId.isNotEmpty
-                              ? selectedCropId
-                              : null,
-                          plantingDate: selectedCropId.isNotEmpty
-                              ? selectedPlantingDate
-                              : null,
-                        );
-
-                        final addRes = await ref
-                            .read(fieldListProvider.notifier)
-                            .addField(newField);
-                        if (!mounted || !ctx.mounted) return;
-                        if (addRes.isSuccess) {
-                          Navigator.of(ctx).pop();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('تم تسجيل الحقل الزراعي بنجاح'),
-                            ),
-                          );
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                addRes.failureOrNull?.userMessageAr ??
-                                    'خطأ في التسجيل',
-                              ),
-                            ),
-                          );
-                        }
-                      }
-                    },
-                    child: const Text('حفظ الحقل'),
                   ),
                 ],
               ),
@@ -465,7 +742,9 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
           },
         );
       },
-    );
+    ).then((_) {
+      _dialogSetState = null;
+    });
   }
 
   void _showEditCropDialog(FarmField field) {
@@ -928,7 +1207,7 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                       ),
                       const SizedBox(height: 6),
 
-                      // Action Buttons Row: Edit Crop & Planting Date, Delete Field
+                      // Action Buttons Row: Edit Crop & Planting Date, Edit Field, Delete Field
                       Row(
                         children: [
                           TextButton.icon(
@@ -949,6 +1228,23 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                               style: TextStyle(fontSize: 12),
                             ),
                             onPressed: () => _showEditCropDialog(f),
+                          ),
+                          const SizedBox(width: 4),
+                          TextButton.icon(
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFF1B5E20),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              minimumSize: const Size(0, 32),
+                            ),
+                            icon: const Icon(Icons.edit_outlined, size: 17),
+                            label: const Text(
+                              'تعديل الحقل',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                            onPressed: () => _showEditFieldDialog(f),
                           ),
                           const Spacer(),
                           IconButton(

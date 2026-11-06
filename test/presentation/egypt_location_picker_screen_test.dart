@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -185,6 +186,31 @@ class MockTestLocationService implements LocationService {
     openAppSettingsCalled = true;
     return true;
   }
+}
+
+class MockExceptionLocationService implements LocationService {
+  final Object errorToThrow;
+  MockExceptionLocationService(this.errorToThrow);
+
+  @override
+  Future<bool> isLocationServiceEnabled() async => throw errorToThrow;
+
+  @override
+  Future<LocationPermission> checkPermission() async => throw errorToThrow;
+
+  @override
+  Future<LocationPermission> requestPermission() async => throw errorToThrow;
+
+  @override
+  Future<Position> getCurrentPosition({
+    LocationSettings? locationSettings,
+  }) async => throw errorToThrow;
+
+  @override
+  Future<bool> openLocationSettings() async => true;
+
+  @override
+  Future<bool> openAppSettings() async => true;
 }
 
 void main() {
@@ -1433,6 +1459,101 @@ void main() {
         contains('World_Imagery'),
       );
     });
+
+    testWidgets(
+      '21. Permission unableToDetermine keeps map locked and displays Arabic retry message (Section 4)',
+      (tester) async {
+        final mockLocation = MockTestLocationService(
+          serviceEnabled: true,
+          permission: LocationPermission.unableToDetermine,
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: EgyptLocationPickerScreen(
+              boundaryService: boundaryService,
+              tileProvider: MockOfflineTileProvider(),
+              locationService: mockLocation,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Verify map is locked
+        expect(find.text('يرجى تفعيل الموقع للمتابعة'), findsWidgets);
+        expect(
+          find.text(
+            'تعذر تحديد حالة إذن الموقع من نظام أندرويد. يرجى إعادة المحاولة.',
+          ),
+          findsOneWidget,
+        );
+
+        // Confirm button is disabled
+        final confirmBtn = tester.widget<ElevatedButton>(
+          find.widgetWithText(ElevatedButton, 'تأكيد الموقع'),
+        );
+        expect(confirmBtn.onPressed, isNull);
+      },
+    );
+
+    testWidgets(
+      '22. PlatformException on location service check displays communication error message and keeps map locked (Section 4)',
+      (tester) async {
+        final mockLocation = MockExceptionLocationService(
+          PlatformException(
+            code: 'SERVICE_ERROR',
+            message: 'Location service unavailable',
+          ),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: EgyptLocationPickerScreen(
+              boundaryService: boundaryService,
+              tileProvider: MockOfflineTileProvider(),
+              locationService: mockLocation,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Verify map is locked and error message displayed
+        expect(find.text('يرجى تفعيل الموقع للمتابعة'), findsWidgets);
+        expect(
+          find.textContaining(
+            'حدث خطأ في الاتصال بخدمة الموقع (SERVICE_ERROR)',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      '23. TimeoutException on location service check displays timeout message and keeps map locked (Section 4)',
+      (tester) async {
+        final mockLocation = MockExceptionLocationService(
+          TimeoutException('Timed out'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: EgyptLocationPickerScreen(
+              boundaryService: boundaryService,
+              tileProvider: MockOfflineTileProvider(),
+              locationService: mockLocation,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Verify map is locked and timeout message displayed
+        expect(find.text('يرجى تفعيل الموقع للمتابعة'), findsWidgets);
+        expect(
+          find.text('انتهت مهلة التحقق من خدمة الموقع. يرجى إعادة المحاولة.'),
+          findsOneWidget,
+        );
+      },
+    );
 
     test(
       'Android launcher icon resources and manifest verification (Task 3)',

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
@@ -224,14 +225,17 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen>
     if (!_isLocationReady ||
         _selectedPoint == null ||
         !_isPointInEgypt ||
-        _detectedGovernorate == null) {
+        _detectedGovernorate == null ||
+        _detectedGovernorate!.trim().isEmpty ||
+        !_selectedPoint!.latitude.isFinite ||
+        !_selectedPoint!.longitude.isFinite) {
       return;
     }
 
     final result = SelectedLocation(
       latitude: double.parse(_selectedPoint!.latitude.toStringAsFixed(6)),
       longitude: double.parse(_selectedPoint!.longitude.toStringAsFixed(6)),
-      governorateAr: _detectedGovernorate!,
+      governorateAr: _detectedGovernorate!.trim(),
     );
 
     Navigator.of(context).pop(result);
@@ -253,8 +257,22 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen>
 
     try {
       // 1. Check whether Android Location Services are enabled
-      final serviceEnabled = await _safeIsLocationServiceEnabled();
-      if (!serviceEnabled) {
+      final serviceResult = await _safeIsLocationServiceEnabled();
+      if (serviceResult.hasError) {
+        if (!mounted) return;
+        setState(() {
+          _locationLifecycleState =
+              LocationLifecycleState.waitingForLocationService;
+        });
+        _showSnackBar(
+          serviceResult.errorMessage ??
+              'حدث خطأ في الاتصال بخدمة الموقع. يرجى إعادة المحاولة.',
+          isError: true,
+        );
+        return;
+      }
+
+      if (!serviceResult.isEnabled) {
         if (!mounted) return;
         setState(() {
           _locationLifecycleState =
@@ -265,14 +283,61 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen>
       }
 
       // 2. Check and request location permission
-      var permission = await _safeCheckPermission();
+      var permResult = await _safeCheckPermission();
+      if (permResult.hasError) {
+        if (!mounted) return;
+        setState(() {
+          _locationLifecycleState = LocationLifecycleState.waitingForPermission;
+        });
+        _showSnackBar(
+          permResult.errorMessage ??
+              'حدث خطأ أثناء فحص إذن الموقع. يرجى إعادة المحاولة.',
+          isError: true,
+        );
+        return;
+      }
+
+      var permission = permResult.permission;
+      if (permission == LocationPermission.unableToDetermine) {
+        if (!mounted) return;
+        setState(() {
+          _locationLifecycleState = LocationLifecycleState.waitingForPermission;
+        });
+        _showSnackBar(
+          'تعذر تحديد حالة إذن الموقع من نظام أندرويد. يرجى إعادة المحاولة.',
+          isError: true,
+        );
+        return;
+      }
+
       if (permission == LocationPermission.denied) {
         if (!mounted) return;
         setState(() {
           _locationLifecycleState = LocationLifecycleState.waitingForPermission;
         });
-        permission = await _safeRequestPermission();
+        final reqResult = await _safeRequestPermission();
         if (!mounted) return;
+        if (reqResult.hasError) {
+          _showSnackBar(
+            reqResult.errorMessage ??
+                'حدث خطأ أثناء طلب إذن الموقع. يرجى إعادة المحاولة.',
+            isError: true,
+          );
+          return;
+        }
+        permission = reqResult.permission;
+      }
+
+      if (permission == LocationPermission.unableToDetermine) {
+        if (!mounted) return;
+        setState(() {
+          _locationLifecycleState = LocationLifecycleState.waitingForPermission;
+        });
+        _showSnackBar(
+          'تعذر تحديد حالة إذن الموقع من نظام أندرويد. يرجى إعادة المحاولة.',
+          isError: true,
+        );
+        return;
       }
 
       if (permission == LocationPermission.denied) {
@@ -298,13 +363,21 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen>
       if (permission == LocationPermission.whileInUse ||
           permission == LocationPermission.always) {
         final serviceStillEnabled = await _safeIsLocationServiceEnabled();
-        if (!serviceStillEnabled) {
+        if (serviceStillEnabled.hasError || !serviceStillEnabled.isEnabled) {
           if (!mounted) return;
           setState(() {
             _locationLifecycleState =
                 LocationLifecycleState.waitingForLocationService;
           });
-          await _showMandatoryLocationServiceDialog();
+          if (serviceStillEnabled.hasError) {
+            _showSnackBar(
+              serviceStillEnabled.errorMessage ??
+                  'حدث خطأ في الاتصال بخدمة الموقع. يرجى إعادة المحاولة.',
+              isError: true,
+            );
+          } else {
+            await _showMandatoryLocationServiceDialog();
+          }
           return;
         }
 
@@ -446,27 +519,85 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen>
     }
   }
 
-  Future<bool> _safeIsLocationServiceEnabled() async {
+  Future<({bool isEnabled, bool hasError, String? errorMessage})>
+  _safeIsLocationServiceEnabled() async {
     try {
-      return await widget.locationService.isLocationServiceEnabled();
+      final enabled = await widget.locationService.isLocationServiceEnabled();
+      return (isEnabled: enabled, hasError: false, errorMessage: null);
+    } on TimeoutException {
+      return (
+        isEnabled: false,
+        hasError: true,
+        errorMessage: 'انتهت مهلة التحقق من خدمة الموقع. يرجى إعادة المحاولة.',
+      );
+    } on PlatformException catch (e) {
+      return (
+        isEnabled: false,
+        hasError: true,
+        errorMessage:
+            'حدث خطأ في الاتصال بخدمة الموقع (${e.code}). يرجى إعادة المحاولة.',
+      );
     } catch (_) {
-      return false;
+      return (
+        isEnabled: false,
+        hasError: true,
+        errorMessage:
+            'حدث خطأ غير متوقع أثناء فحص خدمة الموقع. يرجى إعادة المحاولة.',
+      );
     }
   }
 
-  Future<LocationPermission> _safeCheckPermission() async {
+  Future<({LocationPermission permission, bool hasError, String? errorMessage})>
+  _safeCheckPermission() async {
     try {
-      return await widget.locationService.checkPermission();
+      final perm = await widget.locationService.checkPermission();
+      return (permission: perm, hasError: false, errorMessage: null);
+    } on TimeoutException {
+      return (
+        permission: LocationPermission.unableToDetermine,
+        hasError: true,
+        errorMessage: 'انتهت مهلة فحص إذن الموقع. يرجى إعادة المحاولة.',
+      );
+    } on PlatformException catch (e) {
+      return (
+        permission: LocationPermission.unableToDetermine,
+        hasError: true,
+        errorMessage:
+            'حدث خطأ أثناء فحص إذن الموقع (${e.code}). يرجى إعادة المحاولة.',
+      );
     } catch (_) {
-      return LocationPermission.denied;
+      return (
+        permission: LocationPermission.unableToDetermine,
+        hasError: true,
+        errorMessage: 'تعذر التحقق من إذن الموقع. يرجى إعادة المحاولة.',
+      );
     }
   }
 
-  Future<LocationPermission> _safeRequestPermission() async {
+  Future<({LocationPermission permission, bool hasError, String? errorMessage})>
+  _safeRequestPermission() async {
     try {
-      return await widget.locationService.requestPermission();
+      final perm = await widget.locationService.requestPermission();
+      return (permission: perm, hasError: false, errorMessage: null);
+    } on TimeoutException {
+      return (
+        permission: LocationPermission.unableToDetermine,
+        hasError: true,
+        errorMessage: 'انتهت مهلة طلب إذن الموقع. يرجى إعادة المحاولة.',
+      );
+    } on PlatformException catch (e) {
+      return (
+        permission: LocationPermission.unableToDetermine,
+        hasError: true,
+        errorMessage:
+            'حدث خطأ أثناء طلب إذن الموقع (${e.code}). يرجى إعادة المحاولة.',
+      );
     } catch (_) {
-      return LocationPermission.denied;
+      return (
+        permission: LocationPermission.unableToDetermine,
+        hasError: true,
+        errorMessage: 'تعذر طلب إذن الموقع. يرجى إعادة المحاولة.',
+      );
     }
   }
 

@@ -29,7 +29,9 @@ class MockReadyLocationService implements LocationService {
       LocationPermission.whileInUse;
 
   @override
-  Future<Position> getCurrentPosition({LocationSettings? locationSettings}) async {
+  Future<Position> getCurrentPosition({
+    LocationSettings? locationSettings,
+  }) async {
     return Position(
       latitude: 30.0444,
       longitude: 31.2357,
@@ -135,7 +137,7 @@ void main() {
     );
 
     testWidgets(
-      'Manual field registration continues to work without opening map',
+      'Attempt to save without verified map location is rejected and geographic fields start empty',
       (tester) async {
         await tester.pumpWidget(createTestWidget());
         await tester.pumpAndSettle();
@@ -143,28 +145,78 @@ void main() {
         await tester.tap(find.byType(FloatingActionButton));
         await tester.pumpAndSettle();
 
-        // Enter field details manually
+        // Verify geographic fields start empty
+        expect(
+          find.widgetWithText(
+            TextFormField,
+            'المحافظة (مثال: كفر الشيخ، المنيا)',
+          ),
+          findsOneWidget,
+        );
+        final govField = tester.widget<TextFormField>(
+          find.widgetWithText(
+            TextFormField,
+            'المحافظة (مثال: كفر الشيخ، المنيا)',
+          ),
+        );
+        expect(govField.controller?.text, isEmpty);
+
+        final latField = tester.widget<TextFormField>(
+          find.widgetWithText(TextFormField, 'خط العرض'),
+        );
+        expect(latField.controller?.text, isEmpty);
+
+        final lonField = tester.widget<TextFormField>(
+          find.widgetWithText(TextFormField, 'خط الطول'),
+        );
+        expect(lonField.controller?.text, isEmpty);
+
+        // Verification banner informs user that map location is required
+        expect(
+          find.text(
+            'يجب تحديد موقع الحقل على الخريطة والتحقق منه قبل التسجيل.',
+          ),
+          findsOneWidget,
+        );
+
+        // Save button is disabled
+        final saveBtn = tester.widget<ElevatedButton>(
+          find.widgetWithText(ElevatedButton, 'حفظ الحقل'),
+        );
+        expect(saveBtn.onPressed, isNull);
+
+        // Enter field details manually without map verification
         await tester.enterText(
           find.widgetWithText(TextFormField, 'اسم الحقل / المزرعة'),
           'مزرعة الدلتا النموذجية',
         );
-        await tester.pumpAndSettle();
-
-        final saveBtn = find.widgetWithText(ElevatedButton, 'حفظ الحقل');
-        await tester.ensureVisible(saveBtn);
-        await tester.pumpAndSettle();
-
-        // Tap save
-        await tester.tap(saveBtn);
-        await tester.pumpAndSettle();
-
-        // Verify dialog is dismissed and new field is visible in the list
-        expect(find.text('إضافة حقل زراعي جديد في مصر'), findsNothing);
-        await tester.scrollUntilVisible(
-          find.text('مزرعة الدلتا النموذجية'),
-          100,
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'المساحة (بالفدان)'),
+          '5.0',
         );
-        expect(find.text('مزرعة الدلتا النموذجية'), findsOneWidget);
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'خط العرض'),
+          '31.10',
+        );
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'خط الطول'),
+          '30.95',
+        );
+        await tester.pumpAndSettle();
+
+        // Even with manually entered coordinates, save remains disabled
+        final saveBtnAfterManual = tester.widget<ElevatedButton>(
+          find.widgetWithText(ElevatedButton, 'حفظ الحقل'),
+        );
+        expect(saveBtnAfterManual.onPressed, isNull);
+
+        // Dialog remains open and field is not saved
+        expect(find.text('إضافة حقل زراعي جديد في مصر'), findsOneWidget);
+        final savedFields = await db.select(db.farmFieldsTable).get();
+        expect(
+          savedFields.where((f) => f.nameAr == 'مزرعة الدلتا النموذجية'),
+          isEmpty,
+        );
       },
     );
 
@@ -216,8 +268,9 @@ void main() {
         // 1. Initial database state: record initial total and verify 0 custom fields
         final initialFields = await db.select(db.farmFieldsTable).get();
         final initialCount = initialFields.length;
-        final initialCustomFields =
-            initialFields.where((f) => !f.isDefault).toList();
+        final initialCustomFields = initialFields
+            .where((f) => !f.isDefault)
+            .toList();
         expect(initialCustomFields, isEmpty);
 
         // 2. Open Add Field dialog via FloatingActionButton
@@ -309,8 +362,7 @@ void main() {
         expect(
           midFields.length,
           equals(initialCount),
-          reason:
-              'Field must not be persisted to database prior to explicit form save',
+          reason: 'Field must not be persisted to database prior to explicit form save',
         );
         expect(
           midFields.where((f) => f.nameAr == testFieldName),
