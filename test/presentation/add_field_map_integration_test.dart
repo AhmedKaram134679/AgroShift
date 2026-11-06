@@ -11,6 +11,45 @@ import 'package:agro_shift/presentation/screens/field_management_screen.dart';
 import 'package:agro_shift/presentation/providers/agro_providers.dart';
 import 'package:agro_shift/data/datasources/local/database/app_database.dart';
 import 'package:agro_shift/data/datasources/local/egypt_boundary_service.dart';
+import 'package:agro_shift/presentation/screens/egypt_location_picker_screen.dart';
+import 'package:geolocator/geolocator.dart';
+
+class MockReadyLocationService implements LocationService {
+  const MockReadyLocationService();
+
+  @override
+  Future<bool> isLocationServiceEnabled() async => true;
+
+  @override
+  Future<LocationPermission> checkPermission() async =>
+      LocationPermission.whileInUse;
+
+  @override
+  Future<LocationPermission> requestPermission() async =>
+      LocationPermission.whileInUse;
+
+  @override
+  Future<Position> getCurrentPosition({LocationSettings? locationSettings}) async {
+    return Position(
+      latitude: 30.0444,
+      longitude: 31.2357,
+      timestamp: DateTime.now(),
+      accuracy: 5.0,
+      altitude: 20.0,
+      altitudeAccuracy: 1.0,
+      heading: 0.0,
+      headingAccuracy: 0.0,
+      speed: 0.0,
+      speedAccuracy: 0.0,
+    );
+  }
+
+  @override
+  Future<bool> openLocationSettings() async => true;
+
+  @override
+  Future<bool> openAppSettings() async => true;
+}
 
 void main() {
   late AppDatabase db;
@@ -45,7 +84,10 @@ void main() {
         home: Directionality(
           textDirection: TextDirection.rtl,
           child: Scaffold(
-            body: FieldManagementScreen(boundaryService: boundaryService),
+            body: FieldManagementScreen(
+              boundaryService: boundaryService,
+              locationService: const MockReadyLocationService(),
+            ),
           ),
         ),
       ),

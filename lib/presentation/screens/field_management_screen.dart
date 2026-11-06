@@ -11,8 +11,13 @@ import 'package:agro_shift/domain/environment/models/selected_location.dart';
 
 class FieldManagementScreen extends ConsumerStatefulWidget {
   final EgyptBoundaryService? boundaryService;
+  final LocationService? locationService;
 
-  const FieldManagementScreen({super.key, this.boundaryService});
+  const FieldManagementScreen({
+    super.key,
+    this.boundaryService,
+    this.locationService,
+  });
 
   @override
   ConsumerState<FieldManagementScreen> createState() =>
@@ -127,6 +132,9 @@ class _FieldManagementScreenState extends ConsumerState<FieldManagementScreen> {
                                             initialLongitude: initialLon,
                                             boundaryService:
                                                 widget.boundaryService,
+                                            locationService:
+                                                widget.locationService ??
+                                                const GeolocatorLocationService(),
                                           ),
                                     ),
                                   );

@@ -10,6 +10,16 @@ import 'package:agro_shift/domain/environment/models/selected_location.dart';
 /// Available basemap layers for the Egypt location picker.
 enum MapLayerType { satellite, streets }
 
+/// Lifecycle states for Android Location Services and runtime permission verification.
+enum LocationLifecycleState {
+  initializing,
+  waitingForLocationService,
+  waitingForPermission,
+  ready,
+  openingLocationSettings,
+  openingAppSettings,
+}
+
 /// Contract for GPS location services enabling deterministic testing and seams.
 abstract class LocationService {
   Future<bool> isLocationServiceEnabled();
@@ -103,7 +113,16 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen>
   bool _isPointInEgypt = false;
   bool _hasTileLoadError = false;
   bool _isLocating = false;
-  bool _pendingLocationServiceCheck = false;
+
+  LocationLifecycleState _locationLifecycleState =
+      LocationLifecycleState.initializing;
+  bool _isVerifyingPrerequisites = false;
+  bool _isDialogShowing = false;
+
+  bool get _isLocationReady =>
+      _locationLifecycleState == LocationLifecycleState.ready;
+
+  LocationLifecycleState get locationLifecycleState => _locationLifecycleState;
 
   // Center of Egypt (near Minya/Asyut)
   static const LatLng _egyptCenter = LatLng(27.0, 30.8);
@@ -128,13 +147,22 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen>
         : _egyptCenter;
     _mapInitialZoom = hasValidInitial ? 10.0 : _initialZoom;
     _initBoundaryService();
+
+    // Automatically check and enforce mandatory GPS & location permission
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _verifyLocationPrerequisites();
+      }
+    });
   }
 
   Future<void> _initBoundaryService() async {
     if (widget.boundaryService != null) {
       _boundaryService = widget.boundaryService;
       _isLoadingService = false;
-      _applyInitialPoint();
+      if (_isLocationReady) {
+        _applyInitialPoint();
+      }
       return;
     }
 
@@ -146,7 +174,9 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen>
       setState(() {
         _boundaryService = service;
         _isLoadingService = false;
-        _applyInitialPoint();
+        if (_isLocationReady) {
+          _applyInitialPoint();
+        }
       });
     } catch (e) {
       if (!mounted) return;
@@ -169,7 +199,7 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen>
   }
 
   void _onPointSelected(LatLng point) {
-    if (!mounted || _boundaryService == null) {
+    if (!mounted || _boundaryService == null || !_isLocationReady) {
       return;
     }
 
@@ -191,7 +221,8 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen>
   }
 
   void _confirmSelection() {
-    if (_selectedPoint == null ||
+    if (!_isLocationReady ||
+        _selectedPoint == null ||
         !_isPointInEgypt ||
         _detectedGovernorate == null) {
       return;
@@ -208,14 +239,262 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _pendingLocationServiceCheck) {
-      _pendingLocationServiceCheck = false;
-      _determineCurrentLocation();
+    if (state == AppLifecycleState.resumed) {
+      if (_locationLifecycleState != LocationLifecycleState.ready) {
+        _verifyLocationPrerequisites();
+      }
+    }
+  }
+
+  /// Mandatory verification of Android Location Services (GPS) and permissions.
+  Future<void> _verifyLocationPrerequisites() async {
+    if (!mounted || _isVerifyingPrerequisites) return;
+    _isVerifyingPrerequisites = true;
+
+    try {
+      // 1. Check whether Android Location Services are enabled
+      final serviceEnabled = await _safeIsLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (!mounted) return;
+        setState(() {
+          _locationLifecycleState =
+              LocationLifecycleState.waitingForLocationService;
+        });
+        await _showMandatoryLocationServiceDialog();
+        return;
+      }
+
+      // 2. Check and request location permission
+      var permission = await _safeCheckPermission();
+      if (permission == LocationPermission.denied) {
+        if (!mounted) return;
+        setState(() {
+          _locationLifecycleState = LocationLifecycleState.waitingForPermission;
+        });
+        permission = await _safeRequestPermission();
+        if (!mounted) return;
+      }
+
+      if (permission == LocationPermission.denied) {
+        setState(() {
+          _locationLifecycleState = LocationLifecycleState.waitingForPermission;
+        });
+        _showSnackBar(
+          'تم رفض إذن الوصول إلى الموقع. يرجى تفعيل الإذن للمتابعة.',
+          isError: true,
+        );
+        return;
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        if (!mounted) return;
+        setState(() {
+          _locationLifecycleState = LocationLifecycleState.waitingForPermission;
+        });
+        await _showMandatoryAppSettingsDialog();
+        return;
+      }
+
+      if (permission == LocationPermission.whileInUse ||
+          permission == LocationPermission.always) {
+        final serviceStillEnabled = await _safeIsLocationServiceEnabled();
+        if (!serviceStillEnabled) {
+          if (!mounted) return;
+          setState(() {
+            _locationLifecycleState =
+                LocationLifecycleState.waitingForLocationService;
+          });
+          await _showMandatoryLocationServiceDialog();
+          return;
+        }
+
+        if (!mounted) return;
+        setState(() {
+          _locationLifecycleState = LocationLifecycleState.ready;
+        });
+
+        if (_boundaryService != null && _selectedPoint == null) {
+          _applyInitialPoint();
+        }
+      }
+    } finally {
+      _isVerifyingPrerequisites = false;
+    }
+  }
+
+  Future<void> _showMandatoryLocationServiceDialog() async {
+    if (_isDialogShowing || !mounted) return;
+    _isDialogShowing = true;
+
+    try {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => PopScope(
+          canPop: false,
+          child: Directionality(
+            textDirection: TextDirection.rtl,
+            child: AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              title: const Row(
+                children: [
+                  Icon(Icons.location_off, color: Colors.amber, size: 24),
+                  SizedBox(width: 8),
+                  Text(
+                    'تشغيل الموقع مطلوب',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              content: const Text(
+                'يجب تفعيل خدمة الموقع (GPS) حتى تتمكن من تحديد موقع الحقل الزراعي واستخدام هذه الخاصية.',
+                style: TextStyle(fontSize: 14),
+              ),
+              actions: [
+                ElevatedButton(
+                  onPressed: () async {
+                    setState(() {
+                      _locationLifecycleState =
+                          LocationLifecycleState.openingLocationSettings;
+                    });
+                    Navigator.of(ctx).pop();
+                    final opened = await _safeOpenLocationSettings();
+                    if (!opened && mounted) {
+                      _showSnackBar(
+                        'تعذر فتح إعدادات الموقع تلقائياً. يرجى فتحها يدوياً من إعدادات الهاتف.',
+                        isError: true,
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1B5E20),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('تشغيل الموقع'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } finally {
+      _isDialogShowing = false;
+    }
+  }
+
+  Future<void> _showMandatoryAppSettingsDialog() async {
+    if (_isDialogShowing || !mounted) return;
+    _isDialogShowing = true;
+
+    try {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => PopScope(
+          canPop: false,
+          child: Directionality(
+            textDirection: TextDirection.rtl,
+            child: AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              title: const Row(
+                children: [
+                  Icon(Icons.security, color: Colors.red, size: 24),
+                  SizedBox(width: 8),
+                  Text(
+                    'إذن الموقع مطلوب',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              content: const Text(
+                'تم رفض إذن الوصول إلى الموقع بشكل دائم. يجب السماح للتطبيق بالوصول إلى الموقع من إعدادات التطبيق للمتابعة.',
+                style: TextStyle(fontSize: 14),
+              ),
+              actions: [
+                ElevatedButton(
+                  onPressed: () async {
+                    setState(() {
+                      _locationLifecycleState =
+                          LocationLifecycleState.openingAppSettings;
+                    });
+                    Navigator.of(ctx).pop();
+                    final opened = await _safeOpenAppSettings();
+                    if (!opened && mounted) {
+                      _showSnackBar(
+                        'تعذر فتح إعدادات التطبيق تلقائياً. يرجى فتحها يدوياً من إعدادات الهاتف.',
+                        isError: true,
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1B5E20),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('فتح إعدادات التطبيق'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    } finally {
+      _isDialogShowing = false;
+    }
+  }
+
+  Future<bool> _safeIsLocationServiceEnabled() async {
+    try {
+      return await widget.locationService.isLocationServiceEnabled();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<LocationPermission> _safeCheckPermission() async {
+    try {
+      return await widget.locationService.checkPermission();
+    } catch (_) {
+      return LocationPermission.denied;
+    }
+  }
+
+  Future<LocationPermission> _safeRequestPermission() async {
+    try {
+      return await widget.locationService.requestPermission();
+    } catch (_) {
+      return LocationPermission.denied;
+    }
+  }
+
+  Future<bool> _safeOpenLocationSettings() async {
+    try {
+      return await widget.locationService.openLocationSettings();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> _safeOpenAppSettings() async {
+    try {
+      return await widget.locationService.openAppSettings();
+    } catch (_) {
+      return false;
     }
   }
 
   Future<void> _determineCurrentLocation() async {
     if (_isLocating) return;
+
+    if (!_isLocationReady) {
+      await _verifyLocationPrerequisites();
+      if (!_isLocationReady) {
+        return;
+      }
+    }
 
     if (_boundaryService == null) {
       _showSnackBar(
@@ -225,33 +504,6 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen>
       return;
     }
 
-    // 1. Check whether Android location services are enabled
-    final serviceEnabled = await widget.locationService
-        .isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      if (!mounted) return;
-      await _showLocationServiceDisabledDialog();
-      return;
-    }
-
-    // 2. Check and request location permission
-    var permission = await widget.locationService.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await widget.locationService.requestPermission();
-      if (permission == LocationPermission.denied) {
-        if (!mounted) return;
-        _showSnackBar('تم رفض إذن الوصول إلى الموقع الجغرافي', isError: true);
-        return;
-      }
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      if (!mounted) return;
-      await _showPermissionPermanentlyDeniedDialog();
-      return;
-    }
-
-    // 3. Retrieve current GPS position
     setState(() {
       _isLocating = true;
     });
@@ -271,7 +523,7 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen>
       // Move camera to current coordinates with zoom 15.0
       _mapController.move(latLng, 15.0);
 
-      // Call existing point selection to trigger boundary & governorate detection
+      // Call point selection to trigger boundary & governorate detection
       _onPointSelected(latLng);
 
       if (!_isPointInEgypt) {
@@ -288,6 +540,14 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen>
         'استغرق تحديد الموقع وقتاً طويلاً. يرجى المحاولة مرة أخرى.',
         isError: true,
       );
+    } on LocationServiceDisabledException {
+      if (!mounted) return;
+      _showSnackBar('تم إيقاف خدمة الموقع (GPS)', isError: true);
+      await _verifyLocationPrerequisites();
+    } on PermissionDeniedException {
+      if (!mounted) return;
+      _showSnackBar('تم رفض إذن الوصول إلى الموقع الجغرافي', isError: true);
+      await _verifyLocationPrerequisites();
     } catch (e) {
       if (!mounted) return;
       _showSnackBar('تعذر تحديد موقعك الحالي: $e', isError: true);
@@ -298,100 +558,6 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen>
         });
       }
     }
-  }
-
-  Future<void> _showLocationServiceDisabledDialog() async {
-    return showDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          title: const Row(
-            children: [
-              Icon(Icons.location_off, color: Colors.amber, size: 24),
-              SizedBox(width: 8),
-              Text(
-                'خدمات الموقع غير مفعلة',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          content: const Text(
-            'يرجى تفعيل خدمات الموقع الجغرافي (GPS) على هاتفك لنتمكن من تحديد موقع حقلك الزراعي بدقة.',
-            style: TextStyle(fontSize: 14),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('إلغاء'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                _pendingLocationServiceCheck = true;
-                Navigator.of(ctx).pop();
-                await widget.locationService.openLocationSettings();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1B5E20),
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('تشغيل الموقع'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showPermissionPermanentlyDeniedDialog() async {
-    return showDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          title: const Row(
-            children: [
-              Icon(Icons.security, color: Colors.red, size: 24),
-              SizedBox(width: 8),
-              Text(
-                'إذن الموقع مطلوب',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          content: const Text(
-            'تم رفض إذن الوصول إلى الموقع الجغرافي بشكل دائم. يرجى فتح إعدادات التطبيق وتفعيل الإذن لتحديد موقع الحقل.',
-            style: TextStyle(fontSize: 14),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('إلغاء'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                _pendingLocationServiceCheck = true;
-                Navigator.of(ctx).pop();
-                await widget.locationService.openAppSettings();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1B5E20),
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('فتح إعدادات التطبيق'),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
@@ -503,7 +669,9 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen>
                 const LatLng(32.5, 37.5),
               ),
             ),
-            onTap: (tapPosition, point) => _onPointSelected(point),
+            onTap: _isLocationReady
+                ? (tapPosition, point) => _onPointSelected(point)
+                : null,
           ),
           children: [
             TileLayer(
@@ -579,6 +747,9 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen>
               ),
           ],
         ),
+
+        // Map Lock Overlay when GPS/Permissions not ready
+        if (!_isLocationReady) _buildMapLockOverlay(),
 
         // Attribution Badge
         Positioned(
@@ -714,9 +885,11 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen>
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          _selectedPoint == null
-                              ? 'انقر على الخريطة لتحديد موقع الحقل داخل مصر'
-                              : 'يمكنك النقر مجدداً لتغيير موقع الحقل المحدد',
+                          !_isLocationReady
+                              ? 'يرجى تفعيل الموقع للمتابعة'
+                              : (_selectedPoint == null
+                                    ? 'انقر على الخريطة لتحديد موقع الحقل داخل مصر'
+                                    : 'يمكنك النقر مجدداً لتغيير موقع الحقل المحدد'),
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
@@ -818,6 +991,83 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen>
     );
   }
 
+  Widget _buildMapLockOverlay() {
+    return Positioned.fill(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _verifyLocationPrerequisites,
+        child: Container(
+          color: Colors.black.withAlpha(90),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Material(
+            elevation: 6,
+            borderRadius: BorderRadius.circular(16),
+            color: Colors.white,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1B5E20).withAlpha(25),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.location_off_outlined,
+                      size: 28,
+                      color: Color(0xFF1B5E20),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'يرجى تفعيل الموقع للمتابعة',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1B5E20),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'يجب تفعيل خدمة الموقع (GPS) ومنح الإذن لتتمكن من اختيار موقع الحقل الزراعي على الخريطة.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      color: Colors.grey.shade700,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: _verifyLocationPrerequisites,
+                    icon: const Icon(Icons.gps_fixed, size: 18),
+                    label: const Text('تفعيل خدمة الموقع'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1B5E20),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildBottomPanel() {
     return Container(
       decoration: BoxDecoration(
@@ -914,7 +1164,10 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen>
                 Expanded(
                   flex: 2,
                   child: ElevatedButton(
-                    onPressed: (_isPointInEgypt && _detectedGovernorate != null)
+                    onPressed:
+                        (_isLocationReady &&
+                            _isPointInEgypt &&
+                            _detectedGovernorate != null)
                         ? _confirmSelection
                         : null,
                     style: ElevatedButton.styleFrom(
