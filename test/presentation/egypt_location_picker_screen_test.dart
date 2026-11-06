@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -6,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:agro_shift/data/datasources/local/egypt_boundary_service.dart';
 import 'package:agro_shift/presentation/screens/egypt_location_picker_screen.dart';
 import 'package:agro_shift/domain/environment/models/selected_location.dart';
@@ -104,6 +106,73 @@ class MockRetryAssetBundle extends CachingAssetBundle {
     }
     final bytes = utf8.encode(validGeoJson);
     return ByteData.view(Uint8List.fromList(bytes).buffer);
+  }
+}
+
+/// Controllable mock location service for testing Android GPS workflows
+class MockTestLocationService implements LocationService {
+  bool serviceEnabled;
+  LocationPermission permission;
+  Position? positionToReturn;
+  Exception? exceptionToThrow;
+  int positionCallCount = 0;
+  bool openSettingsCalled = false;
+  bool openAppSettingsCalled = false;
+  Duration? simulatedDelay;
+
+  MockTestLocationService({
+    this.serviceEnabled = true,
+    this.permission = LocationPermission.whileInUse,
+    this.positionToReturn,
+    this.exceptionToThrow,
+    this.simulatedDelay,
+  });
+
+  @override
+  Future<bool> isLocationServiceEnabled() async => serviceEnabled;
+
+  @override
+  Future<LocationPermission> checkPermission() async => permission;
+
+  @override
+  Future<LocationPermission> requestPermission() async => permission;
+
+  @override
+  Future<Position> getCurrentPosition({
+    LocationSettings? locationSettings,
+  }) async {
+    positionCallCount++;
+    if (simulatedDelay != null) {
+      await Future<void>.delayed(simulatedDelay!);
+    }
+    if (exceptionToThrow != null) {
+      throw exceptionToThrow!;
+    }
+    return positionToReturn ??
+        Position(
+          latitude: 30.0444, // Cairo
+          longitude: 31.2357,
+          timestamp: DateTime.now(),
+          accuracy: 5.0,
+          altitude: 20.0,
+          altitudeAccuracy: 1.0,
+          heading: 0.0,
+          headingAccuracy: 0.0,
+          speed: 0.0,
+          speedAccuracy: 0.0,
+        );
+  }
+
+  @override
+  Future<bool> openLocationSettings() async {
+    openSettingsCalled = true;
+    return true;
+  }
+
+  @override
+  Future<bool> openAppSettings() async {
+    openAppSettingsCalled = true;
+    return true;
   }
 }
 
@@ -656,4 +725,363 @@ void main() {
       },
     );
   });
+
+  group(
+    'Android GPS Location Services & Launcher Icon Tests (Tasks 1, 2, 3, 4)',
+    () {
+      testWidgets(
+        'Current location button renders with my_location icon and tooltip',
+        (tester) async {
+          await tester.pumpWidget(
+            MaterialApp(
+              home: EgyptLocationPickerScreen(
+                boundaryService: boundaryService,
+                tileProvider: MockOfflineTileProvider(),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          expect(find.byIcon(Icons.my_location), findsOneWidget);
+          expect(find.byTooltip('موقعي الحالي'), findsOneWidget);
+        },
+      );
+
+      testWidgets(
+        'Disabled location services displays Arabic alert dialog with تشغيل الموقع button',
+        (tester) async {
+          final mockLocation = MockTestLocationService(serviceEnabled: false);
+
+          await tester.pumpWidget(
+            MaterialApp(
+              home: EgyptLocationPickerScreen(
+                boundaryService: boundaryService,
+                tileProvider: MockOfflineTileProvider(),
+                locationService: mockLocation,
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          // Tap current location button
+          await tester.tap(find.byIcon(Icons.my_location));
+          await tester.pumpAndSettle();
+
+          // Verify Arabic alert dialog explaining location must be enabled
+          expect(find.text('خدمات الموقع غير مفعلة'), findsOneWidget);
+          expect(
+            find.textContaining('يرجى تفعيل خدمات الموقع الجغرافي'),
+            findsOneWidget,
+          );
+          expect(find.text('تشغيل الموقع'), findsOneWidget);
+          expect(find.text('إلغاء'), findsWidgets);
+
+          // Tap تشغيل الموقع button
+          await tester.tap(find.widgetWithText(ElevatedButton, 'تشغيل الموقع'));
+          await tester.pumpAndSettle();
+
+          expect(mockLocation.openSettingsCalled, isTrue);
+          // Dialog dismissed
+          expect(find.text('خدمات الموقع غير مفعلة'), findsNothing);
+        },
+      );
+
+      testWidgets(
+        'Denied location permission displays Arabic snackbar and does not select point',
+        (tester) async {
+          final mockLocation = MockTestLocationService(
+            serviceEnabled: true,
+            permission: LocationPermission.denied,
+          );
+
+          await tester.pumpWidget(
+            MaterialApp(
+              home: EgyptLocationPickerScreen(
+                boundaryService: boundaryService,
+                tileProvider: MockOfflineTileProvider(),
+                locationService: mockLocation,
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          await tester.tap(find.byIcon(Icons.my_location));
+          await tester.pumpAndSettle();
+
+          expect(
+            find.text('تم رفض إذن الوصول إلى الموقع الجغرافي'),
+            findsOneWidget,
+          );
+          expect(find.text('لم يتم تحديد موقع بعد'), findsOneWidget);
+        },
+      );
+
+      testWidgets(
+        'Permanently denied permission displays dialog with فتح إعدادات التطبيق button',
+        (tester) async {
+          final mockLocation = MockTestLocationService(
+            serviceEnabled: true,
+            permission: LocationPermission.deniedForever,
+          );
+
+          await tester.pumpWidget(
+            MaterialApp(
+              home: EgyptLocationPickerScreen(
+                boundaryService: boundaryService,
+                tileProvider: MockOfflineTileProvider(),
+                locationService: mockLocation,
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          await tester.tap(find.byIcon(Icons.my_location));
+          await tester.pumpAndSettle();
+
+          expect(find.text('إذن الموقع مطلوب'), findsOneWidget);
+          expect(
+            find.textContaining(
+              'تم رفض إذن الوصول إلى الموقع الجغرافي بشكل دائم',
+            ),
+            findsOneWidget,
+          );
+          expect(find.text('فتح إعدادات التطبيق'), findsOneWidget);
+
+          await tester.tap(
+            find.widgetWithText(ElevatedButton, 'فتح إعدادات التطبيق'),
+          );
+          await tester.pumpAndSettle();
+
+          expect(mockLocation.openAppSettingsCalled, isTrue);
+          expect(find.text('إذن الموقع مطلوب'), findsNothing);
+        },
+      );
+
+      testWidgets(
+        'Successful GPS acquisition moves camera, selects position inside Egypt, auto-detects governorate, and enables confirmation',
+        (tester) async {
+          final mockLocation = MockTestLocationService(
+            serviceEnabled: true,
+            permission: LocationPermission.whileInUse,
+            positionToReturn: Position(
+              latitude: 28.1099, // Minya
+              longitude: 30.7503,
+              timestamp: DateTime.now(),
+              accuracy: 5.0,
+              altitude: 40.0,
+              altitudeAccuracy: 1.0,
+              heading: 0.0,
+              headingAccuracy: 0.0,
+              speed: 0.0,
+              speedAccuracy: 0.0,
+            ),
+          );
+
+          await tester.pumpWidget(
+            MaterialApp(
+              home: EgyptLocationPickerScreen(
+                boundaryService: boundaryService,
+                tileProvider: MockOfflineTileProvider(),
+                locationService: mockLocation,
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          // Before GPS: no location selected
+          expect(find.text('لم يتم تحديد موقع بعد'), findsOneWidget);
+
+          // Tap GPS button
+          await tester.tap(find.byIcon(Icons.my_location));
+          await tester.pumpAndSettle();
+
+          // Governorate automatically detected as Minya
+          expect(find.text('المحافظة: المنيا'), findsOneWidget);
+          expect(
+            find.textContaining('تم تحديد موقعك الحالي بنجاح: المنيا'),
+            findsOneWidget,
+          );
+
+          // Confirmation button is now enabled
+          final confirmBtn = tester.widget<ElevatedButton>(
+            find.widgetWithText(ElevatedButton, 'تأكيد الموقع'),
+          );
+          expect(confirmBtn.onPressed, isNotNull);
+        },
+      );
+
+      testWidgets(
+        'GPS position outside Egypt marks location as invalid, disables confirmation, and displays warning snackbar',
+        (tester) async {
+          final mockLocation = MockTestLocationService(
+            serviceEnabled: true,
+            permission: LocationPermission.whileInUse,
+            positionToReturn: Position(
+              latitude: 41.9028, // Rome (Outside Egypt)
+              longitude: 12.4964,
+              timestamp: DateTime.now(),
+              accuracy: 5.0,
+              altitude: 20.0,
+              altitudeAccuracy: 1.0,
+              heading: 0.0,
+              headingAccuracy: 0.0,
+              speed: 0.0,
+              speedAccuracy: 0.0,
+            ),
+          );
+
+          await tester.pumpWidget(
+            MaterialApp(
+              home: EgyptLocationPickerScreen(
+                boundaryService: boundaryService,
+                tileProvider: MockOfflineTileProvider(),
+                locationService: mockLocation,
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          await tester.tap(find.byIcon(Icons.my_location));
+          await tester.pumpAndSettle();
+
+          // Warning snackbar displayed
+          expect(
+            find.textContaining(
+              'الموقع الحالي يقع خارج حدود جمهورية مصر العربية',
+            ),
+            findsOneWidget,
+          );
+
+          // Bottom panel marks point as outside Egypt
+          expect(
+            find.text(
+              'الموقع المختار خارج الحدود الجغرافية لجمهورية مصر العربية',
+            ),
+            findsOneWidget,
+          );
+
+          // Confirmation button is disabled
+          final confirmBtn = tester.widget<ElevatedButton>(
+            find.widgetWithText(ElevatedButton, 'تأكيد الموقع'),
+          );
+          expect(confirmBtn.onPressed, isNull);
+        },
+      );
+
+      testWidgets('GPS timeout displays user-friendly Arabic error snackbar', (
+        tester,
+      ) async {
+        final mockLocation = MockTestLocationService(
+          serviceEnabled: true,
+          permission: LocationPermission.whileInUse,
+          exceptionToThrow: TimeoutException('GPS timed out after 20 seconds'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: EgyptLocationPickerScreen(
+              boundaryService: boundaryService,
+              tileProvider: MockOfflineTileProvider(),
+              locationService: mockLocation,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byIcon(Icons.my_location));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text(
+            'استغرق تحديد الموقع وقتاً طويلاً. يرجى المحاولة مرة أخرى.',
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets(
+        'Duplicate GPS requests while locating are ignored and show loading indicator',
+        (tester) async {
+          final mockLocation = MockTestLocationService(
+            serviceEnabled: true,
+            permission: LocationPermission.whileInUse,
+            simulatedDelay: const Duration(milliseconds: 250),
+          );
+
+          await tester.pumpWidget(
+            MaterialApp(
+              home: EgyptLocationPickerScreen(
+                boundaryService: boundaryService,
+                tileProvider: MockOfflineTileProvider(),
+                locationService: mockLocation,
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          // First tap starts location fetch
+          await tester.tap(find.byIcon(Icons.my_location));
+          await tester.pump(const Duration(milliseconds: 50));
+
+          // Loading indicator is shown inside the current location button
+          expect(find.byType(CircularProgressIndicator), findsWidgets);
+
+          // Second tap while still locating should be ignored
+          await tester.tap(find.byType(InkWell).last);
+          await tester.pump(const Duration(milliseconds: 300));
+          await tester.pumpAndSettle();
+
+          // Position was fetched exactly once!
+          expect(mockLocation.positionCallCount, equals(1));
+        },
+      );
+
+      test(
+        'Android launcher icon resources and manifest verification (Task 3)',
+        () {
+          // 1. Verify exact source image exists and is untouched
+          final sourceIcon = File('assets/Icon/Icon.png');
+          expect(sourceIcon.existsSync(), isTrue);
+
+          // 2. Verify Android launcher icon densities exist
+          final densities = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi'];
+          for (final density in densities) {
+            final iconFile = File(
+              'android/app/src/main/res/mipmap-$density/ic_launcher.png',
+            );
+            expect(
+              iconFile.existsSync(),
+              isTrue,
+              reason: 'Missing mipmap-$density/ic_launcher.png',
+            );
+          }
+
+          // 3. Verify AndroidManifest.xml references @mipmap/ic_launcher and location permissions
+          final manifest = File('android/app/src/main/AndroidManifest.xml')
+              .readAsStringSync();
+          expect(manifest, contains('android:icon="@mipmap/ic_launcher"'));
+          expect(manifest, contains('android.permission.ACCESS_FINE_LOCATION'));
+          expect(
+            manifest,
+            contains('android.permission.ACCESS_COARSE_LOCATION'),
+          );
+          expect(manifest, isNot(contains('ACCESS_BACKGROUND_LOCATION')));
+
+          // 4. Verify no iOS location permissions were added (Android-only requirement)
+          final iosPlist = File('ios/Runner/Info.plist');
+          if (iosPlist.existsSync()) {
+            final plistContent = iosPlist.readAsStringSync();
+            expect(
+              plistContent,
+              isNot(contains('NSLocationWhenInUseUsageDescription')),
+            );
+            expect(
+              plistContent,
+              isNot(contains('NSLocationAlwaysUsageDescription')),
+            );
+          }
+        },
+      );
+    },
+  );
 }

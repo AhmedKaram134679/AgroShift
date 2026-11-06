@@ -1,11 +1,50 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:agro_shift/data/datasources/local/egypt_boundary_service.dart';
 import 'package:agro_shift/domain/environment/models/selected_location.dart';
 
 /// Available basemap layers for the Egypt location picker.
 enum MapLayerType { satellite, streets }
+
+/// Contract for GPS location services enabling deterministic testing and seams.
+abstract class LocationService {
+  Future<bool> isLocationServiceEnabled();
+  Future<LocationPermission> checkPermission();
+  Future<LocationPermission> requestPermission();
+  Future<Position> getCurrentPosition({LocationSettings? locationSettings});
+  Future<bool> openLocationSettings();
+  Future<bool> openAppSettings();
+}
+
+/// Production implementation backed by the geolocator plugin.
+class GeolocatorLocationService implements LocationService {
+  const GeolocatorLocationService();
+
+  @override
+  Future<bool> isLocationServiceEnabled() =>
+      Geolocator.isLocationServiceEnabled();
+
+  @override
+  Future<LocationPermission> checkPermission() => Geolocator.checkPermission();
+
+  @override
+  Future<LocationPermission> requestPermission() =>
+      Geolocator.requestPermission();
+
+  @override
+  Future<Position> getCurrentPosition({LocationSettings? locationSettings}) =>
+      Geolocator.getCurrentPosition(locationSettings: locationSettings);
+
+  @override
+  Future<bool> openLocationSettings() => Geolocator.openLocationSettings();
+
+  @override
+  Future<bool> openAppSettings() => Geolocator.openAppSettings();
+}
 
 /// Screen allowing the user to pick an agricultural field location on an interactive map
 /// strictly restricted and verified against the Arab Republic of Egypt's geographic boundaries.
@@ -21,6 +60,7 @@ class EgyptLocationPickerScreen extends StatefulWidget {
   final void Function(TileImage tile, Object error, StackTrace? stackTrace)?
   onTileLoadError; // Test seam for observing/simulating tile errors
   final MapLayerType initialLayer;
+  final LocationService locationService;
 
   const EgyptLocationPickerScreen({
     super.key,
@@ -31,6 +71,7 @@ class EgyptLocationPickerScreen extends StatefulWidget {
     this.tileProvider,
     this.onTileLoadError,
     this.initialLayer = MapLayerType.satellite,
+    this.locationService = const GeolocatorLocationService(),
   });
 
   @override
@@ -38,7 +79,8 @@ class EgyptLocationPickerScreen extends StatefulWidget {
       _EgyptLocationPickerScreenState();
 }
 
-class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen> {
+class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen>
+    with WidgetsBindingObserver {
   static const String _esriSatelliteUrl =
       'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
   static const String _esriLabelsUrl =
@@ -60,6 +102,8 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen> {
   String? _detectedGovernorate;
   bool _isPointInEgypt = false;
   bool _hasTileLoadError = false;
+  bool _isLocating = false;
+  bool _pendingLocationServiceCheck = false;
 
   // Center of Egypt (near Minya/Asyut)
   static const LatLng _egyptCenter = LatLng(27.0, 30.8);
@@ -71,6 +115,7 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _selectedLayer = widget.initialLayer;
     _mapController = MapController();
     final hasValidInitial =
@@ -162,7 +207,215 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _pendingLocationServiceCheck) {
+      _pendingLocationServiceCheck = false;
+      _determineCurrentLocation();
+    }
+  }
+
+  Future<void> _determineCurrentLocation() async {
+    if (_isLocating) return;
+
+    if (_boundaryService == null) {
+      _showSnackBar(
+        'يرجى الانتظار حتى اكتمال تحميل الحدود الجغرافية لمصر',
+        isError: true,
+      );
+      return;
+    }
+
+    // 1. Check whether Android location services are enabled
+    final serviceEnabled = await widget.locationService
+        .isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      if (!mounted) return;
+      await _showLocationServiceDisabledDialog();
+      return;
+    }
+
+    // 2. Check and request location permission
+    var permission = await widget.locationService.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await widget.locationService.requestPermission();
+      if (permission == LocationPermission.denied) {
+        if (!mounted) return;
+        _showSnackBar('تم رفض إذن الوصول إلى الموقع الجغرافي', isError: true);
+        return;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      if (!mounted) return;
+      await _showPermissionPermanentlyDeniedDialog();
+      return;
+    }
+
+    // 3. Retrieve current GPS position
+    setState(() {
+      _isLocating = true;
+    });
+
+    try {
+      final position = await widget.locationService.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 20),
+        ),
+      );
+
+      if (!mounted) return;
+
+      final latLng = LatLng(position.latitude, position.longitude);
+
+      // Move camera to current coordinates with zoom 15.0
+      _mapController.move(latLng, 15.0);
+
+      // Call existing point selection to trigger boundary & governorate detection
+      _onPointSelected(latLng);
+
+      if (!_isPointInEgypt) {
+        _showSnackBar(
+          'الموقع الحالي يقع خارج حدود جمهورية مصر العربية (${position.latitude.toStringAsFixed(4)}°، ${position.longitude.toStringAsFixed(4)}°)',
+          isError: true,
+        );
+      } else {
+        _showSnackBar('تم تحديد موقعك الحالي بنجاح: $_detectedGovernorate');
+      }
+    } on TimeoutException {
+      if (!mounted) return;
+      _showSnackBar(
+        'استغرق تحديد الموقع وقتاً طويلاً. يرجى المحاولة مرة أخرى.',
+        isError: true,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showSnackBar('تعذر تحديد موقعك الحالي: $e', isError: true);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLocating = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _showLocationServiceDisabledDialog() async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.location_off, color: Colors.amber, size: 24),
+              SizedBox(width: 8),
+              Text(
+                'خدمات الموقع غير مفعلة',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: const Text(
+            'يرجى تفعيل خدمات الموقع الجغرافي (GPS) على هاتفك لنتمكن من تحديد موقع حقلك الزراعي بدقة.',
+            style: TextStyle(fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('إلغاء'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                _pendingLocationServiceCheck = true;
+                Navigator.of(ctx).pop();
+                await widget.locationService.openLocationSettings();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1B5E20),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('تشغيل الموقع'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showPermissionPermanentlyDeniedDialog() async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.security, color: Colors.red, size: 24),
+              SizedBox(width: 8),
+              Text(
+                'إذن الموقع مطلوب',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: const Text(
+            'تم رفض إذن الوصول إلى الموقع الجغرافي بشكل دائم. يرجى فتح إعدادات التطبيق وتفعيل الإذن لتحديد موقع الحقل.',
+            style: TextStyle(fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('إلغاء'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                _pendingLocationServiceCheck = true;
+                Navigator.of(ctx).pop();
+                await widget.locationService.openAppSettings();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1B5E20),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('فتح إعدادات التطبيق'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(fontSize: 13, color: Colors.white),
+        ),
+        backgroundColor: isError
+            ? Colors.red.shade800
+            : const Color(0xFF1B5E20),
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _mapController.dispose();
     super.dispose();
   }
@@ -392,6 +645,43 @@ class _EgyptLocationPickerScreenState extends State<EgyptLocationPickerScreen> {
                     icon: Icons.map_outlined,
                   ),
                 ],
+              ),
+            ),
+          ),
+        ),
+
+        // Current GPS Location Button
+        Positioned(
+          right: 12,
+          bottom: 50,
+          child: Material(
+            elevation: 4,
+            shape: const CircleBorder(),
+            color: Colors.white,
+            child: InkWell(
+              onTap: _isLocating ? null : _determineCurrentLocation,
+              customBorder: const CircleBorder(),
+              child: Tooltip(
+                message: 'موقعي الحالي',
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  alignment: Alignment.center,
+                  child: _isLocating
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Color(0xFF1B5E20),
+                          ),
+                        )
+                      : const Icon(
+                          Icons.my_location,
+                          size: 22,
+                          color: Color(0xFF1B5E20),
+                        ),
+                ),
               ),
             ),
           ),
